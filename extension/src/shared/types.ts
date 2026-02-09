@@ -52,12 +52,15 @@ export interface ResponseSpec {
   status: number
   statusText: string
   headers: Record<string, string>
+  /** 原始 Set-Cookie 数组（保留多条） */
+  setCookies?: string[]
   body: ResponseBody
 }
 
 export type ResponseBody =
   | { type: 'json'; value: any }
   | { type: 'text'; value: string }
+  | { type: 'base64'; value: string; mimeType?: string }
 
 export interface TimingInfo {
   startTime: number

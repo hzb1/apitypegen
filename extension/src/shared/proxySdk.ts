@@ -109,8 +109,9 @@ async function proxyFetchRaw(
   status: number
   statusText: string
   headers: Record<string, string>
+  setCookies?: string[]
   bodyText: string
-  bodyType: 'json' | 'text'
+  bodyType: 'json' | 'text' | 'base64'
 }> {
   const requestId = genRequestId()
   let timer: number | undefined;
@@ -190,6 +191,7 @@ async function proxyFetchRaw(
         status: res.status,
         statusText: res.statusText,
         headers: res.headers,
+        setCookies: res.setCookies,
         bodyText: res.body.type === 'json' ? JSON.stringify(res.body.value) : res.body.value,
         bodyType: res.body.type,
       })
@@ -221,8 +223,9 @@ type ProxyResponseRaw = {
   status: number
   statusText: string
   headers: Record<string, string>
+  setCookies?: string[]
   bodyText: string
-  bodyType: 'json' | 'text'
+  bodyType: 'json' | 'text' | 'base64'
 }
 
 class ProxyResponse {
@@ -248,6 +251,11 @@ class ProxyResponse {
 
   get headers() {
     return new Headers(this.raw.headers)
+  }
+
+  /** 原始 Set-Cookie 数组（插件模式下可用） */
+  get setCookies() {
+    return this.raw.setCookies
   }
 
   get bodyUsed() {
