@@ -9,6 +9,7 @@ const pathResolve = (dir: string) => {
 
 const alias: Record<string, string> = {
   '@': pathResolve('./src'),
+  '@extension': pathResolve('../extension'),
 }
 
 

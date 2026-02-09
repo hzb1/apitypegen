@@ -1,7 +1,7 @@
 import { useEffect, useReducer, useRef } from "react";
 import type { OpenAPI } from "openapi-types";
-import { request } from "../../../extension/src/shared/proxySdk.ts"; //
-import { ProxyError } from "../../../extension/src/shared/types.ts"; //
+import { proxyFetch } from "@extension/src/shared/proxySdk.ts";
+import { ProxyError } from "@extension/src/shared/types.ts";
 
 /* -------------------------------------------------------------------------- */
 /* types                                    */
@@ -121,7 +121,7 @@ export function useSwagger(params: {
       try {
         const configUrl = `${baseUrl}/${version}${swaggerConfigUrl}`; //
         console.log('configUrl', configUrl);
-        const res = await request(configUrl); //
+        const res = await proxyFetch(configUrl); //
 
         if (!res.ok) throw new Error(`Status: ${res.status}`);
         const config = (await res.json()) as SwaggerConfig;
@@ -156,7 +156,7 @@ export function useSwagger(params: {
     const fetchDocument = async () => {
       try {
         const docUrl = `${baseUrl}${serviceUrl}`; //
-        const res = await request(docUrl);
+        const res = await proxyFetch(docUrl);
         const doc = (await res.json()) as OpenAPI.Document;
 
         if (rid !== docRequestIdRef.current) return;

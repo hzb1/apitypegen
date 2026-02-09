@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { StyleProvider } from "@ant-design/cssinjs";
 import "./index.css";
 import Home from "./pages/home/Home.tsx";
+import ProxyFetchDemo from "./pages/proxy-fetch/ProxyFetchDemo.tsx";
 
 import "dayjs/locale/zh-cn";
 
@@ -16,6 +17,10 @@ const router = createBrowserRouter([
     path: "/",
     Component: Home,
     // loader: loadRootData,
+  },
+  {
+    path: "/proxy-fetch",
+    Component: ProxyFetchDemo,
   },
 ]);
 

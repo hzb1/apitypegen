@@ -276,10 +276,10 @@ class ProxyResponse {
 }
 
 /* ----------------------------------
- * 最终统一 API：request ≈ fetch
+ * 最终统一 API：proxyFetch ≈ fetch
  * ---------------------------------- */
 
-export async function request(
+export async function proxyFetch(
   input: RequestInfo,
   init?: RequestInit & { timeout?: number },
 ): Promise<Response | ProxyResponse> {
@@ -289,12 +289,12 @@ export async function request(
 
   if (!usePlugin) {
     console.warn('usePlugin', usePlugin)
-    console.warn('request', input, init)
+    console.warn('proxyFetch', input, init)
     // 原生 fetch
     return fetch(input, init)
   }
 
-  console.warn('request', url, init)
+  console.warn('proxyFetch', url, init)
 
   try {
     const raw = await proxyFetchRaw(url, init);
