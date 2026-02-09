@@ -50,12 +50,17 @@ jobs:
         run: |
           VERSION=$(node -p "require('./package.json').version")
           ZIP_NAME="ts-swagger-extension-dist-${VERSION}.zip"
+          LATEST_NAME="ts-swagger-extension-dist-latest.zip"
           cd dist
           zip -r "../${ZIP_NAME}" .
           cd ..
+          cp "${ZIP_NAME}" "${LATEST_NAME}"
           echo "ZIP_NAME=${ZIP_NAME}" >> $GITHUB_ENV
+          echo "LATEST_NAME=${LATEST_NAME}" >> $GITHUB_ENV
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: extension/${{ env.ZIP_NAME }}
+          files: |
+            extension/${{ env.ZIP_NAME }}
+            extension/${{ env.LATEST_NAME }}

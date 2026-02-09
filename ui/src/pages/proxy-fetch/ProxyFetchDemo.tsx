@@ -42,9 +42,9 @@ type ResultState = {
   errorMessage?: string;
 };
 
-const EXTENSION_URL = import.meta.env.VITE_PROXY_EXTENSION_URL as
-  | string
-  | undefined;
+const EXTENSION_URL =
+  (import.meta.env.VITE_PROXY_EXTENSION_URL as string | undefined) ??
+  "https://github.com/hzb1/ts-swagger/releases/latest/download/ts-swagger-extension-dist-latest.zip";
 
 const SCENARIOS: Scenario[] = [
   {
