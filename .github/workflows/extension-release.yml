@@ -5,6 +5,9 @@ on:
     tags:
       - "v*"
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -34,10 +37,19 @@ jobs:
       - name: Build extension
         run: npm run build
 
+      - name: Check dist output
+        run: |
+          if [ ! -d dist ]; then
+            echo "dist not found"
+            exit 1
+          fi
+          echo "dist files:"
+          ls -la dist
+
       - name: Package dist
         run: |
           VERSION=$(node -p "require('./package.json').version")
-          ZIP_NAME="ts-swagger-extension-${VERSION}.zip"
+          ZIP_NAME="ts-swagger-extension-dist-${VERSION}.zip"
           cd dist
           zip -r "../${ZIP_NAME}" .
           cd ..
