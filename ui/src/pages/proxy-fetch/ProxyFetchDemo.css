@@ -1,0 +1,107 @@
+.proxy-demo-page {
+  min-height: 100vh;
+  padding: 32px 40px 80px;
+  background: linear-gradient(160deg, #f6f8ff 0%, #ffffff 45%, #f7f9fc 100%);
+}
+
+.proxy-demo-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 24px 28px;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 14px 30px rgba(30, 50, 94, 0.12);
+}
+
+.proxy-demo-title {
+  margin-bottom: 8px;
+}
+
+.proxy-demo-subtitle {
+  margin-bottom: 0;
+  color: rgba(0, 0, 0, 0.65);
+}
+
+.proxy-demo-status {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.proxy-demo-section {
+  margin-top: 24px;
+}
+
+.proxy-demo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.proxy-demo-card {
+  border-radius: 14px;
+  box-shadow: 0 12px 24px rgba(25, 50, 90, 0.08);
+}
+
+.proxy-demo-desc {
+  color: rgba(0, 0, 0, 0.65);
+}
+
+.proxy-demo-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.proxy-demo-url {
+  color: rgba(0, 0, 0, 0.75);
+  word-break: break-all;
+}
+
+.proxy-demo-result {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.proxy-demo-pre {
+  margin: 0;
+  padding: 12px;
+  border-radius: 10px;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-size: 12px;
+  max-height: 180px;
+  overflow: auto;
+}
+
+.proxy-demo-row {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.proxy-demo-block {
+  flex: 1;
+  min-width: 240px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+@media (max-width: 768px) {
+  .proxy-demo-page {
+    padding: 20px 16px 40px;
+  }
+
+  .proxy-demo-hero {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
