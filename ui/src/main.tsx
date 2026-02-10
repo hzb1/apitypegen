@@ -13,21 +13,26 @@ import zhCN from "antd/locale/zh_CN";
 import { ConfigProvider } from "antd";
 import { createBrowserRouter, RouterProvider } from "react-router";
 
-const router = createBrowserRouter([
+const router = createBrowserRouter(
+  [
+    {
+      path: "/",
+      Component: Home,
+      // loader: loadRootData,
+    },
+    {
+      path: "/proxy-fetch",
+      Component: ProxyFetchDemo,
+    },
+    {
+      path: "/network",
+      Component: NetworkPanel,
+    },
+  ],
   {
-    path: "/",
-    Component: Home,
-    // loader: loadRootData,
+    basename: import.meta.env.BASE_URL,
   },
-  {
-    path: "/proxy-fetch",
-    Component: ProxyFetchDemo,
-  },
-  {
-    path: "/network",
-    Component: NetworkPanel,
-  },
-]);
+);
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
