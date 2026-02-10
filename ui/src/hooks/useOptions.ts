@@ -30,6 +30,8 @@ const defaultTemplate = (ctx: {
 
 type ArrayType = 'bracket' | string
 
+type RequestTemplateRaw = GeneratorOptions['requestTemplate'] | string
+
 type ConfigState = {
   indent: number
   useInterface: boolean
@@ -38,7 +40,7 @@ type ConfigState = {
   arrayType: ArrayType
   int64ToString: boolean
   namingStrategy: string
-  requestTemplateRaw: any
+  requestTemplateRaw: RequestTemplateRaw
   showExample: boolean
 }
 
@@ -93,14 +95,16 @@ export function useOptions() {
       return name
     }
 
-    let requestTemplate: any = undefined
+    let requestTemplate: GeneratorOptions['requestTemplate'] | undefined
     try {
       if (typeof configState.requestTemplateRaw === 'function') {
         requestTemplate = configState.requestTemplateRaw
       } else if (typeof configState.requestTemplateRaw === 'string') {
         // eval 字符串以得到函数
-
-        requestTemplate = eval(configState.requestTemplateRaw)
+        const evaluated = eval(configState.requestTemplateRaw)
+        if (typeof evaluated === 'function') {
+          requestTemplate = evaluated as GeneratorOptions['requestTemplate']
+        }
       }
     } catch (e) {
       // 保持与原实现一致：打印错误并继续

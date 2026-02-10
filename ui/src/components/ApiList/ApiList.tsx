@@ -1,8 +1,10 @@
 import "./ApiList.css";
 import type { ApiDetail } from "../../../types.ts";
 import ApiItem from "./ApiItem.tsx";
-import React from "react";
-import { RightOutlined } from "@ant-design/icons";
+import React, { useMemo, useRef } from "react";
+import { AimOutlined, RightOutlined } from "@ant-design/icons";
+import { FloatButton} from "antd";
+import { useScrollToSelected } from "@/hooks/useScrollToSelected.ts";
 
 export type ApiGroup = {
   id: string;
@@ -24,20 +26,57 @@ export type ApiListProps = {
   // onExpandChange: (expanded: string[]) => void;
   // 点击分组标题时触发
   onGroupTitleClick?: (groupItem: ApiGroup) => void;
+  scrollContainerRef?: React.RefObject<HTMLElement | null>;
 };
 
 const ApiList: React.FC<ApiListProps> = ({
   apis,
   onSelectKeyChange,
-   onGroupTitleClick,
+  onGroupTitleClick,
+  scrollContainerRef,
 }) => {
 
   const handleGroupTitleClick = (groupItem: ApiGroup) => {
     onGroupTitleClick?.(groupItem);
   };
 
+  const fallbackContainerRef = useRef<HTMLElement>(null);
+  const containerRef = scrollContainerRef ?? fallbackContainerRef;
+
+  const selectedKey = useMemo(() => {
+    for (const group of apis) {
+      const match = group.children.find((item) => item.isSelected);
+      if (match) return match.key;
+    }
+    return "";
+  }, [apis]);
+
+  const expandedToken = useMemo(
+    () =>
+      apis
+        .map((group) => `${group.id}:${group.isExpanded}`)
+        .join("|"),
+    [apis],
+  );
+
+  const targetSelector = useMemo(() => {
+    if (!selectedKey) return "";
+    const escaped =
+      typeof CSS !== "undefined" && "escape" in CSS
+        ? CSS.escape(selectedKey)
+        : selectedKey.replace(/["\\]/g, "\\$&");
+    return `[data-api-key="${escaped}"]`;
+  }, [selectedKey]);
+
+  const { show, scrollToSelected } = useScrollToSelected({
+    containerRef,
+    targetSelector,
+    enabled: Boolean(selectedKey),
+    deps: [expandedToken],
+  });
+
   return (
-    <>
+    <div className="api-list-root">
       {apis.map((groupItem) => {
         const groupName = groupItem.children.length
           ? `${groupItem.name}`
@@ -93,7 +132,16 @@ const ApiList: React.FC<ApiListProps> = ({
           </div>
         );
       })}
-    </>
+      {show && (
+          <FloatButton
+            className={'api-list-jump'}
+            type="primary"
+            shape="circle"
+            icon={<AimOutlined />}
+            onClick={scrollToSelected}
+          />
+      )}
+    </div>
   );
 };
 

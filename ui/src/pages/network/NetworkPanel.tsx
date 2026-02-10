@@ -12,7 +12,7 @@ import {
   Tag,
   Typography,
 } from "antd";
-import { proxyFetch } from "@extension/src/shared/proxySdk.ts";
+import {proxyFetch, ProxyResponse} from "@extension/src/shared/proxySdk.ts";
 import {
   ProxyError,
   type ErrorSpec,
@@ -171,7 +171,7 @@ const NetworkPanel: React.FC = () => {
       const endTime = Date.now();
       const headers = readHeaders(response.headers);
       const contentType = getContentType(headers);
-      const setCookies = (response as { setCookies?: string[] }).setCookies;
+      const setCookies = (response as { setCookies?: string[], url: string }).setCookies;
 
       let bodySpec: ResponseSpec["body"];
       if (isImageContentType(contentType)) {
@@ -187,7 +187,7 @@ const NetworkPanel: React.FC = () => {
       }
 
       const responseSpec: ResponseSpec = {
-        url: response.url || trimmedUrl,
+        url: !(response instanceof ProxyResponse) && response?.url || trimmedUrl,
         status: response.status,
         statusText: response.statusText,
         headers,
@@ -215,7 +215,7 @@ const NetworkPanel: React.FC = () => {
 
       setEntries((prev) => [entry, ...prev]);
       setSelectedId(entry.id);
-    } catch (error: any) {
+    } catch (error) {
       const endTime = Date.now();
       const timing: TimingInfo = {
         startTime,
@@ -872,7 +872,7 @@ function toErrorSpec(error: unknown): ErrorSpec {
   };
 }
 
-function safeJsonParse(text: string): { success: true; value: any } | { success: false } {
+function safeJsonParse(text: string): { success: true; value: unknown } | { success: false } {
   if (!text) return { success: false };
   try {
     return { success: true, value: JSON.parse(text) };
@@ -979,7 +979,7 @@ function formatDateTime(timestamp?: number): string {
   return `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
 }
 
-function pretty(value: any): string {
+function pretty(value: unknown): string {
   try {
     return JSON.stringify(value, null, 2);
   } catch {

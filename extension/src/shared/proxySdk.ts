@@ -228,7 +228,7 @@ type ProxyResponseRaw = {
   bodyType: 'json' | 'text' | 'base64'
 }
 
-class ProxyResponse {
+export class ProxyResponse {
   private _bodyUsed = false
 
   private raw:  ProxyResponseRaw
@@ -287,10 +287,12 @@ class ProxyResponse {
  * 最终统一 API：proxyFetch ≈ fetch
  * ---------------------------------- */
 
+export type ProxyFetchResponse = Response | ProxyResponse
+
 export async function proxyFetch(
   input: RequestInfo,
   init?: RequestInit & { timeout?: number },
-): Promise<Response | ProxyResponse> {
+): Promise<ProxyFetchResponse> {
   const url = typeof input === 'string' ? input : input.url
 
   const usePlugin = await checkPluginEnabled()

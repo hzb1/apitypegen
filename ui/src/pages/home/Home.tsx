@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AutoComplete, Input, Row, Col, Spin, Tag, Empty, Modal } from "antd";
 import { Layout, theme } from "antd";
+import { type AutoCompleteProps } from "antd";
 import "./Home.css";
 import { useSwagger } from "@/hooks/useSwagger.ts";
 import { useOptions } from "@/hooks/useOptions.ts";
+import type { OpenAPIV2, OpenAPIV3 } from "openapi-types";
 import {
   CheckCircleOutlined,
   LoadingOutlined,
@@ -32,6 +34,9 @@ type SearchRecord = {
   value: string;
   updatedAt: number;
 };
+
+type PathItem = OpenAPIV2.PathItemObject | OpenAPIV3.PathItemObject | OpenAPIV3.ReferenceObject;
+type Operation = OpenAPIV2.OperationObject | OpenAPIV3.OperationObject;
 
 const Home: React.FC = () => {
   const {
@@ -80,9 +85,11 @@ const Home: React.FC = () => {
       onDocumentLoaded: (doc) => {
         if (doc.paths) {
           const allTags = new Set<string>();
-          Object.values(doc.paths).forEach((pathItem: any) => {
+          Object.values(doc.paths).forEach((pathItem) => {
+            const item = pathItem as PathItem;
+            if (!item || typeof item !== "object" || "$ref" in item) return;
             ["get", "post", "put", "delete", "patch"].forEach(method => {
-              const op = pathItem[method];
+              const op = (item as Record<string, Operation | undefined>)[method];
               if (op?.tags?.[0]) {
                 // 注意：这里的 ID 生成逻辑应与 apiGroups 保持一致
                 // 如果你的 SideBar 使用的是 stableHash(tag)，则存入 hash
@@ -310,7 +317,7 @@ const Home: React.FC = () => {
   );
 
   const autoCompleteOptions = useMemo(() => {
-    const groups: Array<{ label: string; options: any[] }> = [];
+    const groups: AutoCompleteProps['options'] = [];
     if (historyOptions.length) {
       groups.push({ label: "搜索记录", options: historyOptions, key: "history-group" });
     }

@@ -547,7 +547,7 @@ function formatDateTime(timestamp?: number): string {
   return `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
 }
 
-function pretty(value: any): string {
+function pretty(value: unknown): string {
   try {
     return JSON.stringify(value, null, 2);
   } catch {

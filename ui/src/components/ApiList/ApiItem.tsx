@@ -18,6 +18,7 @@ const ApiItem: React.FC<{ apiItem: TData; onClick: () => void }> = ({
     <li
       key={apiItem.key}
       id={apiItem.key}
+      data-api-key={apiItem.key}
       className={"relative scroll-m-4 first:scroll-m-20"}
     >
       <a
