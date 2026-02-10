@@ -15,6 +15,7 @@ const alias: Record<string, string> = {
 
 // https://vite.dev/config/
 export default defineConfig({
+  base: '/ts-swagger/',
   plugins: [
     react(),
     tailwindcss(),
