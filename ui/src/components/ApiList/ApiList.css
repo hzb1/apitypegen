@@ -1,38 +1,35 @@
 
 .api-list-wrapper {
-    height: 100%;
-    .api-item{
-        width: 100%;
-        display: flex;
-        justify-items: flex-start;
-        cursor: pointer;
-        padding: 6px 12px;
-        box-sizing: border-box;
-        background-color: transparent;
-        transition: background-color 0.3s ease-in-out;
-        border-radius: 4px;
-        .tag-wrapper{
-            display: flex;
-            align-self: flex-start;
-            align-items: flex-start;
-            justify-content: flex-end;
-            flex-shrink: 0;
-            margin-right: 8px;
-            width: 4em;
-            text-align: center;
-            font-size: 10px;
-            .api-item-method {
-                font-size: 10px;
-            }
-        }
-        .api-item-info{
-            flex: 1;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-        }
-        &:hover, &.active{
-            background-color: rgba(0, 0, 0, 0.05);
-        }
+
+    .sidebar-group-icon{
+        font-size: 10px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        /*width: 18px;*/
+        /*height: 18px;*/
+        border-radius: 6px;
+        color: rgba(0, 0, 0, 0.55);
+        transition: transform 0.2s ease, color 0.2s ease;
+    }
+
+    .sidebar-group-icon.expanded{
+        transform: rotate(90deg);
+    }
+
+    .api-group-content{
+        overflow: hidden;
+        max-height: 0;
+        opacity: 0;
+        transform: translateY(-4px);
+        transition: max-height 0.25s ease, opacity 0.2s ease, transform 0.2s ease;
+        pointer-events: none;
+    }
+
+    .api-group-content.expanded{
+        max-height: 1200px;
+        opacity: 1;
+        transform: translateY(0);
+        pointer-events: auto;
     }
 }

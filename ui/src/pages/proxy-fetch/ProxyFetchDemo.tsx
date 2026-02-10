@@ -637,7 +637,14 @@ const ProxyFetchDemo: React.FC = () => {
                   <div className="proxy-demo-result">
                     {result.status === "success" ? (
                       <>
-                        <Tag color="success">成功</Tag>
+                        <Space size="small">
+                          <Tag color="success">成功</Tag>
+                          {result.source && (
+                            <Tag color="default">
+                              {result.source === "proxy" ? "proxy" : "native"}
+                            </Tag>
+                          )}
+                        </Space>
                         <Text>
                           {result.statusCode} {result.statusText}
                         </Text>
@@ -650,7 +657,14 @@ const ProxyFetchDemo: React.FC = () => {
                       </>
                     ) : result.status === "error" ? (
                       <>
-                        <Tag color="error">失败</Tag>
+                        <Space size="small">
+                          <Tag color="error">失败</Tag>
+                          {result.source && (
+                            <Tag color="default">
+                              {result.source === "proxy" ? "proxy" : "native"}
+                            </Tag>
+                          )}
+                        </Space>
                         <Text type="danger">
                           {result.errorType}: {result.errorMessage}
                         </Text>
@@ -733,7 +747,16 @@ const ProxyFetchDemo: React.FC = () => {
               <div className="proxy-demo-result">
                 {results["custom"]?.status === "success" ? (
                   <>
-                    <Tag color="success">成功</Tag>
+                    <Space size="small">
+                      <Tag color="success">成功</Tag>
+                      {results["custom"]?.source && (
+                        <Tag color="default">
+                          {results["custom"]?.source === "proxy"
+                            ? "proxy"
+                            : "native"}
+                        </Tag>
+                      )}
+                    </Space>
                     <Text>
                       {results["custom"]?.statusCode}{" "}
                       {results["custom"]?.statusText}
@@ -747,7 +770,16 @@ const ProxyFetchDemo: React.FC = () => {
                   </>
                 ) : results["custom"]?.status === "error" ? (
                   <>
-                    <Tag color="error">失败</Tag>
+                    <Space size="small">
+                      <Tag color="error">失败</Tag>
+                      {results["custom"]?.source && (
+                        <Tag color="default">
+                          {results["custom"]?.source === "proxy"
+                            ? "proxy"
+                            : "native"}
+                        </Tag>
+                      )}
+                    </Space>
                     <Text type="danger">
                       {results["custom"]?.errorType}:{" "}
                       {results["custom"]?.errorMessage}
