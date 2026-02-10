@@ -1,18 +1,36 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Alert,
+  Badge,
   Button,
   Card,
   Divider,
+  Drawer,
   Input,
   Select,
   Space,
+  Switch,
   Tag,
   Typography,
 } from "antd";
-import { CheckCircleOutlined, CloseCircleOutlined } from "@ant-design/icons";
+import {
+  BarsOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
+} from "@ant-design/icons";
 import { proxyFetch, checkPluginEnabled } from "@extension/src/shared/proxySdk.ts";
-import { ProxyError } from "@extension/src/shared/types.ts";
+import {
+  ProxyError,
+  type ErrorSpec,
+  type ProxyResult,
+  type RequestBody,
+  type RequestSpec,
+  type ResponseSpec,
+  type TimingInfo,
+} from "@extension/src/shared/types.ts";
+import { mapProxyExchangeToNetworkEntry } from "@extension/src/shared/networkMapper.ts";
+import type { NetworkEntry } from "@extension/src/shared/networkTypes.ts";
+import NetworkViewer from "@/components/network/NetworkViewer.tsx";
 import "./ProxyFetchDemo.css";
 
 const { Title, Paragraph, Text } = Typography;
@@ -25,10 +43,17 @@ type Scenario = {
   url: string;
   headers?: Record<string, string>;
   bodyType?: "json" | "text" | "form";
-  body?: any;
+  body?: ScenarioBody;
   timeout?: number;
   abortable?: boolean;
+  stream?: boolean;
 };
+
+type JsonObject = { [key: string]: JsonValue };
+type JsonValue = string | number | boolean | null | JsonValue[] | JsonObject;
+type FormValue = string | number | boolean;
+type FormRecord = Record<string, FormValue>;
+type ScenarioBody = JsonValue | FormRecord | string;
 
 type ResultState = {
   status: "idle" | "running" | "success" | "error";
@@ -55,11 +80,75 @@ const SCENARIOS: Scenario[] = [
     url: "https://example.com",
   },
   {
+    id: "redirect",
+    title: "重定向（302）",
+    description: "测试重定向场景与最终响应。",
+    method: "GET",
+    url: "https://httpbin.org/redirect-to?url=https://httpbin.org/get",
+  },
+  {
+    id: "status-404",
+    title: "错误状态（404）",
+    description: "测试 4xx 状态展示。",
+    method: "GET",
+    url: "https://httpbin.org/status/404",
+  },
+  {
+    id: "status-500",
+    title: "错误状态（500）",
+    description: "测试 5xx 状态展示。",
+    method: "GET",
+    url: "https://httpbin.org/status/500",
+  },
+  {
     id: "json-get",
     title: "JSON GET",
     description: "基础 JSON 响应解析测试。",
     method: "GET",
     url: "https://httpbin.org/get",
+  },
+  {
+    id: "stream",
+    title: "Stream 响应",
+    description: "读取 chunked 数据流，前端拼接字符串。",
+    method: "GET",
+    url: "https://httpbin.org/stream/5",
+    stream: true,
+  },
+  {
+    id: "xml-get",
+    title: "XML GET",
+    description: "测试 text/xml 响应。",
+    method: "GET",
+    url: "https://httpbin.org/xml",
+  },
+  {
+    id: "html-get",
+    title: "HTML GET",
+    description: "测试 text/html 响应。",
+    method: "GET",
+    url: "https://httpbin.org/html",
+  },
+  {
+    id: "image-png",
+    title: "图片响应（PNG）",
+    description: "测试图片预览。",
+    method: "GET",
+    url: "https://httpbin.org/image/png",
+  },
+  {
+    id: "bytes-64k",
+    title: "二进制响应（64KB）",
+    description: "测试二进制/大内容响应。",
+    method: "GET",
+    url: "https://httpbin.org/bytes/65536",
+  },
+  {
+    id: "gzip",
+    title: "压缩响应（gzip）",
+    description: "测试压缩响应头与解压内容。",
+    method: "GET",
+    url: "https://httpbin.org/gzip",
   },
   {
     id: "post-json",
@@ -80,6 +169,56 @@ const SCENARIOS: Scenario[] = [
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     bodyType: "form",
     body: { from: "proxyFetch", action: "submit" },
+  },
+  {
+    id: "put-json",
+    title: "PUT JSON",
+    description: "PUT application/json 数据。",
+    method: "PUT",
+    url: "https://httpbin.org/put",
+    headers: { "Content-Type": "application/json" },
+    bodyType: "json",
+    body: { id: 1, name: "update" },
+  },
+  {
+    id: "patch-json",
+    title: "PATCH JSON",
+    description: "PATCH application/json 数据。",
+    method: "PATCH",
+    url: "https://httpbin.org/patch",
+    headers: { "Content-Type": "application/json" },
+    bodyType: "json",
+    body: { flag: true },
+  },
+  {
+    id: "delete",
+    title: "DELETE 请求",
+    description: "DELETE 语义测试。",
+    method: "DELETE",
+    url: "https://httpbin.org/delete",
+  },
+  {
+    id: "headers-echo",
+    title: "自定义 Header 回显",
+    description: "服务端回显请求头。",
+    method: "GET",
+    url: "https://httpbin.org/headers",
+    headers: { "X-Demo-Header": "proxyFetch" },
+  },
+  {
+    id: "cookies-set",
+    title: "Set-Cookie",
+    description: "测试多条 Set-Cookie 与 Cookie 展示。",
+    method: "GET",
+    url: "https://httpbin.org/cookies/set?session=abc&token=123",
+  },
+  {
+    id: "basic-auth",
+    title: "Basic Auth",
+    description: "测试基础认证。",
+    method: "GET",
+    url: "https://httpbin.org/basic-auth/user/passwd",
+    headers: { Authorization: "Basic dXNlcjpwYXNzd2Q=" },
   },
   {
     id: "timeout",
@@ -115,6 +254,8 @@ const ProxyFetchDemo: React.FC = () => {
   const [controllers, setControllers] = useState<
     Record<string, AbortController>
   >({});
+  const [networkEntries, setNetworkEntries] = useState<NetworkEntry[]>([]);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   const [customUrl, setCustomUrl] = useState("https://httpbin.org/anything");
   const [customMethod, setCustomMethod] = useState("GET");
@@ -128,6 +269,7 @@ const ProxyFetchDemo: React.FC = () => {
     JSON.stringify({ hello: "world" }, null, 2),
   );
   const [customTimeout, setCustomTimeout] = useState("10000");
+  const [useNativeFetch, setUseNativeFetch] = useState(false);
 
   useEffect(() => {
     const check = async () => {
@@ -148,6 +290,8 @@ const ProxyFetchDemo: React.FC = () => {
     setResults((prev) => ({
       ...prev,
       [id]: {
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-expect-error
         status: "idle",
         ...prev[id],
         ...patch,
@@ -167,44 +311,124 @@ const ProxyFetchDemo: React.FC = () => {
       setControllers((prev) => ({ ...prev, [scenario.id]: controller! }));
     }
 
+    const requestId = createRequestId();
+    const startTime = Date.now();
+
+    const {
+      headers: resolvedHeaders,
+      bodySpec,
+      bodyInit,
+    } = buildBodyPayload(
+      scenario.method,
+      scenario.bodyType,
+      scenario.body,
+      scenario.headers ?? {},
+    );
+
+    const requestSpec: RequestSpec = {
+      url: scenario.url,
+      method: scenario.method,
+      headers: resolvedHeaders,
+      body: bodySpec,
+      timeout: scenario.timeout,
+    };
+
     const init: RequestInit & { timeout?: number } = {
       method: scenario.method,
-      headers: scenario.headers,
+      headers: resolvedHeaders,
+      body: bodyInit,
       signal: controller?.signal,
       timeout: scenario.timeout,
     };
 
-    if (scenario.bodyType === "json") {
-      init.body = JSON.stringify(scenario.body ?? {});
-    } else if (scenario.bodyType === "form") {
-      init.body = new URLSearchParams(scenario.body ?? {}).toString();
-    } else if (scenario.bodyType === "text") {
-      init.body = String(scenario.body ?? "");
-    }
-
     const start = performance.now();
 
     try {
-      const response = await proxyFetch(scenario.url, init);
-      const bodyText = await response.text();
+      const response = useNativeFetch
+        ? await fetch(scenario.url, init)
+        : await proxyFetch(scenario.url, init);
       const durationMs = Math.round(performance.now() - start);
+      const headers = readHeaders(response.headers);
+      const contentType = getContentType(headers);
+      const setCookies = (response as { setCookies?: string[] }).setCookies;
+
+      const { bodySpec: responseBody, bodyText } =
+        await readResponseBody(response, headers, contentType, !!scenario.stream);
+
+      const endTime = Date.now();
+
+      const responseSpec: ResponseSpec = {
+        url: ("url" in response && response.url) ? response.url : scenario.url,
+        status: response.status,
+        statusText: response.statusText,
+        headers,
+        setCookies,
+        body: responseBody,
+      };
+
+      const timing: TimingInfo = {
+        startTime,
+        endTime,
+        duration: endTime - startTime,
+      };
+
+      const result: ProxyResult = {
+        ok: true,
+        response: responseSpec,
+        timing,
+      };
+
+      const entry = mapProxyExchangeToNetworkEntry({
+        requestId,
+        request: requestSpec,
+        result,
+      });
+
+      setNetworkEntries((prev) => [entry, ...prev]);
       setResult(scenario.id, {
         status: "success",
         durationMs,
         statusCode: response.status,
         statusText: response.statusText,
-        headers: readHeaders(response.headers),
+        headers,
         bodyText,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       const durationMs = Math.round(performance.now() - start);
       const isProxyError = error instanceof ProxyError;
+      const errorInfo = getErrorInfo(error);
       setResult(scenario.id, {
         status: "error",
         durationMs,
-        errorType: isProxyError ? error.type : error?.name ?? "Unknown",
-        errorMessage: error?.message ?? "Unknown error",
+        errorType: isProxyError ? error.type : errorInfo.name ?? "Unknown",
+        errorMessage: isProxyError ? error.message : errorInfo.message ?? "Unknown error",
       });
+
+      const endTime = Date.now();
+      const timing: TimingInfo = {
+        startTime,
+        endTime,
+        duration: endTime - startTime,
+      };
+      const errorSpec = toErrorSpec(error);
+      const result: ProxyResult = {
+        ok: false,
+        error: errorSpec,
+      };
+
+      const entry = mapProxyExchangeToNetworkEntry(
+        {
+          requestId,
+          request: requestSpec,
+          result,
+          timing,
+        },
+        {
+          meta: { error },
+        },
+      );
+
+      setNetworkEntries((prev) => [entry, ...prev]);
     } finally {
       if (scenario.abortable) {
         setControllers((prev) => {
@@ -256,7 +480,7 @@ const ProxyFetchDemo: React.FC = () => {
     if (customHeaders.trim()) {
       try {
         headers = JSON.parse(customHeaders);
-      } catch (error: any) {
+      } catch {
         setResult("custom", {
           status: "error",
           errorType: "INVALID_HEADERS",
@@ -266,12 +490,12 @@ const ProxyFetchDemo: React.FC = () => {
       }
     }
 
-    let body: any = undefined;
+    let body: Scenario["body"];
     if (customMethod !== "GET" && customBody.trim()) {
       if (customBodyType === "json") {
         try {
           body = JSON.parse(customBody);
-        } catch (error: any) {
+        } catch {
           setResult("custom", {
             status: "error",
             errorType: "INVALID_JSON",
@@ -302,7 +526,7 @@ const ProxyFetchDemo: React.FC = () => {
         bodyType: customBodyType,
         body,
       },
-      pluginAvailable ? "proxy" : "native",
+      useNativeFetch ? "native" : (pluginAvailable ? "proxy" : "native"),
     );
   };
 
@@ -326,6 +550,22 @@ const ProxyFetchDemo: React.FC = () => {
       </div>
 
       <div className="proxy-demo-status">
+        <Card className="proxy-demo-toggle">
+          <Space>
+            <Text strong>请求模式</Text>
+            <Switch
+              checked={useNativeFetch}
+              onChange={setUseNativeFetch}
+              checkedChildren="原生 fetch"
+              unCheckedChildren="proxyFetch"
+            />
+            <Text type="secondary">
+              {useNativeFetch
+                ? "使用浏览器原生 fetch"
+                : "使用 proxyFetch（扩展）"}
+            </Text>
+          </Space>
+        </Card>
         {extensionTag}
         {!EXTENSION_URL && (
           <Alert
@@ -372,7 +612,7 @@ const ProxyFetchDemo: React.FC = () => {
                       onClick={() =>
                         runScenario(
                           scenario,
-                          pluginAvailable ? "proxy" : "native",
+                          useNativeFetch ? "native" : (pluginAvailable ? "proxy" : "native"),
                         )
                       }
                     >
@@ -406,7 +646,14 @@ const ProxyFetchDemo: React.FC = () => {
                   <div className="proxy-demo-result">
                     {result.status === "success" ? (
                       <>
-                        <Tag color="success">成功</Tag>
+                        <Space size="small">
+                          <Tag color="success">成功</Tag>
+                          {result.source && (
+                            <Tag color="default">
+                              {result.source === "proxy" ? "proxy" : "native"}
+                            </Tag>
+                          )}
+                        </Space>
                         <Text>
                           {result.statusCode} {result.statusText}
                         </Text>
@@ -419,7 +666,14 @@ const ProxyFetchDemo: React.FC = () => {
                       </>
                     ) : result.status === "error" ? (
                       <>
-                        <Tag color="error">失败</Tag>
+                        <Space size="small">
+                          <Tag color="error">失败</Tag>
+                          {result.source && (
+                            <Tag color="default">
+                              {result.source === "proxy" ? "proxy" : "native"}
+                            </Tag>
+                          )}
+                        </Space>
                         <Text type="danger">
                           {result.errorType}: {result.errorMessage}
                         </Text>
@@ -502,7 +756,16 @@ const ProxyFetchDemo: React.FC = () => {
               <div className="proxy-demo-result">
                 {results["custom"]?.status === "success" ? (
                   <>
-                    <Tag color="success">成功</Tag>
+                    <Space size="small">
+                      <Tag color="success">成功</Tag>
+                      {results["custom"]?.source && (
+                        <Tag color="default">
+                          {results["custom"]?.source === "proxy"
+                            ? "proxy"
+                            : "native"}
+                        </Tag>
+                      )}
+                    </Space>
                     <Text>
                       {results["custom"]?.statusCode}{" "}
                       {results["custom"]?.statusText}
@@ -516,7 +779,16 @@ const ProxyFetchDemo: React.FC = () => {
                   </>
                 ) : results["custom"]?.status === "error" ? (
                   <>
-                    <Tag color="error">失败</Tag>
+                    <Space size="small">
+                      <Tag color="error">失败</Tag>
+                      {results["custom"]?.source && (
+                        <Tag color="default">
+                          {results["custom"]?.source === "proxy"
+                            ? "proxy"
+                            : "native"}
+                        </Tag>
+                      )}
+                    </Space>
                     <Text type="danger">
                       {results["custom"]?.errorType}:{" "}
                       {results["custom"]?.errorMessage}
@@ -528,8 +800,291 @@ const ProxyFetchDemo: React.FC = () => {
           </Space>
         </Card>
       </div>
+
+      <div className="proxy-demo-fab">
+        <Badge count={networkEntries.length} size="small">
+          <Button
+            type="primary"
+            shape="circle"
+            size="large"
+            icon={<BarsOutlined />}
+            onClick={() => setDrawerOpen(true)}
+          />
+        </Badge>
+      </div>
+
+      <Drawer
+        title="Network 请求"
+        placement="right"
+        width={980}
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        className="proxy-demo-drawer"
+      >
+        <NetworkViewer
+          entries={networkEntries}
+          onClear={() => setNetworkEntries([])}
+        />
+      </Drawer>
     </div>
   );
 };
 
 export default ProxyFetchDemo;
+
+function buildBodyPayload(
+  method: string,
+  bodyType: Scenario["bodyType"],
+  body: Scenario["body"],
+  headers: Record<string, string>,
+): {
+  headers: Record<string, string>;
+  bodySpec?: RequestBody;
+  bodyInit?: BodyInit;
+} {
+  if (method.toUpperCase() === "GET" || method.toUpperCase() === "HEAD") {
+    return { headers };
+  }
+
+  if (!bodyType) {
+    return { headers };
+  }
+
+  const nextHeaders = { ...headers };
+
+  if (bodyType === "json") {
+    if (!hasHeader(nextHeaders, "content-type")) {
+      nextHeaders["Content-Type"] = "application/json";
+    }
+    return {
+      headers: nextHeaders,
+      bodySpec: {
+        type: "json",
+        value: body ?? {},
+      },
+      bodyInit: JSON.stringify(body ?? {}),
+    };
+  }
+
+  if (bodyType === "form") {
+    const form = normalizeFormBody(body);
+    if (!hasHeader(nextHeaders, "content-type")) {
+      nextHeaders["Content-Type"] = "application/x-www-form-urlencoded";
+    }
+    return {
+      headers: nextHeaders,
+      bodySpec: {
+        type: "form",
+        value: form,
+      },
+      bodyInit: new URLSearchParams(form).toString(),
+    };
+  }
+
+  if (bodyType === "text") {
+    if (!hasHeader(nextHeaders, "content-type")) {
+      nextHeaders["Content-Type"] = "text/plain";
+    }
+    return {
+      headers: nextHeaders,
+      bodySpec: {
+        type: "text",
+        value: String(body ?? ""),
+      },
+      bodyInit: String(body ?? ""),
+    };
+  }
+
+  return { headers: nextHeaders };
+}
+
+function normalizeFormBody(body: Scenario["body"]): Record<string, string> {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return {};
+  }
+  return Object.fromEntries(
+    Object.entries(body as Record<string, unknown>).map(([key, value]) => [
+      key,
+      value === null || value === undefined ? "" : String(value),
+    ]),
+  );
+}
+
+async function readResponseBody(
+  response: Response | { text: () => Promise<string> },
+  headers: Record<string, string>,
+  contentType: string,
+  preferStream: boolean,
+): Promise<{ bodySpec: ResponseSpec["body"]; bodyText: string }> {
+  if (isImageContentType(contentType)) {
+    const base64 = await readResponseAsBase64(response);
+    return {
+      bodySpec: {
+        type: "base64",
+        value: base64,
+        mimeType: contentType,
+      },
+      bodyText: `[image] ${base64.slice(0, 120)}...`,
+    };
+  }
+
+  let text = "";
+  if (preferStream && hasReadableStream(response)) {
+    text = await readResponseStream(response);
+  } else {
+    text = await response.text();
+  }
+  return {
+    bodySpec: parseResponseBody(text, headers),
+    bodyText: text,
+  };
+}
+
+function parseResponseBody(
+  bodyText: string,
+  headers: Record<string, string>,
+): ResponseSpec["body"] {
+  const contentType = getContentType(headers);
+  const shouldParseJson = contentType.includes("json");
+
+  if (shouldParseJson) {
+    const parsed = safeJsonParse(bodyText);
+    if (parsed.success) {
+      return { type: "json", value: parsed.value };
+    }
+  }
+
+  const parsed = safeJsonParse(bodyText);
+  if (parsed.success) {
+    return { type: "json", value: parsed.value };
+  }
+
+  return { type: "text", value: bodyText };
+}
+
+function safeJsonParse(text: string): { success: true; value: unknown } | { success: false } {
+  if (!text) return { success: false };
+  try {
+    return { success: true, value: JSON.parse(text) };
+  } catch {
+    return { success: false };
+  }
+}
+
+function hasHeader(headers: Record<string, string>, name: string): boolean {
+  const lower = name.toLowerCase();
+  return Object.keys(headers).some((key) => key.toLowerCase() === lower);
+}
+
+function getContentType(headers: Record<string, string>): string {
+  return (
+    headers["content-type"] ||
+    headers["Content-Type"] ||
+    headers["CONTENT-TYPE"] ||
+    ""
+  );
+}
+
+function isImageContentType(contentType: string) {
+  return contentType.toLowerCase().startsWith("image/");
+}
+
+async function readResponseAsBase64(
+  response: Response | { text: () => Promise<string> },
+): Promise<string> {
+  const anyResponse = response as {
+    arrayBuffer?: () => Promise<ArrayBuffer>;
+    text: () => Promise<string>;
+  };
+
+  if (typeof anyResponse.arrayBuffer === "function") {
+    const buffer = await anyResponse.arrayBuffer();
+    return arrayBufferToBase64(buffer);
+  }
+
+  return anyResponse.text();
+}
+
+function hasReadableStream(
+  response: Response | { text: () => Promise<string> },
+): response is Response {
+  return typeof (response as Response).body !== "undefined";
+}
+
+function getErrorInfo(error: unknown): { name?: string; message?: string } {
+  if (!error || typeof error !== "object") return {};
+  const maybeError = error as { name?: unknown; message?: unknown };
+  return {
+    name: typeof maybeError.name === "string" ? maybeError.name : undefined,
+    message: typeof maybeError.message === "string" ? maybeError.message : undefined,
+  };
+}
+
+async function readResponseStream(response: Response): Promise<string> {
+  if (!response.body) {
+    return response.text();
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let done = false;
+  let result = "";
+
+  while (!done) {
+    const { value, done: doneReading } = await reader.read();
+    done = doneReading;
+    if (value) {
+      result += decoder.decode(value, { stream: !done });
+    }
+  }
+
+  return result;
+}
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 0x8000;
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, i + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+  return btoa(binary);
+}
+
+function createRequestId(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return `req-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function toErrorSpec(error: unknown): ErrorSpec {
+  if (error instanceof ProxyError) {
+    return error.original;
+  }
+
+  if (error && typeof error === "object") {
+    const name = (error as { name?: string }).name;
+    if (name === "AbortError") {
+      return {
+        type: "TIMEOUT",
+        message: "The operation was aborted.",
+      };
+    }
+  }
+
+  if (error instanceof TypeError) {
+    const message = error.message || "Network error";
+    if (message.toLowerCase().includes("invalid url")) {
+      return { type: "INVALID_URL", message };
+    }
+    return { type: "NETWORK_ERROR", message };
+  }
+
+  const message =
+    (error as { message?: string })?.message ?? "Unknown error";
+  return {
+    type: "UNKNOWN",
+    message,
+  };
+}

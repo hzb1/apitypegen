@@ -2,7 +2,7 @@ import "./SideBar.css";
 import { Empty, Select } from "antd";
 import SearchBar from "../ui/SearchBar/SearchBar.tsx";
 import ApiList, { type ApiListProps } from "../ApiList/ApiList.tsx";
-import React from "react";
+import React, { useRef } from "react";
 
 type Option = {
   label: string;
@@ -40,6 +40,8 @@ const SideBar: React.FC<SideBarProps> = (props) => {
     onGroupTitleClick?.(groupItem);
   };
 
+  const apiListScrollRef = useRef<HTMLDivElement>(null);
+
   return (
     <div
       className={
@@ -48,16 +50,16 @@ const SideBar: React.FC<SideBarProps> = (props) => {
     >
       <div
         className={
-          "h-full flex flex-col flex-1 stable-scrollbar-gutter px-4 py-4"
+          "h-full flex flex-col flex-1 stable-scrollbar-gutter"
         }
       >
-        <div className={"flex justify-between items-center"}>
+        <div className={"flex justify-between items-center px-4 pt-4"}>
           <a href="/" className={"logo"}>
             Logo
           </a>
         </div>
 
-        <div className={"flex flex-col gap-4 mt-6"}>
+        <div className={"flex flex-col gap-4 mt-4 px-4 pb-4"}>
           <Select
             value={currentServiceUrl}
             loading={configLoading}
@@ -75,18 +77,20 @@ const SideBar: React.FC<SideBarProps> = (props) => {
           </div>
         </div>
 
-        <div className={"flex-1 pt-4 overflow-y-hidden flex flex-col"}>
-          <div className={"h-full overflow-y-auto flex-1"}>
+        <div
+          className={"flex-1 overflow-y-auto flex flex-col pl-4 pr-2 sidebar-api-scroll"}
+          ref={apiListScrollRef}
+        >
             {apis?.length ? (
               <ApiList
                 apis={apis}
                 onSelectKeyChange={onSelectKeyChange}
                 onGroupTitleClick={handleGroupTitleClick}
+                scrollContainerRef={apiListScrollRef}
               />
             ) : (
               <Empty description={"暂无 API 接口"} />
             )}
-          </div>
         </div>
       </div>
     </div>

@@ -4,6 +4,7 @@ import { StyleProvider } from "@ant-design/cssinjs";
 import "./index.css";
 import Home from "./pages/home/Home.tsx";
 import ProxyFetchDemo from "./pages/proxy-fetch/ProxyFetchDemo.tsx";
+import NetworkPanel from "./pages/network/NetworkPanel.tsx";
 
 import "dayjs/locale/zh-cn";
 
@@ -21,6 +22,10 @@ const router = createBrowserRouter([
   {
     path: "/proxy-fetch",
     Component: ProxyFetchDemo,
+  },
+  {
+    path: "/network",
+    Component: NetworkPanel,
   },
 ]);
 

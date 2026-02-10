@@ -1,14 +1,17 @@
-import React, { useMemo, useState } from "react";
-import { AutoComplete, Input, Row, Col, Spin, Tag, Empty } from "antd";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AutoComplete, Input, Row, Col, Spin, Tag, Empty, Modal } from "antd";
 import { Layout, theme } from "antd";
+import { type AutoCompleteProps } from "antd";
 import "./Home.css";
 import { useSwagger } from "@/hooks/useSwagger.ts";
 import { useOptions } from "@/hooks/useOptions.ts";
+import type { OpenAPIV2, OpenAPIV3 } from "openapi-types";
 import {
   CheckCircleOutlined,
   LoadingOutlined,
   WarningOutlined,
 } from "@ant-design/icons";
+import { DeleteOutlined, EditOutlined } from "@ant-design/icons";
 import { usePluginEnabled } from "@/hooks/usePluginEnabled.ts";
 import { useSearchParams } from "react-router";
 import SideBar, {
@@ -22,6 +25,19 @@ import {SwaggerToTS} from "@/utils/SwaggerParser.ts";
 import type {ApiGroup} from "./utils.ts";
 const { Header, Sider } = Layout;
 
+const SEARCH_HISTORY_KEY = "ts-swagger-search-history";
+const MAX_HISTORY = 10;
+
+type SearchRecord = {
+  id: string;
+  label: string;
+  value: string;
+  updatedAt: number;
+};
+
+type PathItem = OpenAPIV2.PathItemObject | OpenAPIV3.PathItemObject | OpenAPIV3.ReferenceObject;
+type Operation = OpenAPIV2.OperationObject | OpenAPIV3.OperationObject;
+
 const Home: React.FC = () => {
   const {
     token: { colorBgContainer },
@@ -29,34 +45,7 @@ const Home: React.FC = () => {
 
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const [options] = useState([
-    {
-      label: "lin",
-      value: "http://172.16.7.22:9999",
-    },
-    {
-      label: "nong",
-      value: "http://172.16.7.149:9999",
-    },
-    {
-      label: "huang",
-      value: "http://172.16.7.21:9999",
-    },
-    {
-      label: "localhost:9966",
-      value: "http://localhost:9966",
-    },
-    {
-      label: "localhost:huang",
-      value: "http://localhost:9966/huang",
-    },
-    {
-      label: "www.lgsoar.cn",
-      value: "https://www.lgsoar.cn/soar-api",
-    },
-  ]);
-
-  const ipFromUrl = searchParams.get("ip") ?? options[3].value;
+  const ipFromUrl = searchParams.get("ip") ?? "http://localhost:9966";
   const serviceUrl = searchParams.get("service") ?? undefined;
   const selectedApiKey = searchParams.get("api");
 
@@ -64,6 +53,22 @@ const Home: React.FC = () => {
 
   const [searchQuery, setSearchQuery] = useState(searchParams.get('search') ?? '');
   const [inputIp, setInputIp] = useState(ipFromUrl);
+  const [searchHistory, setSearchHistory] = useState<SearchRecord[]>(() => {
+    try {
+      const raw = localStorage.getItem(SEARCH_HISTORY_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed.filter((item) => item?.value).slice(0, MAX_HISTORY);
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  });
+  const [renameTarget, setRenameTarget] = useState<SearchRecord | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const lastRecordedIpRef = useRef("");
 
   const { documentData, configData, stage, error } = useSwagger({
     ip: ipFromUrl,
@@ -80,9 +85,11 @@ const Home: React.FC = () => {
       onDocumentLoaded: (doc) => {
         if (doc.paths) {
           const allTags = new Set<string>();
-          Object.values(doc.paths).forEach((pathItem: any) => {
+          Object.values(doc.paths).forEach((pathItem) => {
+            const item = pathItem as PathItem;
+            if (!item || typeof item !== "object" || "$ref" in item) return;
             ["get", "post", "put", "delete", "patch"].forEach(method => {
-              const op = pathItem[method];
+              const op = (item as Record<string, Operation | undefined>)[method];
               if (op?.tags?.[0]) {
                 // 注意：这里的 ID 生成逻辑应与 apiGroups 保持一致
                 // 如果你的 SideBar 使用的是 stableHash(tag)，则存入 hash
@@ -186,6 +193,136 @@ const Home: React.FC = () => {
       return next;
     });
   };
+
+  const createRecordId = () => {
+    if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+      return crypto.randomUUID();
+    }
+    return `history-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  };
+
+  const recordSearch = useCallback((value: string) => {
+    const normalized = value.trim();
+    if (!normalized) return;
+    setSearchHistory((prev) => {
+      const existing = prev.find((item) => item.value === normalized);
+      const label = existing?.label ?? normalized;
+      const nextItem: SearchRecord = {
+        id: existing?.id ?? createRecordId(),
+        label,
+        value: normalized,
+        updatedAt: Date.now(),
+      };
+      const nextList = [
+        nextItem,
+        ...prev.filter((item) => item.value !== normalized),
+      ];
+      return nextList.slice(0, MAX_HISTORY);
+    });
+  }, []);
+
+  const handleRename = useCallback(
+    (record: SearchRecord, event?: React.MouseEvent) => {
+    event?.preventDefault();
+    event?.stopPropagation();
+    setRenameTarget(record);
+    setRenameValue(record.label);
+    },
+    [],
+  );
+
+  const confirmRename = useCallback(() => {
+    if (!renameTarget) return;
+    const nextLabel = renameValue.trim();
+    if (!nextLabel) {
+      setRenameTarget(null);
+      return;
+    }
+    setSearchHistory((prev) =>
+      prev.map((item) =>
+        item.id === renameTarget.id ? { ...item, label: nextLabel } : item,
+      ),
+    );
+    setRenameTarget(null);
+  }, [renameTarget, renameValue]);
+
+  const handleDelete = useCallback((record: SearchRecord, event?: React.MouseEvent) => {
+    event?.preventDefault();
+    event?.stopPropagation();
+    Modal.confirm({
+      title: "删除记录",
+      content: `确定删除 ${record.label} 吗？`,
+      okText: "删除",
+      cancelText: "取消",
+      onOk: () => {
+        setSearchHistory((prev) => prev.filter((item) => item.id !== record.id));
+      },
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!documentData) return;
+    if (lastRecordedIpRef.current === ipFromUrl) return;
+    recordSearch(ipFromUrl);
+    lastRecordedIpRef.current = ipFromUrl;
+  }, [documentData, ipFromUrl, recordSearch]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(searchHistory));
+    } catch {
+      // ignore
+    }
+  }, [searchHistory]);
+
+  const historyOptions = useMemo(
+    () =>
+      searchHistory.map((record) => ({
+        key: `history-${record.id}`,
+        value: record.value,
+        label: (
+          <div className="search-history-option">
+            <div className="search-history-text">
+              <span className="search-history-label">{record.label}</span>
+              {record.label !== record.value && (
+                <span className="search-history-value">{record.value}</span>
+              )}
+            </div>
+            <div className="search-history-actions">
+              <span
+                className="search-history-action"
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                }}
+                onClick={(event) => handleRename(record, event)}
+              >
+                <EditOutlined />
+              </span>
+              <span
+                className="search-history-action"
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                }}
+                onClick={(event) => handleDelete(record, event)}
+              >
+                <DeleteOutlined />
+              </span>
+            </div>
+          </div>
+        ),
+      })),
+    [searchHistory, handleDelete, handleRename],
+  );
+
+  const autoCompleteOptions = useMemo(() => {
+    const groups: AutoCompleteProps['options'] = [];
+    if (historyOptions.length) {
+      groups.push({ label: "搜索记录", options: historyOptions, key: "history-group" });
+    }
+    return groups;
+  }, [historyOptions]);
 
   /**
    * 菜单选择回调
@@ -295,11 +432,26 @@ const Home: React.FC = () => {
                   value={inputIp}
                   onChange={(value) => setInputIp(value)}
                   onSelect={handleCommitIp}
-                  options={options}
+                  options={autoCompleteOptions}
                   style={{ width: 304 }}
                 >
                   <Input.Search placeholder="输入 IP 地址" enterButton loading={loading} onSearch={(value) => handleCommitIp(value)} />
                 </AutoComplete>
+                <Modal
+                  open={!!renameTarget}
+                  title="重命名记录"
+                  onOk={confirmRename}
+                  onCancel={() => setRenameTarget(null)}
+                  okText="保存"
+                  cancelText="取消"
+                >
+                  <Input
+                    value={renameValue}
+                    onChange={(event) => setRenameValue(event.target.value)}
+                    onPressEnter={confirmRename}
+                    placeholder="输入新的名称"
+                  />
+                </Modal>
               </div>
 
               <div>
