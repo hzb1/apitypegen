@@ -1,5 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AutoComplete, Input, Row, Col, Spin, Tag, Empty, Modal } from "antd";
+import {
+  AutoComplete,
+  Input,
+  Row,
+  Col,
+  Spin,
+  Tag,
+  Empty,
+  Modal,
+  Alert,
+  Button,
+} from "antd";
 import { Layout, theme } from "antd";
 import { type AutoCompleteProps } from "antd";
 import "./Home.css";
@@ -27,6 +38,9 @@ const { Header, Sider } = Layout;
 
 const SEARCH_HISTORY_KEY = "ts-swagger-search-history";
 const MAX_HISTORY = 10;
+const EXTENSION_URL =
+  (import.meta.env.VITE_PROXY_EXTENSION_URL as string | undefined) ??
+  "https://github.com/hzb1/ts-swagger/releases/latest/download/ts-swagger-extension-dist-latest.zip";
 
 type SearchRecord = {
   id: string;
@@ -45,9 +59,10 @@ const Home: React.FC = () => {
 
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const ipFromUrl = searchParams.get("ip") ?? "http://localhost:9966";
+  const ipFromUrl = searchParams.get("ip")?.trim() ?? "";
   const serviceUrl = searchParams.get("service") ?? undefined;
   const selectedApiKey = searchParams.get("api");
+  const hasIpParam = Boolean(ipFromUrl);
 
   // const queryApiKey = searchParams.get("api");
 
@@ -185,6 +200,7 @@ const Home: React.FC = () => {
   const { pluginEnabled, checking } = usePluginEnabled();
 
   const handleCommitIp = (nextIp: string) => {
+    setInputIp(nextIp);
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       next.set("ip", nextIp);
@@ -259,6 +275,10 @@ const Home: React.FC = () => {
       },
     });
   }, []);
+
+  useEffect(() => {
+    setInputIp(ipFromUrl);
+  }, [ipFromUrl]);
 
   useEffect(() => {
     if (!documentData) return;
@@ -402,120 +422,182 @@ const Home: React.FC = () => {
   return (
     <>
       <Spin spinning={loading}>
-        <Layout className={"views"} hasSider={true}>
-          <Sider width={324} style={{ background: colorBgContainer }}>
-            <SideBar
-              currentServiceUrl={serviceUrl}
-              onCurrentServiceUrlChange={handleServiceChange}
-              configLoading={configLoading}
-              serviceOptions={serviceOptions}
-              searchQuery={searchQuery}
-              setSearchQuery={setSearchQuery}
-              docLoading={docLoading}
-              apis={apiGroups}
-              onSelectKeyChange={onMenuSelect}
-              onGroupTitleClick={handleGroupTitleClick}
-            />
-          </Sider>
+        {hasIpParam ? (
+          <Layout className={"views"} hasSider={true}>
+            <Sider width={324} style={{ background: colorBgContainer }}>
+              <SideBar
+                currentServiceUrl={serviceUrl}
+                onCurrentServiceUrlChange={handleServiceChange}
+                configLoading={configLoading}
+                serviceOptions={serviceOptions}
+                searchQuery={searchQuery}
+                setSearchQuery={setSearchQuery}
+                docLoading={docLoading}
+                apis={apiGroups}
+                onSelectKeyChange={onMenuSelect}
+                onGroupTitleClick={handleGroupTitleClick}
+              />
+            </Sider>
 
-          <Layout className={"flex flex-col h-full"}>
-            <Header
-              className={"header-wrapper border-b border-gray-950/5"}
-              style={{
-                display: "flex",
-                alignItems: "justify-content-between",
-                backgroundColor: colorBgContainer,
-              }}
-            >
-              <div className={"search-wrapper"}>
+            <Layout className={"flex flex-col h-full"}>
+              <Header
+                className={"header-wrapper border-b border-gray-950/5"}
+                style={{
+                  display: "flex",
+                  alignItems: "justify-content-between",
+                  backgroundColor: colorBgContainer,
+                }}
+              >
+                <div className={"search-wrapper"}>
+                  <AutoComplete
+                    value={inputIp}
+                    onChange={(value) => setInputIp(value)}
+                    onSelect={handleCommitIp}
+                    options={autoCompleteOptions}
+                    style={{ width: 304 }}
+                  >
+                    <Input.Search
+                      placeholder="输入 IP 地址"
+                      enterButton
+                      loading={loading}
+                      onSearch={(value) => handleCommitIp(value)}
+                    />
+                  </AutoComplete>
+                </div>
+
+                <div>
+                  {checking ? (
+                    <Tag
+                      color="success"
+                      variant={"solid"}
+                      icon={<LoadingOutlined />}
+                    >
+                      检查中
+                    </Tag>
+                  ) : pluginEnabled ? (
+                    <Tag
+                      color="success"
+                      variant={"solid"}
+                      icon={<CheckCircleOutlined />}
+                    >
+                      已连接
+                    </Tag>
+                  ) : (
+                    <Tag
+                      color="error"
+                      variant={"solid"}
+                      icon={<WarningOutlined />}
+                    >
+                      未连接
+                    </Tag>
+                  )}
+                </div>
+              </Header>
+              <Layout className={"content-wrapper overflow-y-auto"}>
+                {error && <span>{error}</span>}
+                {selectedApi ? (
+                  <Row gutter={[16, 16]} style={{ height: "100%" }}>
+                    <Col span={12} className={"left-main"}>
+                      <ApiInfo api={selectedApi} codeMap={tsCodeParts} />
+                    </Col>
+
+                    <Col span={12} style={{ height: "100%" }}>
+                      <CodeCard
+                        title="Models"
+                        code={tsCodeParts?.Models}
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          height: "100%",
+                        }}
+                        styles={{
+                          body: {
+                            flex: 1,
+                            overflow: "auto",
+                            padding: 0,
+                          },
+                        }}
+                      ></CodeCard>
+                    </Col>
+                  </Row>
+                ) : (
+                  <Empty description={"请选择 API"} />
+                )}
+              </Layout>
+            </Layout>
+          </Layout>
+        ) : (
+          <div className="home-welcome">
+            <div className="home-welcome-card">
+              <div className="home-welcome-title">TS Swagger</div>
+              <div className="home-welcome-subtitle">
+                输入 IP 地址开始加载 Swagger 文档
+              </div>
+              <div className="home-welcome-hint">
+                示例：127.0.0.1:9966 或 http://localhost:9966
+              </div>
+              <div className="home-welcome-search">
                 <AutoComplete
                   value={inputIp}
                   onChange={(value) => setInputIp(value)}
                   onSelect={handleCommitIp}
                   options={autoCompleteOptions}
-                  style={{ width: 304 }}
                 >
-                  <Input.Search placeholder="输入 IP 地址" enterButton loading={loading} onSearch={(value) => handleCommitIp(value)} />
-                </AutoComplete>
-                <Modal
-                  open={!!renameTarget}
-                  title="重命名记录"
-                  onOk={confirmRename}
-                  onCancel={() => setRenameTarget(null)}
-                  okText="保存"
-                  cancelText="取消"
-                >
-                  <Input
-                    value={renameValue}
-                    onChange={(event) => setRenameValue(event.target.value)}
-                    onPressEnter={confirmRename}
-                    placeholder="输入新的名称"
+                  <Input.Search
+                    style={{
+                      width: 360,
+                    }}
+                    size="large"
+                    placeholder="输入 IP 地址"
+                    loading={loading}
+                    enterButton="开始"
+                    onSearch={(value) => handleCommitIp(value)}
                   />
-                </Modal>
+                </AutoComplete>
               </div>
+            </div>
 
-              <div>
-                {checking ? (
-                  <Tag
-                    color="success"
-                    variant={"solid"}
-                    icon={<LoadingOutlined />}
-                  >
-                    检查中
-                  </Tag>
-                ) : pluginEnabled ? (
-                  <Tag
-                    color="success"
-                    variant={"solid"}
-                    icon={<CheckCircleOutlined />}
-                  >
-                    已连接
-                  </Tag>
-                ) : (
-                  <Tag
-                    color="error"
-                    variant={"solid"}
-                    icon={<WarningOutlined />}
-                  >
-                    未连接
-                  </Tag>
-                )}
-              </div>
-            </Header>
-            <Layout className={"content-wrapper overflow-y-auto"}>
-              {error && <span>{error}</span>}
-              {selectedApi ? (
-                <Row gutter={[16, 16]} style={{ height: "100%" }}>
-                  <Col span={12} className={"left-main"}>
-                    <ApiInfo api={selectedApi} codeMap={tsCodeParts} />
-                  </Col>
-
-                  <Col span={12} style={{ height: "100%" }}>
-                    <CodeCard
-                      title="Models"
-                      code={tsCodeParts?.Models}
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        height: "100%",
-                      }}
-                      styles={{
-                        body: {
-                          flex: 1,
-                          overflow: "auto",
-                          padding: 0,
-                        },
-                      }}
-                    ></CodeCard>
-                  </Col>
-                </Row>
-              ) : (
-                <Empty description={"请选择 API"} />
-              )}
-            </Layout>
-          </Layout>
-        </Layout>
+            {!checking && !pluginEnabled && (
+              <Alert
+                type="warning"
+                showIcon
+                message="未检测到浏览器扩展"
+                description={
+                  <div className="home-welcome-steps">
+                    <div>安装步骤：</div>
+                    <ol>
+                      <li>点击“安装扩展”下载压缩包。</li>
+                      <li>解压后打开浏览器扩展管理页。</li>
+                      <li>开启“开发者模式”，选择“加载已解压的扩展”。</li>
+                    </ol>
+                  </div>
+                }
+                action={
+                  <Button size="small" type="primary" href={EXTENSION_URL}>
+                    下载扩展
+                  </Button>
+                }
+                className="home-welcome-alert"
+              />
+            )}
+          </div>
+        )}
       </Spin>
+      <Modal
+        open={!!renameTarget}
+        title="重命名记录"
+        onOk={confirmRename}
+        onCancel={() => setRenameTarget(null)}
+        okText="保存"
+        cancelText="取消"
+      >
+        <Input
+          value={renameValue}
+          onChange={(event) => setRenameValue(event.target.value)}
+          onPressEnter={confirmRename}
+          placeholder="输入新的名称"
+        />
+      </Modal>
     </>
   );
 };

@@ -146,3 +146,59 @@ pre code.hljs{
     overflow: auto;
     position: relative;
 }
+
+.home-welcome {
+    min-height: 100vh;
+    padding: 96px 24px 48px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    background: #ffffff;
+}
+
+.home-welcome-card {
+    width: min(720px, 100%);
+    padding: 8px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    text-align: center;
+}
+
+.home-welcome-title {
+    font-size: 26px;
+    font-weight: 600;
+    color: rgba(0, 0, 0, 0.9);
+}
+
+.home-welcome-subtitle {
+    font-size: 15px;
+    color: rgba(0, 0, 0, 0.55);
+}
+
+.home-welcome-hint {
+    font-size: 13px;
+    color: rgba(0, 0, 0, 0.45);
+}
+
+.home-welcome-search {
+    margin-top: 10px;
+    display: flex;
+    justify-content: center;
+}
+
+.home-welcome-alert {
+    width: min(720px, 100%);
+}
+
+.home-welcome-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.home-welcome-steps ol {
+    margin: 0;
+    padding-left: 18px;
+}
