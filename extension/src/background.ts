@@ -71,7 +71,7 @@ async function handleRequest(
       }
     }
 
-    console.error(`[${requestId}] 成功响应`, {
+    console.log(`[${requestId}] 成功响应`, {
       type: 'PROXY_RESPONSE',
       requestId,
       result: success

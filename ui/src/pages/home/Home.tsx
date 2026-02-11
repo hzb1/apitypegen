@@ -561,14 +561,14 @@ const Home: React.FC = () => {
               <Alert
                 type="warning"
                 showIcon
-                message="未检测到浏览器扩展"
+                title="未检测到浏览器扩展"
                 description={
                   <div className="home-welcome-steps">
                     <div>安装步骤：</div>
                     <ol>
-                      <li>点击“安装扩展”下载压缩包。</li>
-                      <li>解压后打开浏览器扩展管理页。</li>
-                      <li>开启“开发者模式”，选择“加载已解压的扩展”。</li>
+                      <li>1.点击“安装扩展”下载压缩包。</li>
+                      <li>2.解压后打开浏览器扩展管理页。</li>
+                      <li>3.开启“开发者模式”，选择“加载已解压的扩展”。</li>
                     </ol>
                   </div>
                 }
