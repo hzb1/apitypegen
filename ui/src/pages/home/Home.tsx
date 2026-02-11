@@ -423,7 +423,10 @@ const Home: React.FC = () => {
     <>
       <Spin spinning={loading}>
         {hasIpParam ? (
-          <Layout className={"views"} hasSider={true}>
+          <Layout
+            className={"views mx-auto w-full max-w-[1200px] 2xl:max-w-[1400px]"}
+            hasSider={true}
+          >
             <Sider width={324} style={{ background: colorBgContainer }}>
               <SideBar
                 currentServiceUrl={serviceUrl}
