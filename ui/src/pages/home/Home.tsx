@@ -66,7 +66,6 @@ const Home: React.FC = () => {
 
   // const queryApiKey = searchParams.get("api");
 
-  const [searchQuery, setSearchQuery] = useState(searchParams.get('search') ?? '');
   const [inputIp, setInputIp] = useState(ipFromUrl);
   const [searchHistory, setSearchHistory] = useState<SearchRecord[]>(() => {
     try {
@@ -123,11 +122,10 @@ const Home: React.FC = () => {
 
   const loading = configLoading || docLoading;
 
-  const filteredGroupedApis = useMemo(() => {
+  const groupedApis = useMemo(() => {
     // 这里的 documentData 来自 useSwagger()
     if (!documentData?.paths) return {};
 
-    const query = searchQuery.trim().toLowerCase();
     const groups: Record<string, ApiDetail[]> = {};
 
     for (const [path, item] of Object.entries(documentData.paths)) {
@@ -136,33 +134,25 @@ const Home: React.FC = () => {
         const op = (item)[method];
         if (!op) continue;
 
-        let matchType = "";
-        // 匹配逻辑：路径、摘要或 OperationId
-        if (path.toLowerCase().includes(query)) matchType = "路径";
-        else if (op.summary?.toLowerCase().includes(query)) matchType = "名称";
-        else if (op.operationId?.toLowerCase().includes(query)) matchType = "ID";
-        else if (query !== "") continue; // 如果有搜索词但不匹配则跳过
-
         const tag = op.tags?.[0] ?? "Default";
         (groups[tag] ||= []).push({
           key: getApiSlug({ path, method, operation: op }),
           path,
           method,
-          matchType,
           operation: op,
         });
       }
     }
 
     return groups;
-  }, [documentData, searchQuery]);
+  }, [documentData]);
 
   // 2. 调用配置持久化逻辑
   const { generatorOptions } = useOptions();
 
   const selectedApi = useMemo(() => {
     if (!selectedApiKey) return null;
-    const apiList = Object.entries(filteredGroupedApis).map(
+    const apiList = Object.entries(groupedApis).map(
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       ([_tag, apis]) => apis,
     );
@@ -177,7 +167,7 @@ const Home: React.FC = () => {
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-expect-error
     return findApi;
-  }, [filteredGroupedApis, selectedApiKey]);
+  }, [groupedApis, selectedApiKey]);
 
   // 展开的分组
   const [expandedGroupList, setExpandedGroupList] = useState<string[]>(() => {
@@ -388,7 +378,7 @@ const Home: React.FC = () => {
   }, [configData?.urls]);
 
   const apiGroups: SideBarProps["apis"] = useMemo(() => {
-    return Object.entries(filteredGroupedApis).map(([tag, apis]) => {
+    return Object.entries(groupedApis).map(([tag, apis]) => {
       const id = stableHash(tag);
       const isExpanded = expandedGroupList.includes(id);
 
@@ -404,7 +394,7 @@ const Home: React.FC = () => {
         name: tag,
       };
     });
-  }, [filteredGroupedApis, expandedGroupList, selectedApiKey]);
+  }, [groupedApis, expandedGroupList, selectedApiKey]);
 
   /**
    * 在初始化时 设置默认展开的分组
@@ -433,8 +423,6 @@ const Home: React.FC = () => {
                 onCurrentServiceUrlChange={handleServiceChange}
                 configLoading={configLoading}
                 serviceOptions={serviceOptions}
-                searchQuery={searchQuery}
-                setSearchQuery={setSearchQuery}
                 docLoading={docLoading}
                 apis={apiGroups}
                 onSelectKeyChange={onMenuSelect}

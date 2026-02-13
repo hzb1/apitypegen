@@ -1,8 +1,8 @@
 import "./SideBar.css";
 import { Empty, Select } from "antd";
-import SearchBar from "../ui/SearchBar/SearchBar.tsx";
 import ApiList, { type ApiListProps } from "../ApiList/ApiList.tsx";
-import React, { useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import ApiSearchDialog from "./ApiSearchDialog.tsx";
 
 type Option = {
   label: string;
@@ -14,8 +14,6 @@ export type SideBarProps = {
   onCurrentServiceUrlChange: (url: string) => void;
   configLoading?: boolean;
   serviceOptions: Option[];
-  searchQuery?: string;
-  setSearchQuery: (query: string) => void;
   docLoading?: boolean;
 } & ApiListProps;
 
@@ -25,8 +23,6 @@ const SideBar: React.FC<SideBarProps> = (props) => {
     onCurrentServiceUrlChange,
     configLoading,
     serviceOptions,
-    searchQuery,
-    setSearchQuery,
     apis,
     onSelectKeyChange,
     onGroupTitleClick,
@@ -41,6 +37,50 @@ const SideBar: React.FC<SideBarProps> = (props) => {
   };
 
   const apiListScrollRef = useRef<HTMLDivElement>(null);
+  const [pendingScrollKey, setPendingScrollKey] = useState<string | null>(null);
+
+  const handleSearchSelect = (selectedKey: string) => {
+    const targetGroup = apis.find((group) =>
+      group.children.some((item) => item.key === selectedKey),
+    );
+    if (targetGroup && !targetGroup.isExpanded) {
+      onGroupTitleClick?.(targetGroup);
+    }
+    onSelectKeyChange?.(selectedKey);
+    setPendingScrollKey(selectedKey);
+  };
+
+  useEffect(() => {
+    if (!pendingScrollKey) return;
+    const container = apiListScrollRef.current;
+    if (!container) return;
+
+    const escaped =
+      typeof CSS !== "undefined" && "escape" in CSS
+        ? CSS.escape(pendingScrollKey)
+        : pendingScrollKey.replace(/["\\]/g, "\\$&");
+    const selector = `[data-api-key="${escaped}"]`;
+
+    let rafId = 0;
+    const tryScroll = (attempt: number) => {
+      const target = container.querySelector(selector) as HTMLElement | null;
+      if (target) {
+        target.scrollIntoView({ behavior: "smooth", block: "center" });
+        setPendingScrollKey(null);
+        return;
+      }
+      if (attempt >= 20) {
+        setPendingScrollKey(null);
+        return;
+      }
+      rafId = requestAnimationFrame(() => tryScroll(attempt + 1));
+    };
+
+    tryScroll(0);
+    return () => {
+      if (rafId) cancelAnimationFrame(rafId);
+    };
+  }, [apis, pendingScrollKey]);
 
   return (
     <div
@@ -66,15 +106,10 @@ const SideBar: React.FC<SideBarProps> = (props) => {
             onChange={handleServiceChange}
             options={serviceOptions}
             placeholder={"选择服务"}
+            size={'large'}
           />
 
-          <div
-            className={
-              "relative hidden lg:flex items-center flex-1 z-20 justify-center"
-            }
-          >
-            <SearchBar value={searchQuery} onChange={setSearchQuery} />
-          </div>
+          <ApiSearchDialog apis={apis} onSelectResult={handleSearchSelect} />
         </div>
 
         <div
