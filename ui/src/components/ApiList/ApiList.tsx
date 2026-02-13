@@ -1,7 +1,7 @@
 import "./ApiList.css";
 import type { ApiDetail } from "../../../types.ts";
 import ApiItem from "./ApiItem.tsx";
-import React, { useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { AimOutlined, RightOutlined } from "@ant-design/icons";
 import { FloatButton} from "antd";
 import { useScrollToSelected } from "@/hooks/useScrollToSelected.ts";
@@ -74,6 +74,25 @@ const ApiList: React.FC<ApiListProps> = ({
     enabled: Boolean(selectedKey),
     deps: [expandedToken],
   });
+
+  const hasInitialAutoScrolledRef = useRef(false);
+  useEffect(() => {
+    if (hasInitialAutoScrolledRef.current || !selectedKey || !targetSelector) {
+      return;
+    }
+
+    const container = containerRef.current;
+    if (!container) return;
+
+    const rafId = requestAnimationFrame(() => {
+      const target = container.querySelector(targetSelector) as HTMLElement | null;
+      if (!target) return;
+      target.scrollIntoView({ behavior: "auto", block: "center" });
+      hasInitialAutoScrolledRef.current = true;
+    });
+
+    return () => cancelAnimationFrame(rafId);
+  }, [containerRef, selectedKey, targetSelector, expandedToken]);
 
   return (
     <div className="api-list-root">
