@@ -48,6 +48,13 @@
   margin-left: auto;
 }
 
+.network-detail-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
 .network-form-row {
   display: grid;
   grid-template-columns: 110px 1fr 140px;

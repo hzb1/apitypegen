@@ -1,0 +1,116 @@
+.request-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.req-topline {
+  display: grid;
+  grid-template-columns: 110px 1fr 140px auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.req-method {
+  width: 100%;
+}
+
+.req-url {
+  width: 100%;
+}
+
+.req-timeout {
+  width: 100%;
+}
+
+.req-errors {
+  margin-bottom: 4px;
+}
+
+.req-kv-table {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.req-kv-head,
+.req-kv-row {
+  display: grid;
+  grid-template-columns: 72px 1fr 1fr 56px;
+  gap: 8px;
+  align-items: center;
+}
+
+.req-kv-head {
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.45);
+}
+
+.req-kv-col {
+  min-width: 0;
+}
+
+.req-kv-op {
+  display: flex;
+  justify-content: center;
+}
+
+.req-body-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.req-body-toolbar {
+  gap: 8px;
+}
+
+.req-body-mode {
+  min-width: 220px;
+}
+
+.req-body-raw {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.req-auth-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.req-auth-content {
+  width: 100%;
+}
+
+.req-auth-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.req-auth-type {
+  min-width: 220px;
+}
+
+@media (max-width: 900px) {
+  .req-topline {
+    grid-template-columns: 1fr;
+  }
+
+  .req-kv-head,
+  .req-kv-row {
+    grid-template-columns: 60px 1fr;
+  }
+
+  .req-kv-value,
+  .req-kv-op {
+    grid-column: 1 / -1;
+  }
+
+  .req-kv-op {
+    justify-content: flex-end;
+  }
+}

@@ -2,9 +2,13 @@ import React, { useMemo, useState } from "react";
 import {
   Button,
   Card,
+  Col,
   Divider,
+  Dropdown,
   Empty,
   Input,
+  message,
+  Row,
   Select,
   Space,
   Table,
@@ -12,13 +16,11 @@ import {
   Tag,
   Typography,
 } from "antd";
-import {proxyFetch, ProxyResponse} from "@extension/src/shared/proxySdk.ts";
+import { proxyFetch, ProxyResponse } from "@extension/src/shared/proxySdk.ts";
 import {
   ProxyError,
   type ErrorSpec,
   type ProxyResult,
-  type RequestBody,
-  type RequestSpec,
   type ResponseSpec,
   type TimingInfo,
 } from "@extension/src/shared/types.ts";
@@ -29,12 +31,18 @@ import type {
   NetworkEntry,
   ResourceType,
 } from "@extension/src/shared/networkTypes.ts";
+import RequestEditor from "@/components/network/request-editor/RequestEditor.tsx";
+import {
+  buildRequestSpecFromDraft,
+  buildCopySnippet,
+  createInitialDraft,
+  type CopyAsFormat,
+  draftFromNetworkEntry,
+} from "@/components/network/request-editor/RequestEditor.utils.ts";
+import type { RequestDraft } from "@/components/network/request-editor/RequestEditor.types.ts";
 import "./NetworkPanel.css";
 
 const { Title, Text } = Typography;
-const { TextArea } = Input;
-
-const METHOD_OPTIONS = ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD"];
 const TYPE_FILTERS: Array<{ label: string; value: ResourceType | "all" }> = [
   { label: "全部", value: "all" },
   { label: "Document", value: "document" },
@@ -64,23 +72,12 @@ const STATUS_FILTERS: Array<{ label: string; value: StatusFilter }> = [
   { label: "服务端 5xx", value: "server-error" },
   { label: "错误", value: "error" },
 ];
-const BODY_TYPE_OPTIONS = [
-  { label: "无", value: "none" },
-  { label: "JSON", value: "json" },
-  { label: "Text", value: "text" },
-  { label: "Form", value: "form" },
-];
 
 const NetworkPanel: React.FC = () => {
-  const [url, setUrl] = useState("https://httpbin.org/get");
-  const [method, setMethod] = useState("GET");
-  const [headersText, setHeadersText] = useState(
-    "Accept: application/json",
+  const [messageApi, contextHolder] = message.useMessage();
+  const [editorSeed, setEditorSeed] = useState<Partial<RequestDraft>>(() =>
+    createInitialDraft(),
   );
-  const [bodyType, setBodyType] = useState<"none" | "json" | "text" | "form">(
-    "none",
-  );
-  const [bodyText, setBodyText] = useState("");
   const [loading, setLoading] = useState(false);
 
   const [entries, setEntries] = useState<NetworkEntry[]>([]);
@@ -134,31 +131,9 @@ const NetworkPanel: React.FC = () => {
     setSelectedId(null);
   };
 
-  const onSend = async () => {
-    const trimmedUrl = url.trim();
-    if (!trimmedUrl) return;
-
-    let parsedHeaders = parseHeadersText(headersText);
-    const { bodySpec, bodyInit, headers: finalHeaders } = buildBodyPayload(
-      bodyType,
-      bodyText,
-      parsedHeaders,
-      method,
-    );
-    parsedHeaders = finalHeaders;
-
-    const requestSpec: RequestSpec = {
-      url: trimmedUrl,
-      method,
-      headers: parsedHeaders,
-      body: bodySpec,
-    };
-
-    const init: RequestInit = {
-      method,
-      headers: parsedHeaders,
-      body: bodyInit,
-    };
+  const onSend = async (nextDraft: RequestDraft) => {
+    const { requestSpec, init } = buildRequestSpecFromDraft(nextDraft);
+    const trimmedUrl = requestSpec.url;
 
     const requestId = createRequestId();
     const startTime = Date.now();
@@ -171,7 +146,7 @@ const NetworkPanel: React.FC = () => {
       const endTime = Date.now();
       const headers = readHeaders(response.headers);
       const contentType = getContentType(headers);
-      const setCookies = (response as { setCookies?: string[], url: string }).setCookies;
+      const setCookies = (response as { setCookies?: string[]; url: string }).setCookies;
 
       let bodySpec: ResponseSpec["body"];
       if (isImageContentType(contentType)) {
@@ -187,7 +162,7 @@ const NetworkPanel: React.FC = () => {
       }
 
       const responseSpec: ResponseSpec = {
-        url: !(response instanceof ProxyResponse) && response?.url || trimmedUrl,
+        url: (!(response instanceof ProxyResponse) && response?.url) || trimmedUrl,
         status: response.status,
         statusText: response.statusText,
         headers,
@@ -245,6 +220,24 @@ const NetworkPanel: React.FC = () => {
       setSelectedId(entry.id);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const onReplay = () => {
+    if (!selectedEntry) return;
+    setEditorSeed(draftFromNetworkEntry(selectedEntry));
+    messageApi.success("已回填到请求编辑器");
+  };
+
+  const onCopyAsFromEntry = async (format: CopyAsFormat) => {
+    if (!selectedEntry) return;
+    const draft = createInitialDraft(draftFromNetworkEntry(selectedEntry));
+    const snippet = buildCopySnippet(draft, format);
+    try {
+      await navigator.clipboard.writeText(snippet);
+      messageApi.success(`已复制 ${format.toUpperCase()}`);
+    } catch {
+      messageApi.error("复制失败，请检查浏览器权限");
     }
   };
 
@@ -333,6 +326,7 @@ const NetworkPanel: React.FC = () => {
 
   return (
     <div className="network-page">
+      {contextHolder}
       <div className="network-hero">
         <div>
           <Title level={2} className="network-title">
@@ -344,164 +338,142 @@ const NetworkPanel: React.FC = () => {
         </div>
         <Space>
           <Button onClick={onClear}>清空列表</Button>
-          <Button type="primary" loading={loading} onClick={onSend}>
-            发送请求
-          </Button>
         </Space>
       </div>
 
       <div className="network-section">
         <Card className="network-card">
-          <div className="network-form-row">
-            <Select
-              value={method}
-              onChange={setMethod}
-              options={METHOD_OPTIONS.map((value) => ({ value }))}
-              className="network-method"
-            />
-            <Input
-              value={url}
-              onChange={(event) => setUrl(event.target.value)}
-              placeholder="https://example.com/api"
-              className="network-input"
-            />
-            <Select
-              value={bodyType}
-              onChange={(value) =>
-                setBodyType(value as "none" | "json" | "text" | "form")
-              }
-              options={BODY_TYPE_OPTIONS}
-              className="network-body-type"
-            />
-          </div>
-          <Divider />
-          <div className="network-form-grid">
-            <div className="network-form-block">
-              <Text className="network-label">Headers</Text>
-              <TextArea
-                value={headersText}
-                onChange={(event) => setHeadersText(event.target.value)}
-                placeholder="Accept: application/json"
-                autoSize={{ minRows: 4, maxRows: 8 }}
-              />
-            </div>
-            <div className="network-form-block">
-              <Text className="network-label">Body</Text>
-              <TextArea
-                value={bodyText}
-                onChange={(event) => setBodyText(event.target.value)}
-                placeholder={
-                  bodyType === "form"
-                    ? "a=1&b=2"
-                    : bodyType === "json"
-                      ? '{"hello":"world"}'
-                      : "body text..."
-                }
-                autoSize={{ minRows: 4, maxRows: 8 }}
-              />
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      <div className="network-section">
-        <Card className="network-card">
-          <div className="network-toolbar">
-            <Input
-              value={searchText}
-              onChange={(event) => setSearchText(event.target.value)}
-              placeholder="搜索 Name / Method"
-              className="network-search"
-              allowClear
-            />
-            <Select
-              value={typeFilter}
-              onChange={(value) =>
-                setTypeFilter(value as ResourceType | "all")
-              }
-              options={TYPE_FILTERS}
-              className="network-filter"
-            />
-            <Select
-              value={statusFilter}
-              onChange={(value) => setStatusFilter(value as StatusFilter)}
-              options={STATUS_FILTERS}
-              className="network-filter"
-            />
-            <div className="network-count">
-              <Text type="secondary">共 {filteredEntries.length} 条</Text>
-            </div>
-          </div>
-          <Divider />
-          <Table<NetworkEntry>
-            columns={columns}
-            dataSource={filteredEntries}
-            rowKey="id"
-            pagination={false}
-            size="middle"
-            rowClassName={(record) =>
-              [
-                record.id === selectedEntry?.id ? "network-row-selected" : "",
-                record.error ? "network-row-error" : "",
-              ]
-                .filter(Boolean)
-                .join(" ")
-            }
-            onRow={(record) => ({
-              onClick: () => setSelectedId(record.id),
-            })}
-            locale={{ emptyText: "暂无请求记录" }}
+          <RequestEditor
+            value={editorSeed}
+            loading={loading}
+            onSend={onSend}
           />
         </Card>
       </div>
 
-      <div className="network-section">
-        <Card className="network-card">
-          {selectedEntry ? (
-            <Tabs
-              items={[
-                {
-                  key: "headers",
-                  label: "标头",
-                  children: renderHeadersTab(selectedEntry),
-                },
-                {
-                  key: "payload",
-                  label: "负载",
-                  children: renderPayloadTab(selectedEntry),
-                },
-                {
-                  key: "preview",
-                  label: "预览",
-                  children: renderPreviewTab(selectedEntry),
-                },
-                {
-                  key: "response",
-                  label: "响应",
-                  children: renderResponseTab(selectedEntry),
-                },
-                {
-                  key: "initiator",
-                  label: "启动器",
-                  children: renderInitiatorTab(selectedEntry),
-                },
-                {
-                  key: "timing",
-                  label: "时间",
-                  children: renderTimingTab(selectedEntry),
-                },
-                {
-                  key: "cookies",
-                  label: "Cookie",
-                  children: renderCookiesTab(selectedEntry),
-                },
-              ]}
-            />
-          ) : (
-            <Empty description="选择一条请求查看详情" />
-          )}
-        </Card>
-      </div>
+      <Row gutter={16}>
+        <Col span={12}>
+          <div className="network-section">
+            <Card className="network-card">
+              <div className="network-toolbar">
+                <Input
+                  value={searchText}
+                  onChange={(event) => setSearchText(event.target.value)}
+                  placeholder="搜索 Name / Method"
+                  className="network-search"
+                  allowClear
+                />
+                <Select
+                  value={typeFilter}
+                  onChange={(value) =>
+                    setTypeFilter(value as ResourceType | "all")
+                  }
+                  options={TYPE_FILTERS}
+                  className="network-filter"
+                />
+                <Select
+                  value={statusFilter}
+                  onChange={(value) => setStatusFilter(value as StatusFilter)}
+                  options={STATUS_FILTERS}
+                  className="network-filter"
+                />
+                <div className="network-count">
+                  <Text type="secondary">共 {filteredEntries.length} 条</Text>
+                </div>
+              </div>
+              <Divider />
+              <Table<NetworkEntry>
+                columns={columns}
+                dataSource={filteredEntries}
+                rowKey="id"
+                pagination={false}
+                size="middle"
+                rowClassName={(record) =>
+                  [
+                    record.id === selectedEntry?.id ? "network-row-selected" : "",
+                    record.error ? "network-row-error" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")
+                }
+                onRow={(record) => ({
+                  onClick: () => setSelectedId(record.id),
+                })}
+                locale={{ emptyText: "暂无请求记录" }}
+              />
+            </Card>
+          </div>
+        </Col>
+        <Col span={12}>
+          <div className="network-section">
+            <Card className="network-card">
+              {selectedEntry && (
+                <div className="network-detail-actions">
+                  <Button onClick={onReplay}>Replay</Button>
+                  <Dropdown
+                    menu={{
+                      items: [
+                        { key: "fetch", label: "Copy as fetch" },
+                        { key: "xhr", label: "Copy as XHR" },
+                        { key: "axios", label: "Copy as axios" },
+                        { key: "curl", label: "Copy as cURL" },
+                      ],
+                      onClick: ({ key }) => void onCopyAsFromEntry(key as CopyAsFormat),
+                    }}
+                    trigger={["click"]}
+                  >
+                    <Button>Copy as</Button>
+                  </Dropdown>
+                </div>
+              )}
+              {selectedEntry ? (
+                <Tabs
+                  items={[
+                    {
+                      key: "headers",
+                      label: "标头",
+                      children: renderHeadersTab(selectedEntry),
+                    },
+                    {
+                      key: "payload",
+                      label: "负载",
+                      children: renderPayloadTab(selectedEntry),
+                    },
+                    {
+                      key: "preview",
+                      label: "预览",
+                      children: renderPreviewTab(selectedEntry),
+                    },
+                    {
+                      key: "response",
+                      label: "响应",
+                      children: renderResponseTab(selectedEntry),
+                    },
+                    {
+                      key: "initiator",
+                      label: "启动器",
+                      children: renderInitiatorTab(selectedEntry),
+                    },
+                    {
+                      key: "timing",
+                      label: "时间",
+                      children: renderTimingTab(selectedEntry),
+                    },
+                    {
+                      key: "cookies",
+                      label: "Cookie",
+                      children: renderCookiesTab(selectedEntry),
+                    },
+                  ]}
+                />
+              ) : (
+                <Empty description="选择一条请求查看详情" />
+              )}
+            </Card>
+          </div>
+        </Col>
+      </Row>
+
     </div>
   );
 };
@@ -708,109 +680,6 @@ function renderCookieTable(cookies: NetworkCookie[]) {
   );
 }
 
-function buildBodyPayload(
-  bodyType: "none" | "json" | "text" | "form",
-  bodyText: string,
-  headers: Record<string, string>,
-  method: string,
-): {
-  bodySpec?: RequestBody;
-  bodyInit?: BodyInit;
-  headers: Record<string, string>;
-} {
-  if (method.toUpperCase() === "GET" || method.toUpperCase() === "HEAD") {
-    return { headers };
-  }
-
-  if (bodyType === "none") {
-    return { headers };
-  }
-
-  const nextHeaders = { ...headers };
-
-  if (bodyType === "json") {
-    const parsed = safeJsonParse(bodyText);
-    if (!hasHeader(nextHeaders, "content-type")) {
-      nextHeaders["Content-Type"] = "application/json";
-    }
-    return {
-      headers: nextHeaders,
-      bodySpec: {
-        type: "json",
-        value: parsed.success ? parsed.value : bodyText,
-      },
-      bodyInit: bodyText || (parsed.success ? JSON.stringify(parsed.value) : ""),
-    };
-  }
-
-  if (bodyType === "form") {
-    const form = parseFormBody(bodyText);
-    if (!hasHeader(nextHeaders, "content-type")) {
-      nextHeaders["Content-Type"] = "application/x-www-form-urlencoded";
-    }
-    return {
-      headers: nextHeaders,
-      bodySpec: {
-        type: "form",
-        value: form,
-      },
-      bodyInit: new URLSearchParams(form).toString(),
-    };
-  }
-
-  if (!hasHeader(nextHeaders, "content-type")) {
-    nextHeaders["Content-Type"] = "text/plain";
-  }
-  return {
-    headers: nextHeaders,
-    bodySpec: {
-      type: "text",
-      value: bodyText,
-    },
-    bodyInit: bodyText,
-  };
-}
-
-function parseHeadersText(text: string): Record<string, string> {
-  const trimmed = text.trim();
-  if (!trimmed) return {};
-
-  if (trimmed.startsWith("{")) {
-    const parsed = safeJsonParse(trimmed);
-    if (parsed.success && parsed.value && typeof parsed.value === "object") {
-      return Object.entries(parsed.value).reduce<Record<string, string>>(
-        (acc, [key, value]) => {
-          acc[key] = String(value);
-          return acc;
-        },
-        {},
-      );
-    }
-  }
-
-  const headers: Record<string, string> = {};
-  const lines = trimmed.split(/\r?\n/);
-  lines.forEach((line) => {
-    const idx = line.indexOf(":");
-    if (idx === -1) return;
-    const name = line.slice(0, idx).trim();
-    const value = line.slice(idx + 1).trim();
-    if (!name) return;
-    headers[name] = value;
-  });
-  return headers;
-}
-
-function parseFormBody(text: string): Record<string, string> {
-  const normalized = text.replace(/\r?\n/g, "&");
-  const params = new URLSearchParams(normalized);
-  const obj: Record<string, string> = {};
-  params.forEach((value, key) => {
-    obj[key] = value;
-  });
-  return obj;
-}
-
 function parseResponseBody(
   bodyText: string,
   headers: Record<string, string>,
@@ -919,11 +788,6 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
     binary += String.fromCharCode(...chunk);
   }
   return btoa(binary);
-}
-
-function hasHeader(headers: Record<string, string>, name: string): boolean {
-  const lower = name.toLowerCase();
-  return Object.keys(headers).some((key) => key.toLowerCase() === lower);
 }
 
 function createRequestId(): string {
