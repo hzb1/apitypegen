@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {
   AutoComplete,
   Input,
@@ -11,30 +11,31 @@ import {
   Alert,
   Button,
 } from "antd";
-import { Layout, theme } from "antd";
-import { type AutoCompleteProps } from "antd";
+import {Layout, theme} from "antd";
+import {type AutoCompleteProps} from "antd";
 import "./Home.css";
-import { useSwagger } from "@/hooks/useSwagger.ts";
-import { useOptions } from "@/hooks/useOptions.ts";
-import type { OpenAPIV2, OpenAPIV3 } from "openapi-types";
+import {useSwagger} from "@/hooks/useSwagger.ts";
+import {useOptions} from "@/hooks/useOptions.ts";
+import type {OpenAPIV2, OpenAPIV3} from "openapi-types";
 import {
   CheckCircleOutlined,
   LoadingOutlined,
   WarningOutlined,
 } from "@ant-design/icons";
-import { DeleteOutlined, EditOutlined } from "@ant-design/icons";
-import { usePluginEnabled } from "@/hooks/usePluginEnabled.ts";
-import { useSearchParams } from "react-router";
+import {DeleteOutlined, EditOutlined} from "@ant-design/icons";
+import {usePluginEnabled} from "@/hooks/usePluginEnabled.ts";
+import {useSearchParams} from "react-router";
 import SideBar, {
   type SideBarProps,
 } from "@/components/sidebar/SideBar.tsx";
 import ApiInfo from "@/components/api-info/ApiInfo.tsx";
 import CodeCard from "@/components/code-card/CodeCard.tsx";
-import type { ApiDetail } from "../../../types.ts";
+import type {ApiDetail} from "../../../types.ts";
 import {getApiSlug, stableHash} from "@/utils/getApiSlug.ts";
 import {SwaggerToTS} from "@/utils/SwaggerParser.ts";
 import type {ApiGroup} from "./utils.ts";
-const { Header, Sider } = Layout;
+
+const {Header, Sider} = Layout;
 
 const SEARCH_HISTORY_KEY = "ts-swagger-search-history";
 const MAX_HISTORY = 10;
@@ -54,7 +55,7 @@ type Operation = OpenAPIV2.OperationObject | OpenAPIV3.OperationObject;
 
 const Home: React.FC = () => {
   const {
-    token: { colorBgContainer },
+    token: {colorBgContainer},
   } = theme.useToken();
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -84,7 +85,7 @@ const Home: React.FC = () => {
   const [renameValue, setRenameValue] = useState("");
   const lastRecordedIpRef = useRef("");
 
-  const { documentData, configData, stage, error } = useSwagger({
+  const {documentData, configData, stage, error} = useSwagger({
     ip: ipFromUrl,
     serviceUrl,
     options: {
@@ -94,7 +95,7 @@ const Home: React.FC = () => {
           const next = new URLSearchParams(prev);
           next.set("service", defaultUrl);
           return next;
-        }, { replace: true });
+        }, {replace: true});
       },
       onDocumentLoaded: (doc) => {
         if (doc.paths) {
@@ -136,7 +137,7 @@ const Home: React.FC = () => {
 
         const tag = op.tags?.[0] ?? "Default";
         (groups[tag] ||= []).push({
-          key: getApiSlug({ path, method, operation: op }),
+          key: getApiSlug({path, method, operation: op}),
           path,
           method,
           operation: op,
@@ -148,7 +149,7 @@ const Home: React.FC = () => {
   }, [documentData]);
 
   // 2. 调用配置持久化逻辑
-  const { generatorOptions } = useOptions();
+  const {generatorOptions} = useOptions();
 
   const selectedApi = useMemo(() => {
     if (!selectedApiKey) return null;
@@ -187,7 +188,7 @@ const Home: React.FC = () => {
     });
   };
 
-  const { pluginEnabled, checking } = usePluginEnabled();
+  const {pluginEnabled, checking} = usePluginEnabled();
 
   const handleCommitIp = (nextIp: string) => {
     setInputIp(nextIp);
@@ -229,10 +230,10 @@ const Home: React.FC = () => {
 
   const handleRename = useCallback(
     (record: SearchRecord, event?: React.MouseEvent) => {
-    event?.preventDefault();
-    event?.stopPropagation();
-    setRenameTarget(record);
-    setRenameValue(record.label);
+      event?.preventDefault();
+      event?.stopPropagation();
+      setRenameTarget(record);
+      setRenameValue(record.label);
     },
     [],
   );
@@ -246,7 +247,7 @@ const Home: React.FC = () => {
     }
     setSearchHistory((prev) =>
       prev.map((item) =>
-        item.id === renameTarget.id ? { ...item, label: nextLabel } : item,
+        item.id === renameTarget.id ? {...item, label: nextLabel} : item,
       ),
     );
     setRenameTarget(null);
@@ -307,7 +308,7 @@ const Home: React.FC = () => {
                 }}
                 onClick={(event) => handleRename(record, event)}
               >
-                <EditOutlined />
+                <EditOutlined/>
               </span>
               <span
                 className="search-history-action"
@@ -317,7 +318,7 @@ const Home: React.FC = () => {
                 }}
                 onClick={(event) => handleDelete(record, event)}
               >
-                <DeleteOutlined />
+                <DeleteOutlined/>
               </span>
             </div>
           </div>
@@ -329,7 +330,7 @@ const Home: React.FC = () => {
   const autoCompleteOptions = useMemo(() => {
     const groups: AutoCompleteProps['options'] = [];
     if (historyOptions.length) {
-      groups.push({ label: "搜索记录", options: historyOptions, key: "history-group" });
+      groups.push({label: "搜索记录", options: historyOptions, key: "history-group"});
     }
     return groups;
   }, [historyOptions]);
@@ -417,7 +418,7 @@ const Home: React.FC = () => {
             className={"views mx-auto w-full max-w-[1200px] 2xl:max-w-[1400px]"}
             hasSider={true}
           >
-            <Sider width={324} style={{ background: colorBgContainer }}>
+            <Sider width={324} style={{background: colorBgContainer}}>
               <SideBar
                 currentServiceUrl={serviceUrl}
                 onCurrentServiceUrlChange={handleServiceChange}
@@ -445,13 +446,15 @@ const Home: React.FC = () => {
                     onChange={(value) => setInputIp(value)}
                     onSelect={handleCommitIp}
                     options={autoCompleteOptions}
-                    style={{ width: 304 }}
+                    style={{width: 304}}
+                    size={'large'}
                   >
                     <Input.Search
                       placeholder="输入 IP 地址"
                       enterButton
                       loading={loading}
                       onSearch={(value) => handleCommitIp(value)}
+                      size={'large'}
                     />
                   </AutoComplete>
                 </div>
@@ -461,7 +464,7 @@ const Home: React.FC = () => {
                     <Tag
                       color="success"
                       variant={"solid"}
-                      icon={<LoadingOutlined />}
+                      icon={<LoadingOutlined/>}
                     >
                       检查中
                     </Tag>
@@ -469,7 +472,7 @@ const Home: React.FC = () => {
                     <Tag
                       color="success"
                       variant={"solid"}
-                      icon={<CheckCircleOutlined />}
+                      icon={<CheckCircleOutlined/>}
                     >
                       已连接
                     </Tag>
@@ -477,7 +480,7 @@ const Home: React.FC = () => {
                     <Tag
                       color="error"
                       variant={"solid"}
-                      icon={<WarningOutlined />}
+                      icon={<WarningOutlined/>}
                     >
                       未连接
                     </Tag>
@@ -485,35 +488,40 @@ const Home: React.FC = () => {
                 </div>
               </Header>
               <Layout className={"content-wrapper overflow-y-auto"}>
-                {error && <span>{error}</span>}
-                {selectedApi ? (
-                  <Row gutter={[16, 16]} style={{ height: "100%" }}>
-                    <Col span={12} className={"left-main"}>
-                      <ApiInfo api={selectedApi} codeMap={tsCodeParts} />
-                    </Col>
+                {
+                  error && <Empty description={error}/>
+                }
+                {
+                  selectedApi ? (
+                    <Row gutter={[16, 16]} style={{height: "100%"}}>
+                      <Col span={12} className={"left-main"}>
+                        <ApiInfo api={selectedApi} codeMap={tsCodeParts}/>
+                      </Col>
 
-                    <Col span={12} style={{ height: "100%" }}>
-                      <CodeCard
-                        title="Models"
-                        code={tsCodeParts?.Models}
-                        style={{
-                          display: "flex",
-                          flexDirection: "column",
-                          height: "100%",
-                        }}
-                        styles={{
-                          body: {
-                            flex: 1,
-                            overflow: "auto",
-                            padding: 0,
-                          },
-                        }}
-                      ></CodeCard>
-                    </Col>
-                  </Row>
-                ) : (
-                  <Empty description={"请选择 API"} />
-                )}
+                      <Col span={12} style={{height: "100%"}}>
+                        <CodeCard
+                          title="Models"
+                          code={tsCodeParts?.Models}
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            height: "100%",
+                          }}
+                          styles={{
+                            body: {
+                              flex: 1,
+                              overflow: "auto",
+                              padding: 0,
+                            },
+                          }}
+                        ></CodeCard>
+                      </Col>
+                    </Row>
+                  ) : (
+                    <Empty description={"请选择 API"}/>
+                  )
+                }
+
               </Layout>
             </Layout>
           </Layout>
