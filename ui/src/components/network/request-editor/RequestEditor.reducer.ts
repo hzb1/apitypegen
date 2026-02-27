@@ -1,4 +1,10 @@
-import type { AuthType, BodyMode, KeyValueItem, RequestDraft } from "./RequestEditor.types.ts";
+import type {
+  AuthType,
+  BodyMode,
+  KeyValueItem,
+  RawBodyType,
+  RequestDraft,
+} from "./RequestEditor.types.ts";
 import {
   createInitialDraft,
   createKeyValueItem,
@@ -6,15 +12,17 @@ import {
   parseUrlToParams,
 } from "./RequestEditor.utils.ts";
 
-type ListField = "params" | "headers" | "formFields";
+type ListField = "params" | "headers" | "formFields" | "cookieItems";
 
 type RequestEditorAction =
   | { type: "reset"; payload?: Partial<RequestDraft> }
   | { type: "set_method"; payload: string }
   | { type: "set_url"; payload: string }
   | { type: "set_body_mode"; payload: BodyMode }
+  | { type: "set_raw_body_type"; payload: RawBodyType }
   | { type: "set_body_raw"; payload: string }
   | { type: "set_timeout"; payload: number }
+  | { type: "set_include_credentials"; payload: boolean }
   | { type: "set_auth_type"; payload: AuthType }
   | { type: "set_auth_username"; payload: string }
   | { type: "set_auth_password"; payload: string }
@@ -60,6 +68,12 @@ export function requestEditorReducer(
         bodyMode: action.payload,
       };
     }
+    case "set_raw_body_type": {
+      return {
+        ...state,
+        rawBodyType: action.payload,
+      };
+    }
     case "set_body_raw": {
       return {
         ...state,
@@ -70,6 +84,12 @@ export function requestEditorReducer(
       return {
         ...state,
         timeoutMs: action.payload,
+      };
+    }
+    case "set_include_credentials": {
+      return {
+        ...state,
+        includeCredentials: action.payload,
       };
     }
     case "set_auth_type": {

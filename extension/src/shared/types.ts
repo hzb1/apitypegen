@@ -20,6 +20,7 @@ export interface RequestSpec {
   headers?: Record<string, string>
   body?: RequestBody
   timeout?: number
+  credentials?: RequestCredentials
 }
 
 export type RequestBody =

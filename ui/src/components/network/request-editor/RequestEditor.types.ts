@@ -1,6 +1,13 @@
 import type { RequestSpec } from "@extension/src/shared/types.ts";
 
-export type BodyMode = "none" | "json" | "text" | "form";
+export type BodyMode =
+  | "none"
+  | "raw"
+  | "x-www-form-urlencoded"
+  | "form-data"
+  | "binary";
+
+export type RawBodyType = "json" | "text" | "xml";
 
 export type AuthType = "none" | "basic" | "bearer";
 
@@ -24,9 +31,12 @@ export type RequestDraft = {
     token?: string;
   };
   bodyMode: BodyMode;
+  rawBodyType: RawBodyType;
   bodyRaw: string;
   formFields: KeyValueItem[];
+  cookieItems: KeyValueItem[];
   timeoutMs: number;
+  includeCredentials: boolean;
 };
 
 export type ValidationResult = {

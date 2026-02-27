@@ -48,6 +48,7 @@ async function handleRequest(
       method: payload.method,
       headers,
       body: buildBody(payload.body),
+      credentials: payload.credentials,
       signal: controller.signal
     })
     const body = await readResponseBody(res)

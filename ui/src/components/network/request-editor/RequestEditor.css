@@ -75,6 +75,10 @@
   gap: 8px;
 }
 
+.req-raw-type {
+  min-width: 140px;
+}
+
 .req-auth-panel {
   display: flex;
   flex-direction: column;
@@ -93,6 +97,18 @@
 
 .req-auth-type {
   min-width: 220px;
+}
+
+.req-cookies-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.req-cookies-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 @media (max-width: 900px) {

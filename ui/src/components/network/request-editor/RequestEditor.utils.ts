@@ -4,6 +4,7 @@ import type {
   BodyMode,
   BuildRequestResult,
   KeyValueItem,
+  RawBodyType,
   RequestDraft,
   ValidationResult,
 } from "./RequestEditor.types.ts";
@@ -41,9 +42,12 @@ export function createInitialDraft(seed?: Partial<RequestDraft>): RequestDraft {
       token: seed?.auth?.token,
     },
     bodyMode: seed?.bodyMode || "none",
+    rawBodyType: seed?.rawBodyType || "json",
     bodyRaw: seed?.bodyRaw || "",
     formFields: seed?.formFields?.length ? seed.formFields : [createKeyValueItem()],
+    cookieItems: seed?.cookieItems?.length ? seed.cookieItems : [createKeyValueItem()],
     timeoutMs: seed?.timeoutMs ?? 10000,
+    includeCredentials: seed?.includeCredentials ?? true,
   };
 }
 
@@ -85,7 +89,7 @@ export function validateDraft(draft: RequestDraft): ValidationResult {
     }
   }
 
-  if (draft.bodyMode === "json" && canHaveBody(draft.method) && draft.bodyRaw.trim()) {
+  if (draft.bodyMode === "raw" && draft.rawBodyType === "json" && canHaveBody(draft.method) && draft.bodyRaw.trim()) {
     try {
       JSON.parse(draft.bodyRaw);
     } catch {
@@ -107,7 +111,15 @@ export function buildRequestSpecFromDraft(draft: RequestDraft): BuildRequestResu
   const trimmedUrl = draft.url.trim();
   const urlWithParams = mergeParamsToUrl(trimmedUrl, draft.params);
   const headers = buildHeaders(draft);
-  const bodyPayload = buildBodyPayload(draft.bodyMode, draft.bodyRaw, draft.formFields, headers, draft.method);
+  const bodyPayload = buildBodyPayload(
+    draft.bodyMode,
+    draft.rawBodyType,
+    draft.bodyRaw,
+    draft.formFields,
+    headers,
+    draft.method,
+  );
+  const credentials: RequestCredentials = draft.includeCredentials ? "include" : "omit";
 
   const requestSpec = {
     url: urlWithParams,
@@ -115,12 +127,14 @@ export function buildRequestSpecFromDraft(draft: RequestDraft): BuildRequestResu
     headers: bodyPayload.headers,
     body: bodyPayload.bodySpec,
     timeout: draft.timeoutMs,
+    credentials,
   };
 
   const init: RequestInit = {
     method: draft.method,
     headers: bodyPayload.headers,
     body: bodyPayload.bodyInit,
+    credentials,
   };
 
   return {
@@ -165,6 +179,9 @@ export function buildCopySnippet(draft: RequestDraft, format: CopyAsFormat): str
     lines.push("(async () => {");
     lines.push(`  const response = await fetch(${JSON.stringify(requestSpec.url)}, {`);
     lines.push(`    method: ${JSON.stringify(method)},`);
+    if (draft.includeCredentials) {
+      lines.push("    credentials: \"include\",");
+    }
     if (Object.keys(headers).length) {
       lines.push(`    headers: ${prettyObjectLiteral(headers, 4)},`);
     }
@@ -184,6 +201,9 @@ export function buildCopySnippet(draft: RequestDraft, format: CopyAsFormat): str
     lines.push("(() => {");
     lines.push("  const xhr = new XMLHttpRequest();");
     lines.push(`  xhr.open(${JSON.stringify(method)}, ${JSON.stringify(requestSpec.url)}, true);`);
+    if (draft.includeCredentials) {
+      lines.push("  xhr.withCredentials = true;");
+    }
     if (timeout > 0) {
       lines.push(`  xhr.timeout = ${timeout};`);
     }
@@ -221,6 +241,9 @@ export function buildCopySnippet(draft: RequestDraft, format: CopyAsFormat): str
   if (timeout > 0) {
     lines.push(`  timeout: ${timeout},`);
   }
+  if (draft.includeCredentials) {
+    lines.push("  withCredentials: true,");
+  }
   if (body && method !== "GET" && method !== "HEAD") {
     lines.push(`  data: ${JSON.stringify(body)},`);
   }
@@ -242,6 +265,7 @@ export function draftFromNetworkEntry(entry: NetworkEntry): Partial<RequestDraft
   const params = parseUrlToParams(url);
   const method = (entry.method || "GET").toUpperCase();
   const body = entry.request.postData;
+  const cookieHeader = findHeaderValue(headers, "cookie");
 
   const next: Partial<RequestDraft> = {
     method,
@@ -250,7 +274,10 @@ export function draftFromNetworkEntry(entry: NetworkEntry): Partial<RequestDraft
     headers: headers.length ? headers : [createKeyValueItem()],
     auth: { type: "none" },
     timeoutMs: 10000,
+    includeCredentials: true,
+    cookieItems: parseCookieHeaderToItems(cookieHeader),
     bodyMode: "none",
+    rawBodyType: "json",
     bodyRaw: "",
     formFields: [createKeyValueItem()],
   };
@@ -258,13 +285,14 @@ export function draftFromNetworkEntry(entry: NetworkEntry): Partial<RequestDraft
   if (!body) return next;
 
   if (body.json !== undefined) {
-    next.bodyMode = "json";
+    next.bodyMode = "raw";
+    next.rawBodyType = "json";
     next.bodyRaw = safeStringify(body.json);
     return next;
   }
 
   if (body.params?.length) {
-    next.bodyMode = "form";
+    next.bodyMode = "x-www-form-urlencoded";
     next.formFields = body.params.map((item) =>
       createKeyValueItem({
         key: item.name,
@@ -276,9 +304,14 @@ export function draftFromNetworkEntry(entry: NetworkEntry): Partial<RequestDraft
   }
 
   if (body.text !== undefined) {
-    const contentType = findHeader(headers, "content-type");
-    next.bodyMode = contentType?.includes("json") ? "json" : "text";
-    next.bodyRaw = next.bodyMode === "json" ? normalizeJsonText(body.text) : body.text;
+    const contentType = findHeaderValue(headers, "content-type").toLowerCase();
+    next.bodyMode = inferBodyModeByContentType(contentType);
+    if (next.bodyMode === "raw") {
+      next.rawBodyType = inferRawTypeByContentType(contentType);
+      next.bodyRaw = next.rawBodyType === "json" ? normalizeJsonText(body.text) : body.text;
+    } else {
+      next.bodyRaw = body.text;
+    }
   }
 
   return next;
@@ -293,6 +326,11 @@ function buildHeaders(draft: RequestDraft): Record<string, string> {
     if (!key) return;
     headers[key] = item.value;
   });
+
+  const cookieHeader = buildCookieHeaderValue(draft.cookieItems);
+  if (cookieHeader) {
+    headers.Cookie = cookieHeader;
+  }
 
   if (draft.auth.type === "bearer" && draft.auth.token?.trim()) {
     headers.Authorization = `Bearer ${draft.auth.token.trim()}`;
@@ -311,6 +349,7 @@ function buildHeaders(draft: RequestDraft): Record<string, string> {
 
 function buildBodyPayload(
   bodyMode: BodyMode,
+  rawBodyType: RawBodyType,
   bodyRaw: string,
   formFields: KeyValueItem[],
   headers: Record<string, string>,
@@ -326,21 +365,25 @@ function buildBodyPayload(
 
   const nextHeaders = { ...headers };
 
-  if (bodyMode === "json") {
+  if (bodyMode === "raw") {
     if (!hasHeader(nextHeaders, "content-type")) {
-      nextHeaders["Content-Type"] = "application/json";
+      nextHeaders["Content-Type"] = rawBodyType === "json"
+        ? "application/json"
+        : rawBodyType === "xml"
+          ? "application/xml"
+          : "text/plain";
     }
     return {
       headers: nextHeaders,
       bodySpec: {
-        type: "json",
-        value: bodyRaw.trim() ? JSON.parse(bodyRaw) : {},
+        type: rawBodyType === "json" ? "json" : "text",
+        value: rawBodyType === "json" ? (bodyRaw.trim() ? JSON.parse(bodyRaw) : {}) : bodyRaw,
       },
-      bodyInit: bodyRaw.trim() ? bodyRaw : "{}",
+      bodyInit: rawBodyType === "json" ? (bodyRaw.trim() ? bodyRaw : "{}") : bodyRaw,
     };
   }
 
-  if (bodyMode === "form") {
+  if (bodyMode === "x-www-form-urlencoded" || bodyMode === "form-data") {
     const form: Record<string, string> = {};
     formFields.forEach((item) => {
       if (!item.enabled) return;
@@ -349,7 +392,7 @@ function buildBodyPayload(
       form[key] = item.value;
     });
 
-    if (!hasHeader(nextHeaders, "content-type")) {
+    if (!hasHeader(nextHeaders, "content-type") && bodyMode === "x-www-form-urlencoded") {
       nextHeaders["Content-Type"] = "application/x-www-form-urlencoded";
     }
 
@@ -359,22 +402,28 @@ function buildBodyPayload(
         type: "form",
         value: form,
       },
-      bodyInit: new URLSearchParams(form).toString(),
+      bodyInit:
+        bodyMode === "x-www-form-urlencoded"
+          ? new URLSearchParams(form).toString()
+          : buildFormData(form),
     };
   }
 
-  if (!hasHeader(nextHeaders, "content-type")) {
-    nextHeaders["Content-Type"] = "text/plain";
+  if (bodyMode === "binary") {
+    if (!hasHeader(nextHeaders, "content-type")) {
+      nextHeaders["Content-Type"] = "application/octet-stream";
+    }
+    return {
+      headers: nextHeaders,
+      bodySpec: {
+        type: "text",
+        value: bodyRaw,
+      },
+      bodyInit: bodyRaw,
+    };
   }
 
-  return {
-    headers: nextHeaders,
-    bodySpec: {
-      type: "text",
-      value: bodyRaw,
-    },
-    bodyInit: bodyRaw,
-  };
+  return { headers: nextHeaders };
 }
 
 function hasHeader(headers: Record<string, string>, name: string): boolean {
@@ -415,10 +464,10 @@ function normalizeJsonText(value: string): string {
   }
 }
 
-function findHeader(headers: KeyValueItem[], name: string): string {
+function findHeaderValue(headers: KeyValueItem[], name: string): string {
   const lowerName = name.toLowerCase();
   const hit = headers.find((item) => item.key.toLowerCase() === lowerName);
-  return (hit?.value || "").toLowerCase();
+  return hit?.value || "";
 }
 
 function prettyObjectLiteral(input: Record<string, string>, indentLevel = 0): string {
@@ -427,5 +476,59 @@ function prettyObjectLiteral(input: Record<string, string>, indentLevel = 0): st
   if (!entries.length) return "{}";
 
   const lines = entries.map(([key, value]) => `${space}  ${JSON.stringify(key)}: ${JSON.stringify(value)}`);
-  return `{\n${lines.join(",\n")}\n${space}}`;
+  return `\n${space}{\n${lines.join(",\n")}\n${space}}`.trimStart();
+}
+
+function buildCookieHeaderValue(items: KeyValueItem[]): string {
+  const pairs = items
+    .filter((item) => item.enabled && item.key.trim())
+    .map((item) => `${item.key.trim()}=${item.value}`);
+  return pairs.join("; ");
+}
+
+function parseCookieHeaderToItems(cookieHeader: string): KeyValueItem[] {
+  if (!cookieHeader.trim()) return [createKeyValueItem()];
+  const items = cookieHeader
+    .split(";")
+    .map((chunk) => chunk.trim())
+    .filter(Boolean)
+    .map((chunk) => {
+      const index = chunk.indexOf("=");
+      if (index <= 0) {
+        return createKeyValueItem({ key: chunk, value: "", enabled: true });
+      }
+      return createKeyValueItem({
+        key: chunk.slice(0, index).trim(),
+        value: chunk.slice(index + 1).trim(),
+        enabled: true,
+      });
+    });
+  return items.length ? items : [createKeyValueItem()];
+}
+
+function inferBodyModeByContentType(contentType: string): BodyMode {
+  if (contentType.includes("application/x-www-form-urlencoded")) {
+    return "x-www-form-urlencoded";
+  }
+  if (contentType.includes("multipart/form-data")) {
+    return "form-data";
+  }
+  if (contentType.includes("application/octet-stream")) {
+    return "binary";
+  }
+  return "raw";
+}
+
+function inferRawTypeByContentType(contentType: string): RawBodyType {
+  if (contentType.includes("json")) return "json";
+  if (contentType.includes("xml")) return "xml";
+  return "text";
+}
+
+function buildFormData(form: Record<string, string>): FormData {
+  const formData = new FormData();
+  Object.entries(form).forEach(([key, value]) => {
+    formData.append(key, value);
+  });
+  return formData;
 }

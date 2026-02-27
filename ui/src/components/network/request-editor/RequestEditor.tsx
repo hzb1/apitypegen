@@ -92,10 +92,12 @@ const RequestEditor: React.FC<RequestEditorProps> = ({
           <BodyEditor
             method={draft.method}
             bodyMode={draft.bodyMode}
+            rawBodyType={draft.rawBodyType}
             bodyRaw={draft.bodyRaw}
             formFields={draft.formFields}
             disabled={disabled || loading}
             onModeChange={(mode) => dispatch({ type: "set_body_mode", payload: mode })}
+            onRawBodyTypeChange={(type) => dispatch({ type: "set_raw_body_type", payload: type })}
             onRawChange={(text) => dispatch({ type: "set_body_raw", payload: text })}
             onFormAdd={() => dispatch({ type: "add_item", payload: { field: "formFields" } })}
             onFormRemove={(id) => dispatch({ type: "remove_item", payload: { field: "formFields", id } })}
@@ -103,6 +105,41 @@ const RequestEditor: React.FC<RequestEditorProps> = ({
               dispatch({ type: "update_item", payload: { field: "formFields", id, patch } })
             }
           />
+        ),
+      },
+      {
+        key: "cookies",
+        label: "Cookies",
+        children: (
+          <div className="req-cookies-panel">
+            <div className="req-cookies-header">
+              <Text type="secondary">Include browser cookies</Text>
+              <Button
+                size="small"
+                type={draft.includeCredentials ? "primary" : "default"}
+                disabled={disabled || loading}
+                onClick={() =>
+                  dispatch({
+                    type: "set_include_credentials",
+                    payload: !draft.includeCredentials,
+                  })
+                }
+              >
+                {draft.includeCredentials ? "ON" : "OFF"}
+              </Button>
+            </div>
+            <KeyValueTable
+              items={draft.cookieItems}
+              disabled={disabled || loading}
+              keyPlaceholder="cookie name"
+              valuePlaceholder="cookie value"
+              onAdd={() => dispatch({ type: "add_item", payload: { field: "cookieItems" } })}
+              onRemove={(id) => dispatch({ type: "remove_item", payload: { field: "cookieItems", id } })}
+              onChange={(id, patch) =>
+                dispatch({ type: "update_item", payload: { field: "cookieItems", id, patch } })
+              }
+            />
+          </div>
         ),
       },
     ];

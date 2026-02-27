@@ -207,7 +207,8 @@ async function proxyFetchRaw(
         method: (init?.method || 'GET'),
         headers: normalizeHeaders(init?.headers),
         body: init?.body ? { type: 'text', value: String(init.body) } : undefined,
-        timeout: init?.timeout // 传递给插件执行
+        timeout: init?.timeout, // 传递给插件执行
+        credentials: init?.credentials,
       },
     }
 
