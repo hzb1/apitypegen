@@ -91,7 +91,7 @@ const ApiSearchDialog: React.FC<ApiSearchDialogProps> = ({
           value={query}
           onChange={setQuery}
           autoFocus
-          placeholder="输入路径、名称或 operationId"
+          placeholder="输入路径、名称、operationId 或模型"
 
         />
         <div className="mt-4 max-h-[420px] space-y-4 overflow-y-auto pr-1">
@@ -142,10 +142,57 @@ function getMatchInfo(
   if (operationId.startsWith(query)) return { matchType: "ID", score: 60 };
   if (operationId.includes(query)) return { matchType: "ID", score: 50 };
 
+  const modelNames = getModelNamesFromOperation(item.operation);
+  if (modelNames.some((name) => name === query)) {
+    return { matchType: "模型", score: 65 };
+  }
+  if (modelNames.some((name) => name.startsWith(query))) {
+    return { matchType: "模型", score: 55 };
+  }
+  if (modelNames.some((name) => name.includes(query))) {
+    return { matchType: "模型", score: 45 };
+  }
+
   if (method.startsWith(query)) return { matchType: "方法", score: 40 };
   if (method.includes(query)) return { matchType: "方法", score: 30 };
 
   return null;
+}
+
+const operationModelNamesCache = new WeakMap<object, string[]>();
+
+function getModelNamesFromOperation(operation: unknown): string[] {
+  if (!operation || typeof operation !== "object") return [];
+  const cacheHit = operationModelNamesCache.get(operation);
+  if (cacheHit) return cacheHit;
+
+  const result = new Set<string>();
+  const visited = new WeakSet<object>();
+
+  const walk = (value: unknown) => {
+    if (!value || typeof value !== "object") return;
+    const obj = value as Record<string, unknown>;
+
+    if (visited.has(obj)) return;
+    visited.add(obj);
+
+    const ref = obj.$ref;
+    if (typeof ref === "string") {
+      const refName = ref.split("/").pop() ?? "";
+      if (refName) {
+        result.add(refName.toLowerCase());
+      }
+    }
+
+    Object.values(obj).forEach((child) => {
+      walk(child);
+    });
+  };
+
+  walk(operation);
+  const collected = Array.from(result);
+  operationModelNamesCache.set(operation, collected);
+  return collected;
 }
 
 export default ApiSearchDialog;

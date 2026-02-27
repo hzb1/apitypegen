@@ -1,7 +1,7 @@
 import React from "react";
 import type { ApiGroup } from "../ApiList/ApiList.tsx";
 
-export type SearchMatchType = "路径" | "名称" | "ID" | "方法";
+export type SearchMatchType = "路径" | "名称" | "ID" | "模型" | "方法";
 
 export type SearchResultItemData = {
   matchType: SearchMatchType;
