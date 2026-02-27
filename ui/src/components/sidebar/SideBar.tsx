@@ -10,7 +10,13 @@ type Option = {
   value: string;
 };
 
+type ScrollRequest = {
+  key: string;
+  id: number;
+};
+
 export type SideBarProps = {
+  scrollRequest?: ScrollRequest;
   ipValue: string;
   ipOptions: AutoCompleteProps["options"];
   loading?: boolean;
@@ -30,6 +36,7 @@ const SideBar: React.FC<SideBarProps> = (props) => {
     loading,
     onIpChange,
     onIpCommit,
+    scrollRequest,
     currentServiceUrl,
     onCurrentServiceUrlChange,
     configLoading,
@@ -60,6 +67,11 @@ const SideBar: React.FC<SideBarProps> = (props) => {
     onSelectKeyChange?.(selectedKey);
     setPendingScrollKey(selectedKey);
   };
+
+  useEffect(() => {
+    if (!scrollRequest?.key) return;
+    setPendingScrollKey(scrollRequest.key);
+  }, [scrollRequest]);
 
   useEffect(() => {
     if (!pendingScrollKey) return;

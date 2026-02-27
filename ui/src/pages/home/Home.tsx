@@ -46,6 +46,11 @@ type SearchRecord = {
   updatedAt: number;
 };
 
+type ScrollRequest = {
+  key: string;
+  id: number;
+};
+
 const Home: React.FC = () => {
   const {
     token: {colorBgContainer},
@@ -77,6 +82,8 @@ const Home: React.FC = () => {
   const [renameTarget, setRenameTarget] = useState<SearchRecord | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const lastRecordedIpRef = useRef("");
+  const scrollRequestIdRef = useRef(0);
+  const [scrollRequest, setScrollRequest] = useState<ScrollRequest | undefined>(undefined);
 
   const {documentData, configData, stage, error} = useSwagger({
     ip: ipFromUrl,
@@ -373,15 +380,41 @@ const Home: React.FC = () => {
     return groups;
   }, [historyOptions]);
 
+  const apiKeyToGroupId = useMemo(() => {
+    const map = new Map<string, string>();
+    Object.entries(groupedApis).forEach(([tag, apis]) => {
+      const groupId = stableHash(tag);
+      apis.forEach((api) => {
+        map.set(api.key, groupId);
+      });
+    });
+    return map;
+  }, [groupedApis]);
+
   /**
    * 菜单选择回调
    */
   const onMenuSelect = (key: string) => {
+    const targetGroupId = apiKeyToGroupId.get(key);
+    if (targetGroupId) {
+      setExpandedGroupList((prev) => (
+        prev.includes(targetGroupId) ? prev : [...prev, targetGroupId]
+      ));
+    }
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       next.set("api", key);
       return next;
     });
+  };
+
+  const onViewedTabSelect = (key: string) => {
+    scrollRequestIdRef.current += 1;
+    setScrollRequest({
+      key,
+      id: scrollRequestIdRef.current,
+    });
+    onMenuSelect(key);
   };
 
   const handleRemoveViewedTab = useCallback((targetKey: string) => {
@@ -478,6 +511,7 @@ const Home: React.FC = () => {
           >
             <Sider width={324} style={{background: colorBgContainer}}>
               <SideBar
+                scrollRequest={scrollRequest}
                 ipValue={inputIp}
                 ipOptions={autoCompleteOptions}
                 loading={loading}
@@ -495,12 +529,12 @@ const Home: React.FC = () => {
             </Sider>
 
             <Layout className={"flex flex-col h-full"}>
-              <Layout className={"content-wrapper overflow-y-auto"}>
+              <Layout className={"content-wrapper"}>
                 <div className="content-api-tabs">
                   {viewedApiKeys.length > 0 ? (
                     <Tabs
                       activeKey={selectedApiKey ?? undefined}
-                      onChange={onMenuSelect}
+                      onChange={onViewedTabSelect}
                       type="editable-card"
                       hideAdd
                       onEdit={(targetKey, action) => {
@@ -523,46 +557,46 @@ const Home: React.FC = () => {
                           };
                         })
                         .filter((item): item is { key: string; label: string } => Boolean(item))}
-                      size="small"
                     />
                   ) : (
                     <div className="content-viewed-empty">暂无已查看接口</div>
                   )}
                 </div>
-                {
-                  error && <Empty description={error}/>
-                }
-                {
-                  selectedApi ? (
-                    <Row gutter={[16, 16]} style={{height: "100%"}}>
-                      <Col span={12} className={"left-main"}>
-                        <ApiInfo api={selectedApi} codeMap={tsCodeParts}/>
-                      </Col>
+                <div className="content-scroll-area">
+                  {
+                    error && <Empty description={error}/>
+                  }
+                  {
+                    selectedApi ? (
+                      <Row gutter={[16, 16]} style={{height: "100%"}}>
+                        <Col span={12} className={"left-main"}>
+                          <ApiInfo api={selectedApi} codeMap={tsCodeParts}/>
+                        </Col>
 
-                      <Col span={12} style={{height: "100%"}}>
-                        <CodeCard
-                          title="Models"
-                          code={tsCodeParts?.Models}
-                          style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            height: "100%",
-                          }}
-                          styles={{
-                            body: {
-                              flex: 1,
-                              overflow: "auto",
-                              padding: 0,
-                            },
-                          }}
-                        ></CodeCard>
-                      </Col>
-                    </Row>
-                  ) : (
-                    <Empty description={"请选择 API"}/>
-                  )
-                }
-
+                        <Col span={12} style={{height: "100%"}}>
+                          <CodeCard
+                            title="Models"
+                            code={tsCodeParts?.Models}
+                            style={{
+                              display: "flex",
+                              flexDirection: "column",
+                              height: "100%",
+                            }}
+                            styles={{
+                              body: {
+                                flex: 1,
+                                overflow: "auto",
+                                padding: 0,
+                              },
+                            }}
+                          ></CodeCard>
+                        </Col>
+                      </Row>
+                    ) : (
+                      <Empty description={"请选择 API"}/>
+                    )
+                  }
+                </div>
               </Layout>
             </Layout>
           </Layout>
