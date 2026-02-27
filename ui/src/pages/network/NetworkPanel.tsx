@@ -16,6 +16,7 @@ import {
   Tag,
   Typography,
 } from "antd";
+import type { OpenAPI } from "openapi-types";
 import { proxyFetch, ProxyResponse } from "@extension/src/shared/proxySdk.ts";
 import {
   ProxyError,
@@ -40,6 +41,8 @@ import {
   draftFromNetworkEntry,
 } from "@/components/network/request-editor/RequestEditor.utils.ts";
 import type { RequestDraft } from "@/components/network/request-editor/RequestEditor.types.ts";
+import { useSearchParams } from "react-router";
+import { useSwagger } from "@/hooks/useSwagger.ts";
 import "./NetworkPanel.css";
 
 const { Title, Text } = Typography;
@@ -74,11 +77,22 @@ const STATUS_FILTERS: Array<{ label: string; value: StatusFilter }> = [
 ];
 
 const NetworkPanel: React.FC = () => {
+  const [searchParams] = useSearchParams();
   const [messageApi, contextHolder] = message.useMessage();
   const [editorSeed, setEditorSeed] = useState<Partial<RequestDraft>>(() =>
     createInitialDraft(),
   );
+  const [currentDraft, setCurrentDraft] = useState<RequestDraft>(() =>
+    createInitialDraft(),
+  );
   const [loading, setLoading] = useState(false);
+  const ipFromUrl = searchParams.get("ip")?.trim() ?? "";
+  const serviceUrl = searchParams.get("service") ?? undefined;
+
+  const { documentData } = useSwagger({
+    ip: ipFromUrl,
+    serviceUrl,
+  });
 
   const [entries, setEntries] = useState<NetworkEntry[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -125,6 +139,15 @@ const NetworkPanel: React.FC = () => {
       );
     });
   }, [entries, searchText, typeFilter, statusFilter]);
+
+  const pathVariableDefaults = useMemo(() => {
+    if (!documentData) return {};
+    return extractPathVariableDefaults(
+      documentData as OpenAPI.Document,
+      currentDraft.method,
+      currentDraft.url,
+    );
+  }, [documentData, currentDraft.method, currentDraft.url]);
 
   const onClear = () => {
     setEntries([]);
@@ -345,7 +368,9 @@ const NetworkPanel: React.FC = () => {
         <Card className="network-card">
           <RequestEditor
             value={editorSeed}
+            pathVariableDefaults={pathVariableDefaults}
             loading={loading}
+            onChange={setCurrentDraft}
             onSend={onSend}
           />
         </Card>
@@ -479,6 +504,103 @@ const NetworkPanel: React.FC = () => {
 };
 
 export default NetworkPanel;
+
+function extractPathVariableDefaults(
+  document: OpenAPI.Document,
+  method: string,
+  requestUrl: string,
+): Record<string, string> {
+  const target = safeUrl(requestUrl);
+  if (!target || !document.paths) return {};
+
+  const pathname = decodePathname(target.pathname);
+  const methodLower = method.toLowerCase();
+  const paths = Object.entries(document.paths);
+
+  for (const [pathPattern, pathItem] of paths) {
+    const pathMatch = matchPathPattern(pathPattern, pathname);
+    if (!pathMatch.matched) continue;
+
+    const operation = (pathItem as Record<string, unknown>)[methodLower] as Record<string, unknown> | undefined;
+    if (!operation) continue;
+
+    const defaults: Record<string, string> = {};
+    const pathParams = collectPathParameters(pathItem, operation);
+    pathParams.forEach((param) => {
+      const name = String(param.name || "");
+      if (!name) return;
+      const value = extractParamDefault(param);
+      if (typeof value !== "undefined") {
+        defaults[name] = value;
+      }
+    });
+    return defaults;
+  }
+
+  return {};
+}
+
+function collectPathParameters(
+  pathItem: unknown,
+  operation: Record<string, unknown>,
+): Array<Record<string, unknown>> {
+  const fromPath = (pathItem as Record<string, unknown>)?.parameters;
+  const fromOperation = operation.parameters;
+  const all = [
+    ...(Array.isArray(fromPath) ? fromPath : []),
+    ...(Array.isArray(fromOperation) ? fromOperation : []),
+  ] as Array<Record<string, unknown>>;
+
+  return all.filter((item) => item?.in === "path");
+}
+
+function extractParamDefault(param: Record<string, unknown>): string | undefined {
+  const directExample = param.example;
+  if (typeof directExample !== "undefined") return String(directExample);
+
+  const schema = param.schema as Record<string, unknown> | undefined;
+  const schemaExample = schema?.example;
+  if (typeof schemaExample !== "undefined") return String(schemaExample);
+
+  const directDefault = param.default;
+  if (typeof directDefault !== "undefined") return String(directDefault);
+
+  const schemaDefault = schema?.default;
+  if (typeof schemaDefault !== "undefined") return String(schemaDefault);
+
+  const directEnum = param.enum as unknown[] | undefined;
+  if (directEnum?.length) return String(directEnum[0]);
+
+  const schemaEnum = schema?.enum as unknown[] | undefined;
+  if (schemaEnum?.length) return String(schemaEnum[0]);
+
+  return undefined;
+}
+
+function matchPathPattern(pattern: string, pathname: string): { matched: boolean } {
+  const escaped = pattern
+    .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+    .replace(/\\\{[^}]+\\\}/g, "[^/]+")
+    .replace(/:[A-Za-z0-9_]+/g, "[^/]+");
+  const regex = new RegExp(`^${escaped}$`);
+  return { matched: regex.test(pathname) };
+}
+
+function safeUrl(value: string): URL | null {
+  try {
+    return new URL(value);
+  } catch {
+    return null;
+  }
+}
+
+function decodePathname(pathname: string): string {
+  try {
+    return decodeURIComponent(pathname);
+  } catch {
+    return pathname;
+  }
+}
 
 function renderHeadersTab(entry: NetworkEntry) {
   return (

@@ -5,7 +5,7 @@ import {
   Row,
   Col,
   Spin,
-  Tag,
+  Tabs,
   Empty,
   Modal,
   Alert,
@@ -16,12 +16,6 @@ import {type AutoCompleteProps} from "antd";
 import "./Home.css";
 import {useSwagger} from "@/hooks/useSwagger.ts";
 import {useOptions} from "@/hooks/useOptions.ts";
-import type {OpenAPIV2, OpenAPIV3} from "openapi-types";
-import {
-  CheckCircleOutlined,
-  LoadingOutlined,
-  WarningOutlined,
-} from "@ant-design/icons";
 import {DeleteOutlined, EditOutlined} from "@ant-design/icons";
 import {usePluginEnabled} from "@/hooks/usePluginEnabled.ts";
 import {useSearchParams} from "react-router";
@@ -35,10 +29,12 @@ import {getApiSlug, stableHash} from "@/utils/getApiSlug.ts";
 import {SwaggerToTS} from "@/utils/SwaggerParser.ts";
 import type {ApiGroup} from "./utils.ts";
 
-const {Header, Sider} = Layout;
+const {Sider} = Layout;
 
 const SEARCH_HISTORY_KEY = "ts-swagger-search-history";
+const VIEWED_API_TABS_KEY = "ts-swagger-viewed-api-tabs";
 const MAX_HISTORY = 10;
+const MAX_VIEWED_API_TABS = 12;
 const EXTENSION_URL =
   (import.meta.env.VITE_PROXY_EXTENSION_URL as string | undefined) ??
   "https://github.com/hzb1/ts-swagger/releases/latest/download/ts-swagger-extension-dist-latest.zip";
@@ -49,9 +45,6 @@ type SearchRecord = {
   value: string;
   updatedAt: number;
 };
-
-type PathItem = OpenAPIV2.PathItemObject | OpenAPIV3.PathItemObject | OpenAPIV3.ReferenceObject;
-type Operation = OpenAPIV2.OperationObject | OpenAPIV3.OperationObject;
 
 const Home: React.FC = () => {
   const {
@@ -97,24 +90,9 @@ const Home: React.FC = () => {
           return next;
         }, {replace: true});
       },
-      onDocumentLoaded: (doc) => {
-        if (doc.paths) {
-          const allTags = new Set<string>();
-          Object.values(doc.paths).forEach((pathItem) => {
-            const item = pathItem as PathItem;
-            if (!item || typeof item !== "object" || "$ref" in item) return;
-            ["get", "post", "put", "delete", "patch"].forEach(method => {
-              const op = (item as Record<string, Operation | undefined>)[method];
-              if (op?.tags?.[0]) {
-                // 注意：这里的 ID 生成逻辑应与 apiGroups 保持一致
-                // 如果你的 SideBar 使用的是 stableHash(tag)，则存入 hash
-                allTags.add(stableHash(op.tags[0]));
-              }
-            });
-          });
-          setExpandedGroupList(Array.from(allTags));
-        }
-      }
+      onDocumentLoaded: () => {
+        // no-op
+      },
     }
   });
 
@@ -170,25 +148,33 @@ const Home: React.FC = () => {
     return findApi;
   }, [groupedApis, selectedApiKey]);
 
-  // 展开的分组
-  const [expandedGroupList, setExpandedGroupList] = useState<string[]>(() => {
-    const api = searchParams.get("api");
-    if (!api) return [];
-    return [];
-  });
+  const apiMap = useMemo(() => {
+    const map = new Map<string, ApiDetail>();
+    Object.values(groupedApis).forEach((apis) => {
+      apis.forEach((api) => map.set(api.key, api));
+    });
+    return map;
+  }, [groupedApis]);
+
+  const [expandedGroupList, setExpandedGroupList] = useState<string[]>([]);
 
   const handleGroupTitleClick = (groupItem: ApiGroup) => {
     const groupId = groupItem.id;
     setExpandedGroupList((prev) => {
       if (prev.includes(groupId)) {
         return prev.filter((id) => id !== groupId);
-      } else {
-        return [...prev, groupId];
       }
+      return [...prev, groupId];
     });
   };
 
   const {pluginEnabled, checking} = usePluginEnabled();
+  const [viewedApiKeys, setViewedApiKeys] = useState<string[]>([]);
+  const viewedContextKey = useMemo(
+    () => `${ipFromUrl}__${serviceUrl ?? ""}`,
+    [ipFromUrl, serviceUrl],
+  );
+  const skipNextViewedTabsPersistRef = useRef(false);
 
   const handleCommitIp = (nextIp: string) => {
     setInputIp(nextIp);
@@ -286,6 +272,58 @@ const Home: React.FC = () => {
     }
   }, [searchHistory]);
 
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(VIEWED_API_TABS_KEY);
+      if (!raw) {
+        skipNextViewedTabsPersistRef.current = true;
+        setViewedApiKeys([]);
+        return;
+      }
+      const parsed = JSON.parse(raw) as Record<string, string[]>;
+      const list = parsed?.[viewedContextKey];
+      if (!Array.isArray(list)) {
+        skipNextViewedTabsPersistRef.current = true;
+        setViewedApiKeys([]);
+        return;
+      }
+      skipNextViewedTabsPersistRef.current = true;
+      setViewedApiKeys(
+        list
+          .filter((key) => typeof key === "string" && key.length > 0)
+          .slice(-MAX_VIEWED_API_TABS),
+      );
+    } catch {
+      skipNextViewedTabsPersistRef.current = true;
+      setViewedApiKeys([]);
+    }
+  }, [viewedContextKey]);
+
+  useEffect(() => {
+    if (skipNextViewedTabsPersistRef.current) {
+      skipNextViewedTabsPersistRef.current = false;
+      return;
+    }
+    try {
+      const raw = localStorage.getItem(VIEWED_API_TABS_KEY);
+      const parsed = raw ? (JSON.parse(raw) as Record<string, string[]>) : {};
+      parsed[viewedContextKey] = viewedApiKeys.slice(-MAX_VIEWED_API_TABS);
+      localStorage.setItem(VIEWED_API_TABS_KEY, JSON.stringify(parsed));
+    } catch {
+      // ignore
+    }
+  }, [viewedApiKeys, viewedContextKey]);
+
+  useEffect(() => {
+    if (!selectedApiKey || !apiMap.has(selectedApiKey)) return;
+    setViewedApiKeys((prev) => {
+      if (prev.includes(selectedApiKey)) return prev;
+      const next = [...prev, selectedApiKey];
+      if (next.length <= MAX_VIEWED_API_TABS) return next;
+      return next.slice(next.length - MAX_VIEWED_API_TABS);
+    });
+  }, [apiMap, selectedApiKey]);
+
   const historyOptions = useMemo(
     () =>
       searchHistory.map((record) => ({
@@ -346,6 +384,28 @@ const Home: React.FC = () => {
     });
   };
 
+  const handleRemoveViewedTab = useCallback((targetKey: string) => {
+    const idx = viewedApiKeys.indexOf(targetKey);
+    if (idx < 0) return;
+
+    const remaining = viewedApiKeys.filter((key) => key !== targetKey);
+    setViewedApiKeys(remaining);
+
+    if (selectedApiKey !== targetKey) return;
+
+    const fallbackIndex = Math.min(idx, remaining.length - 1);
+    const fallbackKey = fallbackIndex >= 0 ? remaining[fallbackIndex] : "";
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (fallbackKey) {
+        next.set("api", fallbackKey);
+      } else {
+        next.delete("api");
+      }
+      return next;
+    });
+  }, [selectedApiKey, setSearchParams, viewedApiKeys]);
+
   const tsCodeParts = useMemo(() => {
     if (!documentData || !selectedApi) return;
     // 使用 useOptions 提供的 generatorOptions
@@ -381,7 +441,6 @@ const Home: React.FC = () => {
   const apiGroups: SideBarProps["apis"] = useMemo(() => {
     return Object.entries(groupedApis).map(([tag, apis]) => {
       const id = stableHash(tag);
-      const isExpanded = expandedGroupList.includes(id);
 
       const children = apis.map((api) => ({
         ...api,
@@ -390,25 +449,24 @@ const Home: React.FC = () => {
 
       return {
         id,
-        isExpanded,
+        isExpanded: expandedGroupList.includes(id),
         children,
         name: tag,
       };
     });
-  }, [groupedApis, expandedGroupList, selectedApiKey]);
+  }, [expandedGroupList, groupedApis, selectedApiKey]);
 
-  /**
-   * 在初始化时 设置默认展开的分组
-   */
-  // if (expandedGroupList.length === 0 && queryApiKey && apiGroups) {
-  //   // 找出当前接口所在的分组
-  //   const currentGroup = apiGroups.find((group) =>
-  //     group.children.some((api) => api.key === queryApiKey),
-  //   );
-  //   if (currentGroup) {
-  //     setExpandedGroupList([currentGroup.id]);
-  //   }
-  // }
+  useEffect(() => {
+    if (!apiGroups.length) {
+      setExpandedGroupList([]);
+      return;
+    }
+    setExpandedGroupList((prev) => {
+      if (prev.length) return prev;
+      return apiGroups.map((group) => group.id);
+    });
+  }, [apiGroups]);
+
 
   return (
     <>
@@ -420,6 +478,11 @@ const Home: React.FC = () => {
           >
             <Sider width={324} style={{background: colorBgContainer}}>
               <SideBar
+                ipValue={inputIp}
+                ipOptions={autoCompleteOptions}
+                loading={loading}
+                onIpChange={setInputIp}
+                onIpCommit={handleCommitIp}
                 currentServiceUrl={serviceUrl}
                 onCurrentServiceUrlChange={handleServiceChange}
                 configLoading={configLoading}
@@ -432,62 +495,40 @@ const Home: React.FC = () => {
             </Sider>
 
             <Layout className={"flex flex-col h-full"}>
-              <Header
-                className={"header-wrapper border-b border-gray-950/5"}
-                style={{
-                  display: "flex",
-                  alignItems: "justify-content-between",
-                  backgroundColor: colorBgContainer,
-                }}
-              >
-                <div className={"search-wrapper"}>
-                  <AutoComplete
-                    value={inputIp}
-                    onChange={(value) => setInputIp(value)}
-                    onSelect={handleCommitIp}
-                    options={autoCompleteOptions}
-                    style={{width: 304}}
-                    size={'large'}
-                  >
-                    <Input.Search
-                      placeholder="输入 IP 地址"
-                      enterButton
-                      loading={loading}
-                      onSearch={(value) => handleCommitIp(value)}
-                      size={'large'}
+              <Layout className={"content-wrapper overflow-y-auto"}>
+                <div className="content-api-tabs">
+                  {viewedApiKeys.length > 0 ? (
+                    <Tabs
+                      activeKey={selectedApiKey ?? undefined}
+                      onChange={onMenuSelect}
+                      type="editable-card"
+                      hideAdd
+                      onEdit={(targetKey, action) => {
+                        if (action !== "remove" || typeof targetKey !== "string") return;
+                        handleRemoveViewedTab(targetKey);
+                      }}
+                      items={viewedApiKeys
+                        .map((key) => {
+                          const api = apiMap.get(key);
+                          if (!api) return null;
+                          const title = api.operation?.summary ?? api.path;
+                          return {
+                            key,
+                            label: (
+                              <span className="viewed-tab-label" title={title}>
+                                {title}
+                              </span>
+                            ),
+                            closable: true,
+                          };
+                        })
+                        .filter((item): item is { key: string; label: string } => Boolean(item))}
+                      size="small"
                     />
-                  </AutoComplete>
-                </div>
-
-                <div>
-                  {checking ? (
-                    <Tag
-                      color="success"
-                      variant={"solid"}
-                      icon={<LoadingOutlined/>}
-                    >
-                      检查中
-                    </Tag>
-                  ) : pluginEnabled ? (
-                    <Tag
-                      color="success"
-                      variant={"solid"}
-                      icon={<CheckCircleOutlined/>}
-                    >
-                      已连接
-                    </Tag>
                   ) : (
-                    <Tag
-                      color="error"
-                      variant={"solid"}
-                      icon={<WarningOutlined/>}
-                    >
-                      未连接
-                    </Tag>
+                    <div className="content-viewed-empty">暂无已查看接口</div>
                   )}
                 </div>
-              </Header>
-              <Layout className={"content-wrapper overflow-y-auto"}>
                 {
                   error && <Empty description={error}/>
                 }

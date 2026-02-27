@@ -29,10 +29,12 @@ export function createKeyValueItem(seed?: Partial<KeyValueItem>): KeyValueItem {
 }
 
 export function createInitialDraft(seed?: Partial<RequestDraft>): RequestDraft {
+  const fallbackUrl = seed?.url || "https://httpbin.org/get";
   const params = seed?.params?.length ? seed.params : parseUrlToParams(seed?.url || "");
   return {
     method: seed?.method || "GET",
-    url: seed?.url || "https://httpbin.org/get",
+    url: fallbackUrl,
+    pathVariables: seed?.pathVariables?.length ? seed.pathVariables : parsePathVariablesFromUrl(fallbackUrl),
     params,
     headers: seed?.headers?.length ? seed.headers : [createKeyValueItem({ key: "Accept", value: "application/json" })],
     auth: {
@@ -76,6 +78,53 @@ export function mergeParamsToUrl(url: string, params: KeyValueItem[]): string {
   return parsed.toString();
 }
 
+export function parsePathVariablesFromUrl(url: string): KeyValueItem[] {
+  const parsed = safeUrl(url);
+  if (!parsed) return [createKeyValueItem()];
+
+  const seen = new Set<string>();
+  const items: KeyValueItem[] = [];
+
+  const braceRegex = /\{([^}]+)\}/g;
+  const colonRegex = /:([A-Za-z0-9_]+)/g;
+  const path = decodePathname(parsed.pathname);
+
+  let match: RegExpExecArray | null;
+  while ((match = braceRegex.exec(path))) {
+    const key = match[1].trim();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    items.push(createKeyValueItem({ key, value: "", enabled: true }));
+  }
+
+  while ((match = colonRegex.exec(path))) {
+    const key = match[1].trim();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    items.push(createKeyValueItem({ key, value: "", enabled: true }));
+  }
+
+  return items.length ? items : [createKeyValueItem()];
+}
+
+export function mergePathVariablesToUrl(url: string, pathVariables: KeyValueItem[]): string {
+  const parsed = safeUrl(url);
+  if (!parsed) return url;
+
+  let pathname = decodePathname(parsed.pathname);
+  pathVariables.forEach((item) => {
+    if (!item.enabled) return;
+    const key = item.key.trim();
+    if (!key) return;
+    const value = encodeURIComponent(item.value ?? "");
+    pathname = pathname.replaceAll(`{${key}}`, value);
+    pathname = pathname.replaceAll(`:${key}`, value);
+  });
+
+  parsed.pathname = pathname;
+  return parsed.toString();
+}
+
 export function validateDraft(draft: RequestDraft): ValidationResult {
   const errors: string[] = [];
 
@@ -101,6 +150,13 @@ export function validateDraft(draft: RequestDraft): ValidationResult {
     errors.push("超时时间必须是正整数");
   }
 
+  const missingPathVars = draft.pathVariables
+    .filter((item) => item.enabled && item.key.trim() && !item.value.trim())
+    .map((item) => item.key);
+  if (missingPathVars.length) {
+    errors.push(`Path 参数未填写: ${missingPathVars.join(", ")}`);
+  }
+
   return {
     valid: errors.length === 0,
     errors,
@@ -109,7 +165,8 @@ export function validateDraft(draft: RequestDraft): ValidationResult {
 
 export function buildRequestSpecFromDraft(draft: RequestDraft): BuildRequestResult {
   const trimmedUrl = draft.url.trim();
-  const urlWithParams = mergeParamsToUrl(trimmedUrl, draft.params);
+  const urlWithPathVars = mergePathVariablesToUrl(trimmedUrl, draft.pathVariables);
+  const urlWithParams = mergeParamsToUrl(urlWithPathVars, draft.params);
   const headers = buildHeaders(draft);
   const bodyPayload = buildBodyPayload(
     draft.bodyMode,
@@ -270,6 +327,7 @@ export function draftFromNetworkEntry(entry: NetworkEntry): Partial<RequestDraft
   const next: Partial<RequestDraft> = {
     method,
     url,
+    pathVariables: parsePathVariablesFromUrl(url),
     params,
     headers: headers.length ? headers : [createKeyValueItem()],
     auth: { type: "none" },
@@ -441,6 +499,14 @@ function safeUrl(url: string): URL | null {
     return new URL(url);
   } catch {
     return null;
+  }
+}
+
+function decodePathname(pathname: string): string {
+  try {
+    return decodeURIComponent(pathname);
+  } catch {
+    return pathname;
   }
 }
 

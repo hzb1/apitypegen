@@ -22,6 +22,7 @@ export type KeyValueItem = {
 export type RequestDraft = {
   method: string;
   url: string;
+  pathVariables: KeyValueItem[];
   params: KeyValueItem[];
   headers: KeyValueItem[];
   auth: {
@@ -51,6 +52,7 @@ export type BuildRequestResult = {
 
 export type RequestEditorProps = {
   value?: Partial<RequestDraft>;
+  pathVariableDefaults?: Record<string, string>;
   loading?: boolean;
   disabled?: boolean;
   enableAuthTab?: boolean;

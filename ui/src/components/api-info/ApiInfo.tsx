@@ -88,9 +88,7 @@ const ApiInfo = ({ api, codeMap }: ApiInfoProps) => {
                   </div>
                 </div>
                 <button
-                  aria-label="试一试"
-                  className="tryit-button flex items-center justify-center px-3 h-9 font-medium rounded-xl mouse-pointer hover:opacity-80 gap-1.5 bg-[#3064E3] text-[#FFFFFF]"
-                  data-testid="try-it-button"
+                  className="tryit-button flex items-center justify-center px-3 h-9 font-medium rounded-xl mouse-pointer hover:opacity-80 gap-1.5 bg-[#3064E3] text-[#FFFFFF] cursor-pointer"
                 >
                   <span>试一试</span>
                   <svg

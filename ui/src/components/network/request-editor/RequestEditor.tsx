@@ -29,6 +29,7 @@ const METHOD_OPTIONS = ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD"];
 
 const RequestEditor: React.FC<RequestEditorProps> = ({
   value,
+  pathVariableDefaults,
   loading,
   disabled,
   enableAuthTab = true,
@@ -49,8 +50,30 @@ const RequestEditor: React.FC<RequestEditorProps> = ({
     onChange?.(draft);
   }, [draft, onChange]);
 
+  useEffect(() => {
+    if (!pathVariableDefaults) return;
+    dispatch({ type: "apply_path_defaults", payload: pathVariableDefaults });
+  }, [pathVariableDefaults]);
+
   const tabItems = useMemo(() => {
     const items = [
+      {
+        key: "path-variables",
+        label: "Path Variables",
+        children: (
+          <KeyValueTable
+            items={draft.pathVariables}
+            disabled={disabled || loading}
+            keyPlaceholder="path variable"
+            valuePlaceholder="value"
+            onAdd={() => dispatch({ type: "add_item", payload: { field: "pathVariables" } })}
+            onRemove={(id) => dispatch({ type: "remove_item", payload: { field: "pathVariables", id } })}
+            onChange={(id, patch) =>
+              dispatch({ type: "update_item", payload: { field: "pathVariables", id, patch } })
+            }
+          />
+        ),
+      },
       {
         key: "params",
         label: "Params",

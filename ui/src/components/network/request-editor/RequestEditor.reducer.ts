@@ -9,13 +9,15 @@ import {
   createInitialDraft,
   createKeyValueItem,
   mergeParamsToUrl,
+  parsePathVariablesFromUrl,
   parseUrlToParams,
 } from "./RequestEditor.utils.ts";
 
-type ListField = "params" | "headers" | "formFields" | "cookieItems";
+type ListField = "pathVariables" | "params" | "headers" | "formFields" | "cookieItems";
 
 type RequestEditorAction =
   | { type: "reset"; payload?: Partial<RequestDraft> }
+  | { type: "apply_path_defaults"; payload: Record<string, string> }
   | { type: "set_method"; payload: string }
   | { type: "set_url"; payload: string }
   | { type: "set_body_mode"; payload: BodyMode }
@@ -46,6 +48,27 @@ export function requestEditorReducer(
     case "reset": {
       return createInitialDraft(action.payload);
     }
+    case "apply_path_defaults": {
+      const defaults = action.payload;
+      let changed = false;
+      const nextPathVariables = state.pathVariables.map((item) => {
+        const key = item.key.trim();
+        if (!key) return item;
+        if (item.value.trim()) return item;
+        const defaultValue = defaults[key];
+        if (typeof defaultValue === "undefined") return item;
+        changed = true;
+        return {
+          ...item,
+          value: defaultValue,
+        };
+      });
+      if (!changed) return state;
+      return {
+        ...state,
+        pathVariables: nextPathVariables,
+      };
+    }
     case "set_method": {
       const nextMethod = action.payload.toUpperCase();
       const shouldDropBody = nextMethod === "GET" || nextMethod === "HEAD";
@@ -59,6 +82,7 @@ export function requestEditorReducer(
       return {
         ...state,
         url: action.payload,
+        pathVariables: parsePathVariablesFromUrl(action.payload),
         params: parseUrlToParams(action.payload),
       };
     }
@@ -160,6 +184,5 @@ function patchList(state: RequestDraft, field: ListField, nextList: KeyValueItem
   if (field === "params") {
     nextState.url = mergeParamsToUrl(nextState.url, nextList);
   }
-
   return nextState;
 }
