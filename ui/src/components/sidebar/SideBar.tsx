@@ -1,8 +1,9 @@
 import "./SideBar.css";
-import { AutoComplete, Empty, Input, Select } from "antd";
+import { AutoComplete, Empty, Input, Select, Tooltip } from "antd";
 import type { AutoCompleteProps } from "antd";
 import ApiList, { type ApiListProps } from "../ApiList/ApiList.tsx";
 import React, { useEffect, useRef, useState } from "react";
+import { QuestionCircleOutlined } from "@ant-design/icons";
 import ApiSearchDialog from "./ApiSearchDialog.tsx";
 
 type Option = {
@@ -119,6 +120,20 @@ const SideBar: React.FC<SideBarProps> = (props) => {
         </div>
 
         <div className={"flex flex-col gap-4 mt-4 px-4 pb-4"}>
+          <div className="doc-input-help">
+            <span>文档地址</span>
+            <Tooltip
+              title={
+                <div>
+                  <div>支持两种输入：</div>
+                  <div>1. 服务地址：如 http://localhost:8080（自动探测）</div>
+                  <div>2. 文档 URL：如 http://localhost:8080/v3/api-docs</div>
+                </div>
+              }
+            >
+              <QuestionCircleOutlined className="doc-input-help-icon" />
+            </Tooltip>
+          </div>
           <AutoComplete
             value={ipValue}
             onChange={onIpChange}
@@ -126,7 +141,7 @@ const SideBar: React.FC<SideBarProps> = (props) => {
             options={ipOptions}
           >
             <Input.Search
-              placeholder="输入 IP 地址"
+              placeholder="输入服务地址或 OpenAPI 文档 URL"
               enterButton
               loading={loading}
               onSearch={onIpCommit}

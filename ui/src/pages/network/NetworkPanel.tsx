@@ -86,7 +86,7 @@ const NetworkPanel: React.FC = () => {
     createInitialDraft(),
   );
   const [loading, setLoading] = useState(false);
-  const ipFromUrl = searchParams.get("ip")?.trim() ?? "";
+  const ipFromUrl = searchParams.get("doc")?.trim() ?? searchParams.get("ip")?.trim() ?? "";
   const serviceUrl = searchParams.get("service") ?? undefined;
 
   const { documentData } = useSwagger({

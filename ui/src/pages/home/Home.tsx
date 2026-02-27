@@ -58,7 +58,7 @@ const Home: React.FC = () => {
 
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const ipFromUrl = searchParams.get("ip")?.trim() ?? "";
+  const ipFromUrl = searchParams.get("doc")?.trim() ?? searchParams.get("ip")?.trim() ?? "";
   const serviceUrl = searchParams.get("service") ?? undefined;
   const selectedApiKey = searchParams.get("api");
   const hasIpParam = Boolean(ipFromUrl);
@@ -86,6 +86,7 @@ const Home: React.FC = () => {
   const [scrollRequest, setScrollRequest] = useState<ScrollRequest | undefined>(undefined);
 
   const {documentData, configData, stage, error} = useSwagger({
+    docOrHost: ipFromUrl,
     ip: ipFromUrl,
     serviceUrl,
     options: {
@@ -184,10 +185,12 @@ const Home: React.FC = () => {
   const skipNextViewedTabsPersistRef = useRef(false);
 
   const handleCommitIp = (nextIp: string) => {
-    setInputIp(nextIp);
+    const normalized = nextIp.trim();
+    setInputIp(normalized);
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
-      next.set("ip", nextIp);
+      next.set("doc", normalized);
+      next.delete("ip");
       next.delete("api"); // 切换 IP 时建议清除旧的 API 选中态
       next.delete("service"); // 切换 IP 时也清除旧的服务，触发 Hook 的自动补全
       return next;
@@ -490,11 +493,11 @@ const Home: React.FC = () => {
   }, [expandedGroupList, groupedApis, selectedApiKey]);
 
   useEffect(() => {
-    if (!apiGroups.length) {
-      setExpandedGroupList([]);
-      return;
-    }
     setExpandedGroupList((prev) => {
+      if (!apiGroups.length) {
+        return prev.length ? [] : prev;
+      }
+
       if (prev.length) return prev;
       return apiGroups.map((group) => group.id);
     });
@@ -541,22 +544,20 @@ const Home: React.FC = () => {
                         if (action !== "remove" || typeof targetKey !== "string") return;
                         handleRemoveViewedTab(targetKey);
                       }}
-                      items={viewedApiKeys
-                        .map((key) => {
-                          const api = apiMap.get(key);
-                          if (!api) return null;
-                          const title = api.operation?.summary ?? api.path;
-                          return {
-                            key,
-                            label: (
-                              <span className="viewed-tab-label" title={title}>
-                                {title}
-                              </span>
-                            ),
-                            closable: true,
-                          };
-                        })
-                        .filter((item): item is { key: string; label: string } => Boolean(item))}
+                      items={viewedApiKeys.flatMap((key) => {
+                        const api = apiMap.get(key);
+                        if (!api) return [];
+                        const title = api.operation?.summary ?? api.path;
+                        return [{
+                          key,
+                          label: (
+                            <span className="viewed-tab-label" title={title}>
+                              {title}
+                            </span>
+                          ),
+                          closable: true,
+                        }];
+                      })}
                     />
                   ) : (
                     <div className="content-viewed-empty">暂无已查看接口</div>
@@ -567,7 +568,7 @@ const Home: React.FC = () => {
                     error && <Empty description={error}/>
                   }
                   {
-                    selectedApi ? (
+                    !error && selectedApi && (
                       <Row gutter={[16, 16]} style={{height: "100%"}}>
                         <Col span={12} className={"left-main"}>
                           <ApiInfo api={selectedApi} codeMap={tsCodeParts}/>
@@ -592,9 +593,10 @@ const Home: React.FC = () => {
                           ></CodeCard>
                         </Col>
                       </Row>
-                    ) : (
-                      <Empty description={"请选择 API"}/>
                     )
+                  }
+                  {
+                    !error && !selectedApi && <Empty description={"请选择 API"}/>
                   }
                 </div>
               </Layout>
@@ -605,10 +607,10 @@ const Home: React.FC = () => {
             <div className="home-welcome-card">
               <div className="home-welcome-title">TS Swagger</div>
               <div className="home-welcome-subtitle">
-                输入 IP 地址开始加载 Swagger 文档
+                输入 Swagger/OpenAPI 文档 URL 开始加载
               </div>
               <div className="home-welcome-hint">
-                示例：127.0.0.1:9966 或 http://localhost:9966
+                示例：http://localhost:9966/v3/api-docs 或 http://localhost:3000/docs-json
               </div>
               <div className="home-welcome-search">
                 <AutoComplete
@@ -622,7 +624,7 @@ const Home: React.FC = () => {
                       width: 360,
                     }}
                     size="large"
-                    placeholder="输入 IP 地址"
+                    placeholder="输入服务地址或 OpenAPI 文档 URL"
                     loading={loading}
                     enterButton="开始"
                     onSearch={(value) => handleCommitIp(value)}
