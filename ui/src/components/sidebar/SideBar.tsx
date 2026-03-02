@@ -1,15 +1,7 @@
 import "./SideBar.css";
-import { AutoComplete, Empty, Input, Select, Tooltip } from "antd";
-import type { AutoCompleteProps } from "antd";
+import { Empty } from "antd";
 import ApiList, { type ApiListProps } from "../ApiList/ApiList.tsx";
 import React, { useEffect, useRef, useState } from "react";
-import { QuestionCircleOutlined } from "@ant-design/icons";
-import ApiSearchDialog from "./ApiSearchDialog.tsx";
-
-type Option = {
-  label: string;
-  value: string;
-};
 
 type ScrollRequest = {
   key: string;
@@ -18,38 +10,15 @@ type ScrollRequest = {
 
 export type SideBarProps = {
   scrollRequest?: ScrollRequest;
-  ipValue: string;
-  ipOptions: AutoCompleteProps["options"];
-  loading?: boolean;
-  onIpChange: (value: string) => void;
-  onIpCommit: (value: string) => void;
-  currentServiceUrl?: string;
-  onCurrentServiceUrlChange: (url: string) => void;
-  configLoading?: boolean;
-  serviceOptions: Option[];
-  docLoading?: boolean;
 } & ApiListProps;
 
 const SideBar: React.FC<SideBarProps> = (props) => {
   const {
-    ipValue,
-    ipOptions,
-    loading,
-    onIpChange,
-    onIpCommit,
     scrollRequest,
-    currentServiceUrl,
-    onCurrentServiceUrlChange,
-    configLoading,
-    serviceOptions,
     apis,
     onSelectKeyChange,
     onGroupTitleClick,
   } = props;
-
-  const handleServiceChange = (url: string) => {
-    onCurrentServiceUrlChange(url);
-  };
 
   const handleGroupTitleClick = (groupItem: ApiListProps["apis"][number]) => {
     onGroupTitleClick?.(groupItem);
@@ -57,17 +26,6 @@ const SideBar: React.FC<SideBarProps> = (props) => {
 
   const apiListScrollRef = useRef<HTMLDivElement>(null);
   const [pendingScrollKey, setPendingScrollKey] = useState<string | null>(null);
-
-  const handleSearchSelect = (selectedKey: string) => {
-    const targetGroup = apis.find((group) =>
-      group.children.some((item) => item.key === selectedKey),
-    );
-    if (targetGroup && !targetGroup.isExpanded) {
-      onGroupTitleClick?.(targetGroup);
-    }
-    onSelectKeyChange?.(selectedKey);
-    setPendingScrollKey(selectedKey);
-  };
 
   useEffect(() => {
     if (!scrollRequest?.key) return;
@@ -113,50 +71,10 @@ const SideBar: React.FC<SideBarProps> = (props) => {
       }
     >
       <div className={"h-full flex flex-col flex-1 stable-scrollbar-gutter"}>
-        <div className={"flex justify-between items-center px-4 pt-4"}>
+        <div className={"flex justify-between items-center px-4 pt-4 mb-4"}>
           <a href="/" className={"logo"}>
             Logo
           </a>
-        </div>
-
-        <div className={"flex flex-col gap-4 mt-4 px-4 pb-4"}>
-          <div className="doc-input-help">
-            <span>文档地址</span>
-            <Tooltip
-              title={
-                <div>
-                  <div>支持两种输入：</div>
-                  <div>1. 服务地址：如 http://localhost:8080（自动探测）</div>
-                  <div>2. 文档 URL：如 http://localhost:8080/v3/api-docs</div>
-                </div>
-              }
-            >
-              <QuestionCircleOutlined className="doc-input-help-icon" />
-            </Tooltip>
-          </div>
-          <AutoComplete
-            value={ipValue}
-            onChange={onIpChange}
-            onSelect={onIpCommit}
-            options={ipOptions}
-          >
-            <Input.Search
-              placeholder="输入服务地址或 OpenAPI 文档 URL"
-              enterButton
-              loading={loading}
-              onSearch={onIpCommit}
-            />
-          </AutoComplete>
-
-          <Select
-            value={currentServiceUrl}
-            loading={configLoading}
-            onChange={handleServiceChange}
-            options={serviceOptions}
-            placeholder={"选择服务"}
-          />
-
-          <ApiSearchDialog apis={apis} onSelectResult={handleSearchSelect} />
         </div>
 
         <div

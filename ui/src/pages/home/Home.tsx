@@ -3,6 +3,7 @@ import {
   AutoComplete,
   Dropdown,
   Input,
+  Select,
   Row,
   Col,
   Spin,
@@ -11,13 +12,14 @@ import {
   Modal,
   Alert,
   Button,
+  Tooltip,
 } from "antd";
 import {Layout, theme} from "antd";
 import {type AutoCompleteProps} from "antd";
 import "./Home.css";
 import {useSwagger} from "@/hooks/useSwagger.ts";
 import {useOptions} from "@/hooks/useOptions.ts";
-import {DeleteOutlined, EditOutlined, PushpinOutlined} from "@ant-design/icons";
+import {DeleteOutlined, EditOutlined, PushpinOutlined, QuestionCircleOutlined} from "@ant-design/icons";
 import {usePluginEnabled} from "@/hooks/usePluginEnabled.ts";
 import {useSearchParams} from "react-router";
 import SideBar, {
@@ -29,6 +31,7 @@ import type {ApiDetail} from "../../../types.ts";
 import {getApiSlug, stableHash} from "@/utils/getApiSlug.ts";
 import {SwaggerToTS} from "@/utils/SwaggerParser.ts";
 import type {ApiGroup} from "./utils.ts";
+import ApiSearchDialog from "@/components/sidebar/ApiSearchDialog.tsx";
 
 const {Sider} = Layout;
 
@@ -454,6 +457,10 @@ const Home: React.FC = () => {
     return `/${segments[segments.length - 1]}`;
   };
 
+  const handleToolbarSearchSelect = (key: string) => {
+    onViewedTabSelect(key);
+  };
+
   const handleRemoveViewedTab = useCallback((targetKey: string) => {
     const idx = viewedApiKeys.indexOf(targetKey);
     if (idx < 0) return;
@@ -516,10 +523,14 @@ const Home: React.FC = () => {
     };
   }, [documentData, generatorOptions, selectedApi]);
 
-  const handleServiceChange = (url: string) => {
+  const handleServiceChange = (url?: string) => {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
-      next.set("service", url);
+      if (url) {
+        next.set("service", url);
+      } else {
+        next.delete("service");
+      }
       next.delete("api");
       return next;
     });
@@ -575,16 +586,6 @@ const Home: React.FC = () => {
             <Sider width={324} style={{background: colorBgContainer}}>
               <SideBar
                 scrollRequest={scrollRequest}
-                ipValue={inputIp}
-                ipOptions={autoCompleteOptions}
-                loading={loading}
-                onIpChange={setInputIp}
-                onIpCommit={handleCommitIp}
-                currentServiceUrl={serviceUrl}
-                onCurrentServiceUrlChange={handleServiceChange}
-                configLoading={configLoading}
-                serviceOptions={serviceOptions}
-                docLoading={docLoading}
                 apis={apiGroups}
                 onSelectKeyChange={onMenuSelect}
                 onGroupTitleClick={handleGroupTitleClick}
@@ -594,6 +595,60 @@ const Home: React.FC = () => {
             <Layout className={"flex flex-col h-full"}>
               <Layout className={"content-wrapper"}>
                 <div className="content-api-tabs">
+                  <div className="content-toolbar-grid">
+                    <div className="content-toolbar-item">
+                      <div className="field-row">
+                        <div className="field-label">
+                          <span>文档地址</span>
+                          <Tooltip title="支持服务地址（自动探测）或可直接 GET 的 OpenAPI/Swagger 文档 URL">
+                            <QuestionCircleOutlined className="field-help-icon" />
+                          </Tooltip>
+                        </div>
+                        <div className="field-control">
+                          <AutoComplete
+                            value={inputIp}
+                            onChange={setInputIp}
+                            onSelect={handleCommitIp}
+                            options={autoCompleteOptions}
+                          >
+                            <Input.Search
+                              placeholder="输入服务地址或 OpenAPI 文档 URL"
+                              loading={loading}
+                              enterButton
+                              onSearch={handleCommitIp}
+                              style={{width: '300px'}}
+                            />
+                          </AutoComplete>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="content-toolbar-item">
+                      <div className="field-row">
+                        <div className="field-label">
+                          <span>服务</span>
+                          <Tooltip title="当 swagger-config 返回多个服务时，在这里切换具体文档">
+                            <QuestionCircleOutlined className="field-help-icon" />
+                          </Tooltip>
+                        </div>
+                        <div className="field-control">
+                          <Select
+                            value={serviceUrl}
+                            loading={configLoading}
+                            onChange={handleServiceChange}
+                            options={serviceOptions}
+                            placeholder="选择服务"
+                            allowClear
+                            style={{width: '160px'}}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="content-toolbar-item">
+                      <ApiSearchDialog apis={apiGroups} onSelectResult={handleToolbarSearchSelect}/>
+                    </div>
+                  </div>
                   {orderedViewedApiKeys.length > 0 ? (
                     <Tabs
                       activeKey={selectedApiKey ?? undefined}

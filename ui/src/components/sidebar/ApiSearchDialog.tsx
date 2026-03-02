@@ -71,8 +71,9 @@ const ApiSearchDialog: React.FC<ApiSearchDialogProps> = ({
       <button
         type="button"
         className={
-          "hidden lg:flex h-8 w-full items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 text-left text-sm text-gray-500 transition hover:border-gray-300 hover:text-gray-700 cursor-pointer"
+          "flex h-8 w-full items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 text-left text-sm text-gray-500 transition hover:border-gray-300 hover:text-gray-700 cursor-pointer"
         }
+        style={{width: '160px'}}
         onClick={() => setOpen(true)}
       >
         <SearchOutlined />
