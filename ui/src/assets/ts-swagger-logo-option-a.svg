@@ -1,0 +1,14 @@
+<svg width="220" height="56" viewBox="0 0 220 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="a1" x1="0" y1="0" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1677FF"/>
+      <stop offset="1" stop-color="#22D3EE"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="52" height="52" rx="14" fill="url(#a1)"/>
+  <rect x="2" y="2" width="52" height="52" rx="14" stroke="#0F4FBF" stroke-opacity="0.28"/>
+  <path d="M13 18H43V22H31V38H25V22H13V18Z" fill="white"/>
+  <path d="M15.4 31.3H21.3C21.45 34.1 23.15 35.2 26.25 35.2C28.85 35.2 30.25 34.45 30.25 33.1C30.25 31.95 29.45 31.45 26.4 30.8C20.35 29.55 17 27.95 17 23.9C17 19.85 20.3 17.65 25.95 17.65C32.05 17.65 35.55 20.2 35.75 25.1H29.85C29.65 22.95 28.1 22.05 25.85 22.05C23.7 22.05 22.5 22.8 22.5 23.95C22.5 25.25 23.65 25.65 27.15 26.4C32.45 27.55 35.8 29 35.8 33.05C35.8 37.25 32.2 39.65 26.1 39.65C19.2 39.65 15.55 36.75 15.4 31.3Z" fill="white"/>
+  <text x="68" y="25" fill="#0F172A" font-family="ui-sans-serif, -apple-system, Segoe UI, Roboto" font-size="17" font-weight="700">TS Swagger</text>
+  <text x="68" y="41" fill="#475569" font-family="ui-sans-serif, -apple-system, Segoe UI, Roboto" font-size="11" font-weight="500">Typed API Docs</text>
+</svg>

@@ -1,0 +1,13 @@
+<svg width="208" height="44" viewBox="0 0 208 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="tsl_bg" x1="0" y1="0" x2="44" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1677FF"/>
+      <stop offset="1" stop-color="#22D3EE"/>
+    </linearGradient>
+  </defs>
+  <rect x="1" y="1" width="42" height="42" rx="12" fill="url(#tsl_bg)"/>
+  <rect x="1" y="1" width="42" height="42" rx="12" stroke="#0F4FBF" stroke-opacity="0.28"/>
+  <path d="M8.2 14.2H35.8V17.7H24.6V31.5H20.1V17.7H8.2V14.2Z" fill="white"/>
+  <path d="M10.3 25H14.3C14.43 27.15 15.73 28.1 18.02 28.1C19.94 28.1 20.96 27.54 20.96 26.55C20.96 25.69 20.29 25.27 18.05 24.81C13.51 23.88 11.21 22.67 11.21 19.68C11.21 16.62 13.78 14.95 17.95 14.95C22.46 14.95 24.96 16.87 25.15 20.43H21.13C20.96 18.87 19.73 18.21 18 18.21C16.28 18.21 15.34 18.74 15.34 19.6C15.34 20.54 16.16 20.9 18.94 21.5C22.92 22.36 24.98 23.5 24.98 26.49C24.98 29.68 22.24 31.5 18.01 31.5C13.05 31.5 10.5 29.41 10.3 25Z" fill="white"/>
+  <text x="54" y="28.5" fill="#0F172A" font-family="ui-sans-serif, -apple-system, Segoe UI, Roboto" font-size="20" font-weight="700">TS Swagger</text>
+</svg>

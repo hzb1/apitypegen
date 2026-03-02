@@ -2,7 +2,7 @@
 
 ## 1. 项目介绍
 
-面向前端工程师的 Swagger 接口文档，直接输出可用的 TypeScript 类型与请求结构
+这是一个 TS 和 Swagger 结合的接口文档，直接输出可用的 TypeScript 类型与请求结构
 
 ## 2. 特点
 

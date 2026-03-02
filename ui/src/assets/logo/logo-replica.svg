@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="770" height="485" viewBox="150 100 770 485" role="img" aria-label="TS Swagger logo replica">
+  <defs>
+    <linearGradient id="docBlue" x1="150" y1="100" x2="620" y2="585" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4599DE" />
+      <stop offset="1" stop-color="#1D73CC" />
+    </linearGradient>
+    <linearGradient id="docBlueDark" x1="150" y1="515" x2="620" y2="585" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1F6FC4" />
+      <stop offset="1" stop-color="#155DAE" />
+    </linearGradient>
+  </defs>
+
+  <path d="M170 100 H540 C551 100 560 109 560 120 V565 C560 576 551 585 540 585 H170 C159 585 150 576 150 565 V120 C150 109 159 100 170 100 Z" fill="url(#docBlue)" />
+  <path d="M150 552 L452 528 L515 585 H170 C159 585 150 576 150 565 Z" fill="url(#docBlueDark)" />
+
+  <text x="335" y="505" text-anchor="middle" font-size="245" font-family="Arial Black, Arial, Helvetica, sans-serif" font-weight="900" fill="#FFFFFF">TS</text>
+
+  <circle cx="700" cy="365" r="212" fill="#81B730" stroke="#FFFFFF" stroke-width="16" />
+
+  <path d="M588 305 V383 H672" stroke="#FFFFFF" stroke-width="32" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+  <path d="M730 352 L778 304" stroke="#FFFFFF" stroke-width="32" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+  <path d="M700 418 V468" stroke="#FFFFFF" stroke-width="32" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+
+  <circle cx="588" cy="305" r="40" fill="#FFFFFF" />
+  <circle cx="782" cy="305" r="40" fill="#FFFFFF" />
+  <circle cx="700" cy="385" r="40" fill="#FFFFFF" />
+  <circle cx="700" cy="500" r="40" fill="#FFFFFF" />
+</svg>

@@ -2,9 +2,13 @@
 .sidebar{
     height: 100vh;
     .logo{
-        font-size: 24px;
-        /*line-height: 1;*/
-        line-height: 28px;
-        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+    }
+
+    .logo-img {
+        height: 42px;
+        width: auto;
+        display: block;
     }
 }

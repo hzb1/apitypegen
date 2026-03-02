@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="460" height="128" viewBox="0 0 460 128" role="img" aria-label="TS Swagger logo with text">
+  <defs>
+    <linearGradient id="swaggerCircleText" x1="28" y1="22" x2="102" y2="106" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#a6ef4a" />
+      <stop offset="1" stop-color="#67be1f" />
+    </linearGradient>
+    <filter id="shadowText" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#0b1728" flood-opacity="0.18" />
+    </filter>
+  </defs>
+
+  <g transform="translate(0 0)">
+    <g filter="url(#shadowText)">
+      <circle cx="64" cy="64" r="58" fill="url(#swaggerCircleText)" />
+    </g>
+    <text
+      x="64"
+      y="64"
+      text-anchor="middle"
+      dominant-baseline="middle"
+      font-size="40"
+      font-family="'JetBrains Mono', 'SFMono-Regular', Menlo, Monaco, Consolas, 'Courier New', monospace"
+      font-weight="800"
+      fill="#1d6fcb"
+    >{TS}</text>
+  </g>
+
+  <text x="134" y="84" font-size="60" font-family="Segoe UI, Inter, Helvetica, Arial, sans-serif" font-weight="800" fill="#2b83dc">TS</text>
+  <text x="216" y="84" font-size="60" font-family="Segoe UI, Inter, Helvetica, Arial, sans-serif" font-weight="700" fill="#111827">Swagger</text>
+</svg>

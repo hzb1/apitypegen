@@ -2,6 +2,8 @@ import "./SideBar.css";
 import { Empty } from "antd";
 import ApiList, { type ApiListProps } from "../ApiList/ApiList.tsx";
 import React, { useEffect, useRef, useState } from "react";
+import logoUrl from "@/assets/logo/logo-replica-full.svg";
+// import logoUrl from "@/assets/logo/logo-replica.svg";
 
 type ScrollRequest = {
   key: string;
@@ -72,8 +74,8 @@ const SideBar: React.FC<SideBarProps> = (props) => {
     >
       <div className={"h-full flex flex-col flex-1 stable-scrollbar-gutter"}>
         <div className={"flex justify-between items-center px-4 pt-4 mb-4"}>
-          <a href="/" className={"logo"}>
-            Logo
+          <a className={"logo cursor-pointer"}>
+            <img src={logoUrl} alt="TS Swagger" title={'TS Swagger'} className="logo-img" />
           </a>
         </div>
 

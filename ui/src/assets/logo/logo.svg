@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-label="TS Swagger icon">
+  <defs>
+    <linearGradient id="swaggerCircle" x1="28" y1="22" x2="102" y2="106" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#a6ef4a" />
+      <stop offset="1" stop-color="#67be1f" />
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#0b1728" flood-opacity="0.18" />
+    </filter>
+  </defs>
+
+  <g filter="url(#shadow)">
+    <circle cx="64" cy="64" r="58" fill="url(#swaggerCircle)" />
+  </g>
+
+  <text
+    x="64"
+    y="64"
+    text-anchor="middle"
+    dominant-baseline="middle"
+    font-size="40"
+    font-family="'JetBrains Mono', 'SFMono-Regular', Menlo, Monaco, Consolas, 'Courier New', monospace"
+    font-weight="800"
+    fill="#1d6fcb"
+  >{TS}</text>
+</svg>
