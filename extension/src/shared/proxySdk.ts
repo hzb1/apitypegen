@@ -275,8 +275,9 @@ export class ProxyResponse {
     if (this.raw.bodyType !== 'json') {
       throw new Error('Response is not JSON')
     }
-    // console.warn(this.raw.bodyText)
-    return JSON.parse(this.raw.bodyText)
+    const json = JSON.parse(this.raw.bodyText)
+    console.warn(json)
+    return json
   }
 
   clone() {
@@ -300,12 +301,11 @@ export async function proxyFetch(
 
   if (!usePlugin) {
     console.warn('usePlugin', usePlugin)
-    console.warn('proxyFetch', input, init)
     // 原生 fetch
     return fetch(input, init)
   }
 
-  console.warn('proxyFetch', url, init)
+  console.warn('proxyFetch req:', url, init)
 
   try {
     const raw = await proxyFetchRaw(url, init);

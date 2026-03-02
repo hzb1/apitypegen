@@ -15,13 +15,14 @@ const alias: Record<string, string> = {
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: '/ts-swagger/',
+  // base: '/ts-swagger/',
   plugins: [
     react(),
     tailwindcss(),
   ],
   server: {
     port: 6699,
+    host: '0.0.0.0',
   },
   resolve: {
     alias: alias

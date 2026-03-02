@@ -1,6 +1,7 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {
   AutoComplete,
+  Dropdown,
   Input,
   Row,
   Col,
@@ -16,7 +17,7 @@ import {type AutoCompleteProps} from "antd";
 import "./Home.css";
 import {useSwagger} from "@/hooks/useSwagger.ts";
 import {useOptions} from "@/hooks/useOptions.ts";
-import {DeleteOutlined, EditOutlined} from "@ant-design/icons";
+import {DeleteOutlined, EditOutlined, PushpinOutlined} from "@ant-design/icons";
 import {usePluginEnabled} from "@/hooks/usePluginEnabled.ts";
 import {useSearchParams} from "react-router";
 import SideBar, {
@@ -178,6 +179,7 @@ const Home: React.FC = () => {
 
   const {pluginEnabled, checking} = usePluginEnabled();
   const [viewedApiKeys, setViewedApiKeys] = useState<string[]>([]);
+  const [pinnedApiKeys, setPinnedApiKeys] = useState<string[]>([]);
   const viewedContextKey = useMemo(
     () => `${ipFromUrl}__${serviceUrl ?? ""}`,
     [ipFromUrl, serviceUrl],
@@ -288,24 +290,35 @@ const Home: React.FC = () => {
       if (!raw) {
         skipNextViewedTabsPersistRef.current = true;
         setViewedApiKeys([]);
+        setPinnedApiKeys([]);
         return;
       }
-      const parsed = JSON.parse(raw) as Record<string, string[]>;
-      const list = parsed?.[viewedContextKey];
+      const parsed = JSON.parse(raw) as Record<string, string[] | {
+        keys?: string[];
+        pinned?: string[];
+      }>;
+      const entry = parsed?.[viewedContextKey];
+      const list = Array.isArray(entry) ? entry : entry?.keys;
+      const pinnedList = Array.isArray(entry) ? [] : (entry?.pinned ?? []);
       if (!Array.isArray(list)) {
         skipNextViewedTabsPersistRef.current = true;
         setViewedApiKeys([]);
+        setPinnedApiKeys([]);
         return;
       }
+      const normalizedList = list
+        .filter((key) => typeof key === "string" && key.length > 0)
+        .slice(-MAX_VIEWED_API_TABS);
+      const normalizedPinned = pinnedList
+        .filter((key) => normalizedList.includes(key))
+        .slice(-MAX_VIEWED_API_TABS);
       skipNextViewedTabsPersistRef.current = true;
-      setViewedApiKeys(
-        list
-          .filter((key) => typeof key === "string" && key.length > 0)
-          .slice(-MAX_VIEWED_API_TABS),
-      );
+      setViewedApiKeys(normalizedList);
+      setPinnedApiKeys(normalizedPinned);
     } catch {
       skipNextViewedTabsPersistRef.current = true;
       setViewedApiKeys([]);
+      setPinnedApiKeys([]);
     }
   }, [viewedContextKey]);
 
@@ -316,13 +329,16 @@ const Home: React.FC = () => {
     }
     try {
       const raw = localStorage.getItem(VIEWED_API_TABS_KEY);
-      const parsed = raw ? (JSON.parse(raw) as Record<string, string[]>) : {};
-      parsed[viewedContextKey] = viewedApiKeys.slice(-MAX_VIEWED_API_TABS);
+      const parsed = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+      parsed[viewedContextKey] = {
+        keys: viewedApiKeys.slice(-MAX_VIEWED_API_TABS),
+        pinned: pinnedApiKeys.filter((key) => viewedApiKeys.includes(key)).slice(-MAX_VIEWED_API_TABS),
+      };
       localStorage.setItem(VIEWED_API_TABS_KEY, JSON.stringify(parsed));
     } catch {
       // ignore
     }
-  }, [viewedApiKeys, viewedContextKey]);
+  }, [pinnedApiKeys, viewedApiKeys, viewedContextKey]);
 
   useEffect(() => {
     if (!selectedApiKey || !apiMap.has(selectedApiKey)) return;
@@ -333,6 +349,17 @@ const Home: React.FC = () => {
       return next.slice(next.length - MAX_VIEWED_API_TABS);
     });
   }, [apiMap, selectedApiKey]);
+
+  useEffect(() => {
+    setPinnedApiKeys((prev) => prev.filter((key) => viewedApiKeys.includes(key)));
+  }, [viewedApiKeys]);
+
+  const orderedViewedApiKeys = useMemo(() => {
+    const pinnedSet = new Set(pinnedApiKeys);
+    const pinned = viewedApiKeys.filter((key) => pinnedSet.has(key));
+    const unpinned = viewedApiKeys.filter((key) => !pinnedSet.has(key));
+    return [...pinned, ...unpinned];
+  }, [pinnedApiKeys, viewedApiKeys]);
 
   const historyOptions = useMemo(
     () =>
@@ -420,12 +447,20 @@ const Home: React.FC = () => {
     onMenuSelect(key);
   };
 
+  const formatPathTabLabel = (path: string) => {
+    const normalized = path.split("?")[0].replace(/\/+$/, "");
+    const segments = normalized.split("/").filter(Boolean);
+    if (!segments.length) return path || "/";
+    return `/${segments[segments.length - 1]}`;
+  };
+
   const handleRemoveViewedTab = useCallback((targetKey: string) => {
     const idx = viewedApiKeys.indexOf(targetKey);
     if (idx < 0) return;
 
     const remaining = viewedApiKeys.filter((key) => key !== targetKey);
     setViewedApiKeys(remaining);
+    setPinnedApiKeys((prev) => prev.filter((key) => key !== targetKey));
 
     if (selectedApiKey !== targetKey) return;
 
@@ -441,6 +476,31 @@ const Home: React.FC = () => {
       return next;
     });
   }, [selectedApiKey, setSearchParams, viewedApiKeys]);
+
+  const handleCloseOtherViewedTabs = useCallback((keepKey: string) => {
+    setViewedApiKeys((prev) => {
+      if (!prev.includes(keepKey)) return prev;
+      if (prev.length === 1 && prev[0] === keepKey) return prev;
+      return [keepKey];
+    });
+    setPinnedApiKeys((prev) => (prev.includes(keepKey) ? [keepKey] : []));
+
+    if (selectedApiKey && selectedApiKey !== keepKey) {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.set("api", keepKey);
+        return next;
+      });
+    }
+  }, [selectedApiKey, setSearchParams]);
+
+  const handleTogglePinViewedTab = useCallback((targetKey: string) => {
+    if (!viewedApiKeys.includes(targetKey)) return;
+    setPinnedApiKeys((prev) => {
+      if (prev.includes(targetKey)) return prev.filter((key) => key !== targetKey);
+      return [...prev, targetKey];
+    });
+  }, [viewedApiKeys]);
 
   const tsCodeParts = useMemo(() => {
     if (!documentData || !selectedApi) return;
@@ -534,7 +594,7 @@ const Home: React.FC = () => {
             <Layout className={"flex flex-col h-full"}>
               <Layout className={"content-wrapper"}>
                 <div className="content-api-tabs">
-                  {viewedApiKeys.length > 0 ? (
+                  {orderedViewedApiKeys.length > 0 ? (
                     <Tabs
                       activeKey={selectedApiKey ?? undefined}
                       onChange={onViewedTabSelect}
@@ -544,16 +604,42 @@ const Home: React.FC = () => {
                         if (action !== "remove" || typeof targetKey !== "string") return;
                         handleRemoveViewedTab(targetKey);
                       }}
-                      items={viewedApiKeys.flatMap((key) => {
+                      items={orderedViewedApiKeys.flatMap((key) => {
                         const api = apiMap.get(key);
                         if (!api) return [];
-                        const title = api.operation?.summary ?? api.path;
+                        const isPinned = pinnedApiKeys.includes(key);
+                        const summary = api.operation?.summary?.trim();
+                        const title = summary || formatPathTabLabel(api.path);
+                        const tooltip = summary || api.path;
                         return [{
                           key,
                           label: (
-                            <span className="viewed-tab-label" title={title}>
-                              {title}
-                            </span>
+                            <Dropdown
+                              trigger={["contextMenu"]}
+                              menu={{
+                                items: [
+                                  {
+                                    key: "toggle-pin",
+                                    label: isPinned ? "取消固定 Tab" : "固定 Tab",
+                                    icon: <PushpinOutlined/>,
+                                  },
+                                  {key: "close-others", label: "删除其它 Tab"},
+                                ],
+                                onClick: ({key: actionKey}) => {
+                                  if (actionKey === "toggle-pin") {
+                                    handleTogglePinViewedTab(key);
+                                    return;
+                                  }
+                                  if (actionKey === "close-others") {
+                                    handleCloseOtherViewedTabs(key);
+                                  }
+                                },
+                              }}
+                            >
+                              <span className="viewed-tab-label" title={tooltip}>
+                                {isPinned ? `[固定] ${title}` : title}
+                              </span>
+                            </Dropdown>
                           ),
                           closable: true,
                         }];
