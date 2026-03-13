@@ -31,7 +31,6 @@ import type {ApiDetail} from "../../../types.ts";
 import {getApiSlug, stableHash} from "@/utils/getApiSlug.ts";
 import {SwaggerToTS} from "@/utils/SwaggerParser.ts";
 import type {ApiGroup} from "./utils.ts";
-import ApiSearchDialog from "@/components/sidebar/ApiSearchDialog.tsx";
 
 const {Sider} = Layout;
 
@@ -589,6 +588,7 @@ const Home: React.FC = () => {
                 apis={apiGroups}
                 onSelectKeyChange={onMenuSelect}
                 onGroupTitleClick={handleGroupTitleClick}
+                onSearchSelectResult={handleToolbarSearchSelect}
               />
             </Sider>
 
@@ -643,10 +643,6 @@ const Home: React.FC = () => {
                           />
                         </div>
                       </div>
-                    </div>
-
-                    <div className="content-toolbar-item">
-                      <ApiSearchDialog apis={apiGroups} onSelectResult={handleToolbarSearchSelect}/>
                     </div>
                   </div>
                   {orderedViewedApiKeys.length > 0 ? (

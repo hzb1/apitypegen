@@ -119,8 +119,8 @@
     display: flex;
     align-items: center;
     flex-wrap: wrap;
-    justify-content: space-between;
-    gap: 12px;
+    /*justify-content: space-between;*/
+    gap: 24px;
     margin-bottom: 12px;
 }
 
@@ -170,6 +170,17 @@
 
 .content-api-tabs .ant-tabs-tab {
     max-width: 280px;
+}
+
+.content-api-tabs .ant-tabs-tab .ant-tabs-tab-remove {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+}
+
+.content-api-tabs .ant-tabs-tab:hover .ant-tabs-tab-remove {
+    opacity: 1;
+    pointer-events: auto;
 }
 
 .viewed-tab-label {

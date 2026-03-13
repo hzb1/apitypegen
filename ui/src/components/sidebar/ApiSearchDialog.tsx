@@ -13,11 +13,13 @@ import SearchHistoryList from "./SearchHistoryList.tsx";
 type ApiSearchDialogProps = {
   apis: ApiListProps["apis"];
   onSelectResult?: (selectedKey: string) => void;
+  triggerClassName?: string;
 };
 
 const ApiSearchDialog: React.FC<ApiSearchDialogProps> = ({
   apis,
   onSelectResult,
+  triggerClassName,
 }) => {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -71,9 +73,8 @@ const ApiSearchDialog: React.FC<ApiSearchDialogProps> = ({
       <button
         type="button"
         className={
-          "flex h-8 w-full items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 text-left text-sm text-gray-500 transition hover:border-gray-300 hover:text-gray-700 cursor-pointer"
+          `flex h-8 w-full items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 text-left text-sm text-gray-500 transition hover:border-gray-300 hover:text-gray-700 cursor-pointer ${triggerClassName ?? ""}`
         }
-        style={{width: '160px'}}
         onClick={() => setOpen(true)}
       >
         <SearchOutlined />

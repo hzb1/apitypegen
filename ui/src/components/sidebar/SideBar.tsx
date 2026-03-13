@@ -3,6 +3,7 @@ import { Empty } from "antd";
 import ApiList, { type ApiListProps } from "../ApiList/ApiList.tsx";
 import React, { useEffect, useRef, useState } from "react";
 import logoUrl from "@/assets/logo/logo-replica-full.svg";
+import ApiSearchDialog from "@/components/sidebar/ApiSearchDialog.tsx";
 // import logoUrl from "@/assets/logo/logo-replica.svg";
 
 type ScrollRequest = {
@@ -12,6 +13,7 @@ type ScrollRequest = {
 
 export type SideBarProps = {
   scrollRequest?: ScrollRequest;
+  onSearchSelectResult?: (selectedKey: string) => void;
 } & ApiListProps;
 
 const SideBar: React.FC<SideBarProps> = (props) => {
@@ -20,6 +22,7 @@ const SideBar: React.FC<SideBarProps> = (props) => {
     apis,
     onSelectKeyChange,
     onGroupTitleClick,
+    onSearchSelectResult,
   } = props;
 
   const handleGroupTitleClick = (groupItem: ApiListProps["apis"][number]) => {
@@ -73,10 +76,16 @@ const SideBar: React.FC<SideBarProps> = (props) => {
       }
     >
       <div className={"h-full flex flex-col flex-1 stable-scrollbar-gutter"}>
-        <div className={"flex justify-between items-center px-4 pt-4 mb-4"}>
+        <div className={"px-4 pt-4 pb-4"}>
           <a className={"logo cursor-pointer"}>
             <img src={logoUrl} alt="TS Swagger" title={'TS Swagger'} className="logo-img" />
           </a>
+          <div className={"mt-3"}>
+            <ApiSearchDialog
+              apis={apis}
+              onSelectResult={onSearchSelectResult}
+            />
+          </div>
         </div>
 
         <div
