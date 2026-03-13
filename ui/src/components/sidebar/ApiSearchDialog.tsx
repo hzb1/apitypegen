@@ -53,7 +53,11 @@ const ApiSearchDialog: React.FC<ApiSearchDialogProps> = ({
       return a.item.path.localeCompare(b.item.path);
     });
 
-    return matched.map(({ score: _score, ...rest }) => rest);
+    return matched.map((result) => ({
+      matchType: result.matchType,
+      groupName: result.groupName,
+      item: result.item,
+    }));
   }, [apis, query]);
 
   const hasResults = results.length > 0;

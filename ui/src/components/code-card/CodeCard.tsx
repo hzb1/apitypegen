@@ -1,7 +1,8 @@
 import CopyIcon from "../CopyIcon.tsx";
-import CodeHighlighting from "../ui/CodeHighlighting/CodeHighlighting.tsx";
-import React from "react";
+import React, { Suspense, lazy } from "react";
 import copyToClipboard from "../../utils/copyToClipboard/copyToClipboard.ts";
+
+const CodeHighlighting = lazy(() => import("../ui/CodeHighlighting/CodeHighlighting.tsx"));
 
 type CodeCardProps = {
   title: string;
@@ -18,6 +19,8 @@ const CodeCard: React.FC<CodeCardProps> = ({
   style,
   styles,
 }: CodeCardProps) => {
+  const fallbackCode = code || "// 空的";
+
   const handleCopy = async () => {
     if (!code) return;
     await copyToClipboard(code);
@@ -65,8 +68,9 @@ const CodeCard: React.FC<CodeCardProps> = ({
                   "font-mono whitespace-pre flex-none h-full text-xs leading-[1.35rem]"
                 }
               >
-                {/*<pre className={'shiki shiki-themes github-light-default dark-plus'}></pre>*/}
-                <CodeHighlighting code={code} />
+                <Suspense fallback={<pre><code>{fallbackCode}</code></pre>}>
+                  <CodeHighlighting code={code} />
+                </Suspense>
               </div>
             </div>
           </div>

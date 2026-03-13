@@ -1,32 +1,36 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { StyleProvider } from "@ant-design/cssinjs";
+import { ConfigProvider } from "antd";
 import "./index.css";
-import Home from "./pages/home/Home.tsx";
-import ProxyFetchDemo from "./pages/proxy-fetch/ProxyFetchDemo.tsx";
-import NetworkPanel from "./pages/network/NetworkPanel.tsx";
 
 import "dayjs/locale/zh-cn";
 
 import zhCN from "antd/locale/zh_CN";
-
-import { ConfigProvider } from "antd";
 import { createBrowserRouter, RouterProvider } from "react-router";
 
 const router = createBrowserRouter(
   [
     {
       path: "/",
-      Component: Home,
-      // loader: loadRootData,
+      lazy: async () => {
+        const module = await import("./pages/home/Home.tsx");
+        return { Component: module.default };
+      },
     },
     {
       path: "/proxy-fetch",
-      Component: ProxyFetchDemo,
+      lazy: async () => {
+        const module = await import("./pages/proxy-fetch/ProxyFetchDemo.tsx");
+        return { Component: module.default };
+      },
     },
     {
       path: "/network",
-      Component: NetworkPanel,
+      lazy: async () => {
+        const module = await import("./pages/network/NetworkPanel.tsx");
+        return { Component: module.default };
+      },
     },
   ],
   {

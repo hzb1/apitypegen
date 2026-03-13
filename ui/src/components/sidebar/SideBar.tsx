@@ -34,6 +34,7 @@ const SideBar: React.FC<SideBarProps> = (props) => {
 
   useEffect(() => {
     if (!scrollRequest?.key) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPendingScrollKey(scrollRequest.key);
   }, [scrollRequest]);
 

@@ -29,7 +29,6 @@ import ApiInfo from "@/components/api-info/ApiInfo.tsx";
 import CodeCard from "@/components/code-card/CodeCard.tsx";
 import type {ApiDetail} from "../../../types.ts";
 import {getApiSlug, stableHash} from "@/utils/getApiSlug.ts";
-import {SwaggerToTS} from "@/utils/SwaggerParser.ts";
 import type {ApiGroup} from "./utils.ts";
 
 const {Sider} = Layout;
@@ -52,6 +51,14 @@ type SearchRecord = {
 type ScrollRequest = {
   key: string;
   id: number;
+};
+
+type TsCodeParts = {
+  "Request Function": string;
+  Models: string;
+  "Query Params": string;
+  "Request Body": string;
+  "Response Data": string;
 };
 
 const Home: React.FC = () => {
@@ -508,17 +515,40 @@ const Home: React.FC = () => {
     });
   }, [viewedApiKeys]);
 
-  const tsCodeParts = useMemo(() => {
-    if (!documentData || !selectedApi) return;
-    // 使用 useOptions 提供的 generatorOptions
-    const parser = new SwaggerToTS(documentData, generatorOptions);
-    const res = parser.getStructuredTypes(selectedApi.path, selectedApi.method);
-    return {
-      "Request Function": res.requestFunction,
-      Models: res.models,
-      "Query Params": res.queryParams,
-      "Request Body": res.requestBody,
-      "Response Data": res.responseData,
+  const [tsCodeParts, setTsCodeParts] = useState<TsCodeParts | undefined>(undefined);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!documentData || !selectedApi) {
+      setTsCodeParts(undefined);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setTsCodeParts(undefined);
+
+    const loadTsCodeParts = async () => {
+      const {SwaggerToTS} = await import("@/utils/SwaggerParser.ts");
+      const parser = new SwaggerToTS(documentData, generatorOptions);
+      const res = parser.getStructuredTypes(selectedApi.path, selectedApi.method);
+
+      if (cancelled) return;
+
+      setTsCodeParts({
+        "Request Function": res.requestFunction,
+        Models: res.models,
+        "Query Params": res.queryParams,
+        "Request Body": res.requestBody,
+        "Response Data": res.responseData,
+      });
+    };
+
+    void loadTsCodeParts();
+
+    return () => {
+      cancelled = true;
     };
   }, [documentData, generatorOptions, selectedApi]);
 
