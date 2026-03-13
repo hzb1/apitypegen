@@ -1,54 +1,162 @@
-
-.api-list-wrapper {
-
-    .sidebar-group-icon{
-        font-size: 10px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        /*width: 18px;*/
-        /*height: 18px;*/
-        border-radius: 6px;
-        color: rgba(0, 0, 0, 0.55);
-        transition: transform 0.2s ease, color 0.2s ease;
-    }
-
-    .sidebar-group-icon.expanded{
-        transform: rotate(90deg);
-    }
-
-    .api-group-content{
-        overflow: hidden;
-        max-height: 0;
-        opacity: 0;
-        transform: translateY(-4px);
-        transition: max-height 0.25s ease, opacity 0.2s ease, transform 0.2s ease;
-        pointer-events: none;
-    }
-
-    .api-group-content.expanded{
-        max-height: 1200px;
-        opacity: 1;
-        transform: translateY(0);
-        pointer-events: auto;
-    }
+.api-list-root {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 12px;
+  padding-right: 6px;
+  padding-bottom: 12px;
 }
 
-.api-list-root {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    padding-bottom: 12px;
+.api-list-wrapper {
+  border-radius: var(--ts-radius-sm);
+}
+
+.api-list-group-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 30px;
+  margin-bottom: 4px;
+  position: sticky;
+  top: 0;
+  z-index: 8;
+  padding: 0 4px;
+  cursor: pointer;
+  background: var(--ts-gradient-group-sticky);
+  backdrop-filter: blur(2px);
+}
+
+.api-list-group-name {
+  display: inline-flex;
+  align-items: baseline;
+  min-width: 0;
+}
+
+.api-list-group-name h5 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ts-text-secondary);
+}
+
+.api-list-group-name span {
+  margin-left: 4px;
+  font-size: 12px;
+  color: var(--ts-text-muted);
+}
+
+.api-list-group-children {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.api-list-item {
+  position: relative;
+}
+
+.api-list-item-link {
+  margin-left: 2px;
+  margin-right: 4px;
+  width: calc(100% - 6px);
+  border-left: 2px solid transparent;
+  border-radius: 0 var(--ts-radius-sm) var(--ts-radius-sm) 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 7px 8px 7px 10px;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.16s ease, border-color 0.18s ease;
+}
+
+.api-list-item-link:hover {
+  border-color: var(--ts-brand-border-soft);
+  background: var(--ts-surface-soft);
+}
+
+.api-list-item-link.is-selected {
+  border-color: var(--ts-brand);
+  background: var(--ts-brand-surface-strong);
+}
+
+.method-nav-pill {
+  margin-top: 1px;
+  width: var(--ts-size-method-pill);
+  display: inline-flex;
+  justify-content: center;
+}
+
+.api-list-item-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.api-list-item-summary {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ts-text-primary);
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.api-list-item-path {
+  font-size: 11px;
+  color: var(--ts-text-muted);
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.api-list-wrapper .sidebar-group-icon {
+  font-size: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--ts-radius-xs);
+  color: var(--ts-text-muted);
+  transition: transform 0.18s ease, color 0.18s ease;
+}
+
+.api-list-wrapper .sidebar-group-icon.expanded {
+  transform: rotate(90deg);
+  color: var(--ts-brand);
+}
+
+.api-list-wrapper .api-group-content {
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-3px);
+  transition: max-height 0.24s ease, opacity 0.16s ease, transform 0.2s ease;
+  pointer-events: none;
+}
+
+.api-list-wrapper .api-group-content.expanded {
+  max-height: 1400px;
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+  padding-bottom: 6px;
 }
 
 .api-list-jump {
-    position: sticky;
-    left: 240px;
-    bottom: 12px;
-    width: 32px;
-    min-width: 32px;
-    min-height: 32px;
-    /*right: 100px;*/
-    z-index: 12;
+  position: sticky !important;
+  left: 228px;
+  bottom: 14px;
+  z-index: 12;
+}
+
+.api-list-jump .ant-float-btn-body {
+  border: 1px solid var(--ts-line);
+  background: var(--ts-surface-overlay);
+  box-shadow: var(--ts-shadow-float);
+  color: var(--ts-brand);
 }

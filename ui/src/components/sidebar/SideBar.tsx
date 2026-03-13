@@ -2,9 +2,7 @@ import "./SideBar.css";
 import { Empty } from "antd";
 import ApiList, { type ApiListProps } from "../ApiList/ApiList.tsx";
 import React, { useEffect, useRef, useState } from "react";
-import logoUrl from "@/assets/logo/logo-replica-full.svg";
 import ApiSearchDialog from "@/components/sidebar/ApiSearchDialog.tsx";
-// import logoUrl from "@/assets/logo/logo-replica.svg";
 
 type ScrollRequest = {
   key: string;
@@ -71,28 +69,21 @@ const SideBar: React.FC<SideBarProps> = (props) => {
   }, [apis, pendingScrollKey]);
 
   return (
-    <div
-      className={
-        "sidebar hidden lg:flex flex-col left-0 top-0 bottom-0 border-r border-gray-200/70 dark:border-white/[0.07] h-full"
-      }
-    >
-      <div className={"h-full flex flex-col flex-1 stable-scrollbar-gutter"}>
-        <div className={"px-4 pt-4 pb-4"}>
-          <a className={"logo cursor-pointer"}>
-            <img src={logoUrl} alt="TS Swagger" title={'TS Swagger'} className="logo-img" />
-          </a>
-          <div className={"mt-3"}>
+    <div className="sidebar">
+      <div className="sidebar-shell">
+        <div className="sidebar-header">
+          <p className="sidebar-title">接口导航</p>
+          <p className="sidebar-subtitle">分组浏览与快速定位</p>
+          <div className="sidebar-search">
             <ApiSearchDialog
               apis={apis}
               onSelectResult={onSearchSelectResult}
+              triggerClassName="sidebar-search-trigger"
             />
           </div>
         </div>
 
-        <div
-          className={"flex-1 overflow-y-auto flex flex-col pl-4 pr-2 sidebar-api-scroll"}
-          ref={apiListScrollRef}
-        >
+        <div className="sidebar-api-scroll" ref={apiListScrollRef}>
           {apis?.length ? (
             <ApiList
               apis={apis}

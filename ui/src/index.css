@@ -1,35 +1,111 @@
 @layer theme, base, antd, components, utilities;
 
-@import 'tailwindcss';
+@import "tailwindcss";
+@import "./styles/theme-config.css";
 
-:root {
-    --primary: 0 96 255;
-    --primary-light: 104 143 232;
-    --primary-dark: 0 52 255;
-    --tooltip-foreground: 255 255 255;
-    --background-light: 255 255 255;
-    --background-dark: 11 12 15;
-    --gray-50: 242 245 250;
-    --gray-100: 238 240 245;
-    --gray-200: 222 225 230;
-    --gray-300: 206 208 213;
-    --gray-400: 158 161 166;
-    --gray-500: 111 114 119;
-    --gray-600: 79 82 87;
-    --gray-700: 62 65 70;
-    --gray-800: 37 40 45;
-    --gray-900: 22 25 30;
-    --gray-950: 10 13 17;
+* {
+  box-sizing: border-box;
 }
 
-/** {*/
-/*    margin: 0;*/
-/*    padding: 0;*/
-/*    box-sizing: border-box;*/
-/*}*/
+html,
+body,
+#root {
+  min-height: 100%;
+}
 
-body{
-    /*--font-inter: "Inter", "Inter Fallback", -apple-system, BlinkMacSystemFont, Segoe UI, system-ui, sans-serif;*/
-    /*font-family: var(--font-family-body-custom, var(--font-inter)), -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;*/
-    /*font-weight: var(--font-weight-body-custom);*/
+body {
+  margin: 0;
+  font-family: var(--ts-font-sans), sans-serif;
+  color: var(--ts-text-primary);
+  background: var(--ts-bg);
+  font-size: 14px;
+  line-height: 1.5;
+  text-rendering: optimizeLegibility;
+}
+
+a {
+  color: inherit;
+}
+
+.method-tag {
+  border-radius: var(--ts-radius-xs);
+  border: 1px solid transparent;
+  letter-spacing: 0.02em;
+}
+
+.method-tag.method-tag-get {
+  color: var(--ts-method-get-text);
+  border-color: var(--ts-method-get-border);
+  background: var(--ts-method-get-bg);
+}
+
+.method-tag.method-tag-post {
+  color: var(--ts-method-post-text);
+  border-color: var(--ts-method-post-border);
+  background: var(--ts-method-post-bg);
+}
+
+.method-tag.method-tag-put {
+  color: var(--ts-method-put-text);
+  border-color: var(--ts-method-put-border);
+  background: var(--ts-method-put-bg);
+}
+
+.method-tag.method-tag-delete {
+  color: var(--ts-method-delete-text);
+  border-color: var(--ts-method-delete-border);
+  background: var(--ts-method-delete-bg);
+}
+
+.method-tag.method-tag-default {
+  color: var(--ts-method-default-text);
+  border-color: var(--ts-method-default-border);
+  background: var(--ts-method-default-bg);
+}
+
+.method-tag.active.method-tag-get {
+  background: var(--ts-method-get-active);
+  border-color: var(--ts-method-get-active);
+  color: var(--ts-method-active-text);
+}
+
+.method-tag.active.method-tag-post {
+  background: var(--ts-method-post-active);
+  border-color: var(--ts-method-post-active);
+  color: var(--ts-method-active-text);
+}
+
+.method-tag.active.method-tag-put {
+  background: var(--ts-method-put-active);
+  border-color: var(--ts-method-put-active);
+  color: var(--ts-method-active-text);
+}
+
+.method-tag.active.method-tag-delete {
+  background: var(--ts-method-delete-active);
+  border-color: var(--ts-method-delete-active);
+  color: var(--ts-method-active-text);
+}
+
+.method-tag.active.method-tag-default {
+  background: var(--ts-method-default-active);
+  border-color: var(--ts-method-default-active);
+  color: var(--ts-method-active-text);
+}
+
+.ant-modal .ant-modal-content {
+  border-radius: var(--ts-radius-modal);
+}
+
+.ant-modal .ant-modal-header {
+  border-radius: var(--ts-radius-modal) var(--ts-radius-modal) 0 0;
+}
+
+.ant-input,
+.ant-select-selector {
+  border-radius: var(--ts-radius-sm) !important;
+}
+
+.ant-input-search-button {
+  border-radius: 0 var(--ts-radius-sm) var(--ts-radius-sm) 0 !important;
 }

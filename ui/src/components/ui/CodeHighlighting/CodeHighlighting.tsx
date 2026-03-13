@@ -1,7 +1,7 @@
 import {useMemo} from "react";
 import hljs from 'highlight.js/lib/core'
 import typescript from 'highlight.js/lib/languages/typescript'
-import 'highlight.js/styles/atom-one-dark.css'
+import 'highlight.js/styles/github.css'
 
 hljs.registerLanguage('typescript', typescript)
 

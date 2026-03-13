@@ -110,15 +110,12 @@ const ApiList: React.FC<ApiListProps> = ({
         return (
           <div className={"api-list-wrapper"} key={groupItem.id}>
             <div
-              className={
-                "flex items-center justify-between gap-2.5 h-7 mb-1 text-gray-900 dark:text-gray-200 font-medium sticky " +
-                "top-0 z-10 bg-white cursor-pointer"
-              }
+              className="api-list-group-title"
               onClick={() => handleGroupTitleClick(groupItem)}
             >
-              <div className="flex items-baseline">
-                <h5 className={'text-gray-600 font-medium text-sm'}>{groupName}</h5>
-                {num && <span className="text-gray-500 ml-1 text-xs">{num}</span>}
+              <div className="api-list-group-name">
+                <h5>{groupName}</h5>
+                {num && <span>{num}</span>}
               </div>
               <span
                 className={
@@ -132,10 +129,10 @@ const ApiList: React.FC<ApiListProps> = ({
             </div>
             <div
               className={
-                isExpanded ? "api-group-content expanded pb-2" : "api-group-content"
+                isExpanded ? "api-group-content expanded" : "api-group-content"
               }
             >
-              <ul>
+              <ul className="api-list-group-children">
                 {groupItem.children.map((apiItem) => {
                   return (
                     <ApiItem
@@ -153,8 +150,8 @@ const ApiList: React.FC<ApiListProps> = ({
       })}
       {show && (
           <FloatButton
-            className={'api-list-jump'}
-            type="primary"
+            className={"api-list-jump"}
+            type="default"
             shape="circle"
             icon={<AimOutlined />}
             onClick={scrollToSelected}

@@ -4,21 +4,23 @@ const getTagColor = (method: string, isActive: boolean) => {
   const methodUpperCase = method.toUpperCase();
   if (methodUpperCase === "GET") {
     return isActive
-      ? "bg-[#2AB673] text-[#FFFFFF]"
-      : "bg-green-400/20 dark:bg-green-400/20 text-green-700 dark:text-green-400";
+      ? "method-tag method-tag-get active"
+      : "method-tag method-tag-get";
   } else if (methodUpperCase === "POST") {
     return isActive
-      ? "bg-[#3064E3] text-[#FFFFFF]"
-      : "bg-blue-400/20 dark:bg-blue-400/20 text-blue-700 dark:text-blue-400";
+      ? "method-tag method-tag-post active"
+      : "method-tag method-tag-post";
   } else if (methodUpperCase === "PUT") {
     return isActive
-      ? "bg-[#FF9F00] text-[#FFFFFF]"
-      : "bg-orange-400/20 dark:bg-orange-400/20 text-orange-700 dark:text-orange-400";
+      ? "method-tag method-tag-put active"
+      : "method-tag method-tag-put";
   } else if (methodUpperCase === "DELETE") {
     return isActive
-      ? "bg-[#FF4D4F] text-[#FFFFFF]"
-      : "bg-red-400/20 dark:bg-red-400/20 text-red-700 dark:text-red-400";
+      ? "method-tag method-tag-delete active"
+      : "method-tag method-tag-delete";
   }
+
+  return isActive ? "method-tag method-tag-default active" : "method-tag method-tag-default";
 };
 
 const methodTextMap: Record<string, string> = {
@@ -44,7 +46,7 @@ const Method = ({
   return (
     <div
       className={clsx(
-        "px-1 py-0.5 rounded-md text-[0.55rem] leading-tight font-bold w-10 text-center",
+        "px-1 py-0.5 rounded-md text-[0.58rem] leading-tight font-bold w-10 text-center",
         tagColor,
         className
       )}

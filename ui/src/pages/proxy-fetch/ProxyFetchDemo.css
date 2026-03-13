@@ -1,7 +1,7 @@
 .proxy-demo-page {
   min-height: 100vh;
   padding: 32px 40px 80px;
-  background: linear-gradient(160deg, #f6f8ff 0%, #ffffff 45%, #f7f9fc 100%);
+  background: var(--ts-gradient-proxy-page);
 }
 
 .proxy-demo-hero {
@@ -10,9 +10,9 @@
   justify-content: space-between;
   gap: 24px;
   padding: 24px 28px;
-  border-radius: 16px;
-  background: #ffffff;
-  box-shadow: 0 14px 30px rgba(30, 50, 94, 0.12);
+  border-radius: var(--ts-radius-modal);
+  background: var(--ts-surface);
+  box-shadow: var(--ts-shadow-hero-blue);
 }
 
 .proxy-demo-title {
@@ -21,7 +21,7 @@
 
 .proxy-demo-subtitle {
   margin-bottom: 0;
-  color: rgba(0, 0, 0, 0.65);
+  color: var(--ts-text-dim);
 }
 
 .proxy-demo-status {
@@ -42,12 +42,12 @@
 }
 
 .proxy-demo-card {
-  border-radius: 14px;
-  box-shadow: 0 12px 24px rgba(25, 50, 90, 0.08);
+  border-radius: var(--ts-radius-md);
+  box-shadow: var(--ts-shadow-card-blue);
 }
 
 .proxy-demo-desc {
-  color: rgba(0, 0, 0, 0.65);
+  color: var(--ts-text-dim);
 }
 
 .proxy-demo-meta {
@@ -58,7 +58,7 @@
 }
 
 .proxy-demo-url {
-  color: rgba(0, 0, 0, 0.75);
+  color: var(--ts-text-dim-strong);
   word-break: break-all;
 }
 
@@ -72,9 +72,9 @@
 .proxy-demo-pre {
   margin: 0;
   padding: 12px;
-  border-radius: 10px;
-  background: #0f172a;
-  color: #e2e8f0;
+  border-radius: var(--ts-radius-sm);
+  background: var(--ts-code-bg);
+  color: var(--ts-code-fg);
   font-size: 12px;
   max-height: 180px;
   overflow: auto;
@@ -100,7 +100,7 @@
   right: 28px;
   bottom: 28px;
   z-index: 1001;
-  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.2);
+  box-shadow: var(--ts-shadow-fab);
 }
 
 .proxy-demo-drawer .ant-drawer-body {

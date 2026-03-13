@@ -1,0 +1,198 @@
+/*
+ * 全局样式配置文件
+ * 作用：
+ * 1. 统一维护设计 Token（颜色、字体、圆角、阴影、方法色等）
+ * 2. 让页面与组件都通过变量拿到同一套视觉语言
+ * 3. 降低后续改版成本（只改这里即可联动全站）
+ */
+
+:root {
+  /* =========================
+   * 基础主色（兼容现有 Tailwind / 组件写法）
+   * 使用 RGB 数值方便在 rgba() 中复用
+   * ========================= */
+  --primary: 15 118 110;
+  --primary-light: 95 196 182;
+  --primary-dark: 12 74 73;
+  --tooltip-foreground: 255 255 255;
+  --background-light: 255 255 255;
+  --background-dark: 20 26 31;
+
+  /* =========================
+   * 灰阶系统（用于边框、辅助文本、背景层级）
+   * ========================= */
+  --gray-50: 248 250 247;
+  --gray-100: 238 242 235;
+  --gray-200: 229 233 225;
+  --gray-300: 206 214 202;
+  --gray-400: 154 164 150;
+  --gray-500: 118 129 113;
+  --gray-600: 88 99 84;
+  --gray-700: 63 72 60;
+  --gray-800: 43 50 41;
+  --gray-900: 31 38 29;
+  --gray-950: 20 27 20;
+
+  /* =========================
+   * 字体系统
+   * --ts-font-sans: 正文与控件
+   * --ts-font-display: 标题与强调文案
+   * --ts-font-mono: 代码与路径
+   * ========================= */
+  --ts-font-sans: "IBM Plex Sans", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --ts-font-display: "Source Serif 4", "Noto Serif SC", "Songti SC", serif;
+  --ts-font-mono: "JetBrains Mono", "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+
+  /* =========================
+   * 页面语义色
+   * ========================= */
+  --ts-bg: #f7f8f5;
+  --ts-surface: #ffffff;
+  --ts-text-primary: #1f2937;
+  --ts-text-strong: #0f172a;
+  --ts-text-secondary: #4b5563;
+  --ts-text-muted: #6b7280;
+  --ts-line: #e5e7eb;
+  --ts-line-strong: #d1d5db;
+  --ts-brand: #0f766e;
+  --ts-brand-soft: #ccfbf1;
+  --ts-info-rgb: 3 105 161;
+  --ts-warning-rgb: 180 83 9;
+  --ts-surface-soft: #f8faf7;
+  --ts-surface-softer: #fcfcfb;
+  --ts-surface-subtle: #fafcf9;
+  --ts-surface-neutral: #f8fafc;
+  --ts-surface-elevated: rgb(255 255 255 / 0.96);
+  --ts-surface-overlay: rgb(255 255 255 / 0.92);
+  --ts-surface-overlay-86: rgb(255 255 255 / 0.86);
+  --ts-surface-overlay-80: rgb(248 250 247 / 0.8);
+  --ts-surface-overlay-72: rgb(255 255 255 / 0.72);
+  --ts-border-white-soft: rgb(255 255 255 / 0.7);
+  --ts-border-subtle-strong: rgb(var(--gray-200) / 0.98);
+  --ts-text-dim: rgb(var(--gray-900) / 0.65);
+  --ts-text-dim-strong: rgb(var(--gray-900) / 0.75);
+  --ts-text-faint: rgb(var(--gray-900) / 0.45);
+  --ts-tag-brand-text: #115e59;
+  --ts-tag-warning-text: #92400e;
+  --ts-code-bg: #0f172a;
+  --ts-code-fg: #e2e8f0;
+
+  /* =========================
+   * 视觉效果（发光、透明背景）
+   * ========================= */
+  --ts-glow-primary-soft: rgb(var(--primary) / 0.14);
+  --ts-glow-primary-strong: rgb(var(--primary) / 0.18);
+  --ts-glow-info-soft: rgb(var(--ts-info-rgb) / 0.12);
+  --ts-topbar-bg: rgb(var(--gray-50) / 0.92);
+  --ts-interactive-soft: rgb(var(--primary) / 0.16);
+  --ts-interactive-soft-strong: rgb(var(--primary) / 0.22);
+  --ts-brand-border-soft: rgb(var(--primary) / 0.34);
+  --ts-brand-border-medium: rgb(var(--primary) / 0.45);
+  --ts-brand-border-strong: rgb(var(--primary) / 0.66);
+  --ts-brand-border-button: rgb(var(--primary) / 0.6);
+  --ts-brand-border-button-soft: rgb(var(--primary) / 0.58);
+  --ts-brand-surface-soft: rgb(var(--primary) / 0.12);
+  --ts-brand-surface-medium: rgb(var(--primary) / 0.2);
+  --ts-brand-surface-strong: rgb(var(--primary) / 0.42);
+  --ts-row-selected-bg: rgb(47 100 234 / 0.08);
+  --ts-row-error-bg: rgb(239 68 68 / 0.06);
+  --ts-warning-bg: rgb(var(--ts-warning-rgb) / 0.1);
+  --ts-warning-border: rgb(var(--ts-warning-rgb) / 0.24);
+  --ts-tag-brand-bg: rgb(var(--primary) / 0.08);
+  --ts-tag-brand-border: rgb(var(--primary) / 0.24);
+  --ts-ui-hover-dark-soft: rgb(var(--gray-900) / 0.08);
+  --ts-ui-hover-dark-faint: rgb(var(--gray-900) / 0.06);
+
+  /* =========================
+   * 尺寸与层次（圆角 / 阴影 / 过渡）
+   * ========================= */
+  --ts-radius-xxs: 4px;
+  --ts-radius-xs: 6px;
+  --ts-radius-xsm: 8px;
+  --ts-radius-control: 9px;
+  --ts-radius-sm: 10px;
+  --ts-radius-base: 12px;
+  --ts-radius-md: 14px;
+  --ts-radius-modal: 16px;
+  --ts-radius-lg: 18px;
+  --ts-radius-xl: 24px;
+  --ts-radius-pill: 999px;
+  --ts-size-scrollbar: 10px;
+  --ts-size-icon-sm: 24px;
+  --ts-size-control-md: 36px;
+  --ts-size-control-md-min: 38px;
+  --ts-size-control-lg: 40px;
+  --ts-size-icon-trigger: 34px;
+  --ts-size-method-pill: 42px;
+  --ts-size-tab-close: 18px;
+  --ts-size-tab-more: 30px;
+  --ts-blur-topbar: 8px;
+  --ts-opacity-disabled: 0.5;
+  --ts-shadow-sm: 0 8px 18px rgba(15, 23, 42, 0.06);
+  --ts-shadow-md: 0 12px 28px rgba(15, 23, 42, 0.08);
+  --ts-shadow-card: 0 12px 28px rgba(15, 23, 42, 0.04);
+  --ts-shadow-popover: 0 10px 26px rgba(15, 23, 42, 0.12);
+  --ts-shadow-hero: 0 26px 60px rgba(15, 23, 42, 0.07);
+  --ts-shadow-card-blue: 0 12px 24px rgba(25, 50, 90, 0.08);
+  --ts-shadow-hero-blue: 0 14px 30px rgba(30, 50, 94, 0.12);
+  --ts-shadow-image: 0 6px 14px rgba(15, 23, 42, 0.12);
+  --ts-shadow-float: 0 8px 20px rgba(15, 23, 42, 0.1);
+  --ts-shadow-fab: 0 12px 24px rgba(15, 23, 42, 0.2);
+  --ts-shadow-brand-sm: 0 8px 18px rgba(12, 95, 88, 0.24);
+  --ts-shadow-brand-md: 0 10px 20px rgba(12, 95, 88, 0.22);
+  --ts-ease-standard: 0.16s ease;
+
+  /* =========================
+   * 渐变方案（按钮、顶部、卡片）
+   * ========================= */
+  --ts-gradient-brand: linear-gradient(160deg, #0f766e 0%, #0c5f58 100%);
+  --ts-gradient-brand-strong: linear-gradient(160deg, #0f766e 0%, #0b5a54 100%);
+  --ts-gradient-surface: linear-gradient(180deg, #ffffff 0%, var(--ts-surface-softer) 100%);
+  --ts-gradient-surface-soft: linear-gradient(180deg, #ffffff 0%, var(--ts-surface-soft) 100%);
+  --ts-gradient-sidebar-header: linear-gradient(180deg, #ffffff 0%, var(--ts-surface-subtle) 100%);
+  --ts-gradient-group-sticky: linear-gradient(180deg, #ffffff 45%, var(--ts-surface-overlay-86) 100%);
+  --ts-gradient-api-header:
+    linear-gradient(130deg, rgb(var(--primary) / 0.38) 0%, var(--ts-surface-overlay) 46%),
+    var(--ts-surface);
+  --ts-gradient-network-page: linear-gradient(160deg, #f2f6ff 0%, #ffffff 50%, #f4f7fb 100%);
+  --ts-gradient-proxy-page: linear-gradient(160deg, #f6f8ff 0%, #ffffff 45%, #f7f9fc 100%);
+
+  /* =========================
+   * 滚动条配色
+   * ========================= */
+  --ts-scrollbar-thumb: rgb(var(--gray-500) / 0.35);
+  --ts-scrollbar-thumb-hover: rgb(var(--primary) / 0.4);
+
+  /* =========================
+   * HTTP 方法标签颜色（默认态）
+   * ========================= */
+  --ts-method-get-text: #14532d;
+  --ts-method-get-border: rgba(34, 197, 94, 0.26);
+  --ts-method-get-bg: rgba(134, 239, 172, 0.34);
+
+  --ts-method-post-text: #0c4a6e;
+  --ts-method-post-border: rgba(14, 165, 233, 0.25);
+  --ts-method-post-bg: rgba(125, 211, 252, 0.28);
+
+  --ts-method-put-text: #7c2d12;
+  --ts-method-put-border: rgba(251, 146, 60, 0.3);
+  --ts-method-put-bg: rgba(253, 186, 116, 0.3);
+
+  --ts-method-delete-text: #991b1b;
+  --ts-method-delete-border: rgba(248, 113, 113, 0.3);
+  --ts-method-delete-bg: rgba(254, 202, 202, 0.34);
+
+  --ts-method-default-text: #334155;
+  --ts-method-default-border: rgba(148, 163, 184, 0.3);
+  --ts-method-default-bg: rgba(226, 232, 240, 0.35);
+
+  /* =========================
+   * HTTP 方法标签颜色（激活态）
+   * ========================= */
+  --ts-method-get-active: #15803d;
+  --ts-method-post-active: #0369a1;
+  --ts-method-put-active: #c2410c;
+  --ts-method-delete-active: #b91c1c;
+  --ts-method-default-active: #334155;
+  --ts-method-active-text: #ffffff;
+}

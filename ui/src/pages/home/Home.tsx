@@ -4,8 +4,6 @@ import {
   Dropdown,
   Input,
   Select,
-  Row,
-  Col,
   Spin,
   Tabs,
   Empty,
@@ -13,13 +11,13 @@ import {
   Alert,
   Button,
   Tooltip,
+  Drawer,
 } from "antd";
-import {Layout, theme} from "antd";
 import {type AutoCompleteProps} from "antd";
 import "./Home.css";
 import {useSwagger} from "@/hooks/useSwagger.ts";
 import {useOptions} from "@/hooks/useOptions.ts";
-import {DeleteOutlined, EditOutlined, PushpinOutlined, QuestionCircleOutlined} from "@ant-design/icons";
+import {DeleteOutlined, EditOutlined, MenuOutlined, PushpinOutlined, QuestionCircleOutlined} from "@ant-design/icons";
 import {usePluginEnabled} from "@/hooks/usePluginEnabled.ts";
 import {useSearchParams} from "react-router";
 import SideBar, {
@@ -30,8 +28,7 @@ import CodeCard from "@/components/code-card/CodeCard.tsx";
 import type {ApiDetail} from "../../../types.ts";
 import {getApiSlug, stableHash} from "@/utils/getApiSlug.ts";
 import type {ApiGroup} from "./utils.ts";
-
-const {Sider} = Layout;
+import logoUrl from "@/assets/logo/logo-replica-full.svg";
 
 const SEARCH_HISTORY_KEY = "ts-swagger-search-history";
 const VIEWED_API_TABS_KEY = "ts-swagger-viewed-api-tabs";
@@ -62,10 +59,6 @@ type TsCodeParts = {
 };
 
 const Home: React.FC = () => {
-  const {
-    token: {colorBgContainer},
-  } = theme.useToken();
-
   const [searchParams, setSearchParams] = useSearchParams();
 
   const ipFromUrl = searchParams.get("doc")?.trim() ?? searchParams.get("ip")?.trim() ?? "";
@@ -91,6 +84,7 @@ const Home: React.FC = () => {
   });
   const [renameTarget, setRenameTarget] = useState<SearchRecord | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const lastRecordedIpRef = useRef("");
   const scrollRequestIdRef = useRef(0);
   const [scrollRequest, setScrollRequest] = useState<ScrollRequest | undefined>(undefined);
@@ -440,6 +434,7 @@ const Home: React.FC = () => {
         prev.includes(targetGroupId) ? prev : [...prev, targetGroupId]
       ));
     }
+    setMobileNavOpen(false);
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       next.set("api", key);
@@ -464,6 +459,7 @@ const Home: React.FC = () => {
   };
 
   const handleToolbarSearchSelect = (key: string) => {
+    setMobileNavOpen(false);
     onViewedTabSelect(key);
   };
 
@@ -608,75 +604,96 @@ const Home: React.FC = () => {
     <>
       <Spin spinning={loading}>
         {hasIpParam ? (
-          <Layout
-            className={"views mx-auto w-full max-w-[1200px] 2xl:max-w-[1400px]"}
-            hasSider={true}
-          >
-            <Sider width={324} style={{background: colorBgContainer}}>
-              <SideBar
-                scrollRequest={scrollRequest}
-                apis={apiGroups}
-                onSelectKeyChange={onMenuSelect}
-                onGroupTitleClick={handleGroupTitleClick}
-                onSearchSelectResult={handleToolbarSearchSelect}
-              />
-            </Sider>
+          <div className="views">
+            <header className="home-topbar">
+              <div className="home-topbar-brand">
+                <button
+                  type="button"
+                  className="mobile-nav-trigger"
+                  onClick={() => setMobileNavOpen(true)}
+                >
+                  <MenuOutlined />
+                </button>
+                <img src={logoUrl} alt="TS Swagger" className="home-topbar-logo" />
+                <div className="home-topbar-copy">
+                  <div className="home-topbar-title">API Hub</div>
+                  <div className="home-topbar-subtitle">文档社区风 · 开发者入口</div>
+                </div>
+              </div>
+              <div className="home-topbar-actions">
+                <div className="field-row">
+                  <div className="field-label">
+                    <span>文档地址</span>
+                    <Tooltip title="支持服务地址（自动探测）或可直接 GET 的 OpenAPI/Swagger 文档 URL">
+                      <QuestionCircleOutlined className="field-help-icon" />
+                    </Tooltip>
+                  </div>
+                  <div className="field-control">
+                    <div className="doc-address-composer">
+                      <AutoComplete
+                        className="doc-address-auto"
+                        value={inputIp}
+                        onChange={setInputIp}
+                        onSelect={handleCommitIp}
+                        options={autoCompleteOptions}
+                      >
+                        <Input
+                          placeholder="输入服务地址或 OpenAPI 文档 URL"
+                          onPressEnter={(event) => handleCommitIp(event.currentTarget.value)}
+                        />
+                      </AutoComplete>
+                      <button
+                        type="button"
+                        className="doc-load-button"
+                        onClick={() => handleCommitIp(inputIp)}
+                        disabled={!inputIp.trim() || loading}
+                      >
+                        {loading ? "加载中..." : "加载文档"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div className="field-row">
+                  <div className="field-label">
+                    <span>服务</span>
+                    <Tooltip title="当 swagger-config 返回多个服务时，在这里切换具体文档">
+                      <QuestionCircleOutlined className="field-help-icon" />
+                    </Tooltip>
+                  </div>
+                  <div className="field-control">
+                    <Select
+                      value={serviceUrl}
+                      loading={configLoading}
+                      onChange={handleServiceChange}
+                      options={serviceOptions}
+                      placeholder="选择服务"
+                      allowClear
+                    />
+                  </div>
+                </div>
+              </div>
+            </header>
 
-            <Layout className={"flex flex-col h-full"}>
-              <Layout className={"content-wrapper"}>
+            <div className="home-main-shell">
+              <aside className="home-sidebar">
+                <SideBar
+                  scrollRequest={scrollRequest}
+                  apis={apiGroups}
+                  onSelectKeyChange={onMenuSelect}
+                  onGroupTitleClick={handleGroupTitleClick}
+                  onSearchSelectResult={handleToolbarSearchSelect}
+                />
+              </aside>
+
+              <main className="content-wrapper">
                 <div className="content-api-tabs">
-                  <div className="content-toolbar-grid">
-                    <div className="content-toolbar-item">
-                      <div className="field-row">
-                        <div className="field-label">
-                          <span>文档地址</span>
-                          <Tooltip title="支持服务地址（自动探测）或可直接 GET 的 OpenAPI/Swagger 文档 URL">
-                            <QuestionCircleOutlined className="field-help-icon" />
-                          </Tooltip>
-                        </div>
-                        <div className="field-control">
-                          <AutoComplete
-                            value={inputIp}
-                            onChange={setInputIp}
-                            onSelect={handleCommitIp}
-                            options={autoCompleteOptions}
-                          >
-                            <Input.Search
-                              placeholder="输入服务地址或 OpenAPI 文档 URL"
-                              loading={loading}
-                              enterButton
-                              onSearch={handleCommitIp}
-                              style={{width: '300px'}}
-                            />
-                          </AutoComplete>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="content-toolbar-item">
-                      <div className="field-row">
-                        <div className="field-label">
-                          <span>服务</span>
-                          <Tooltip title="当 swagger-config 返回多个服务时，在这里切换具体文档">
-                            <QuestionCircleOutlined className="field-help-icon" />
-                          </Tooltip>
-                        </div>
-                        <div className="field-control">
-                          <Select
-                            value={serviceUrl}
-                            loading={configLoading}
-                            onChange={handleServiceChange}
-                            options={serviceOptions}
-                            placeholder="选择服务"
-                            allowClear
-                            style={{width: '160px'}}
-                          />
-                        </div>
-                      </div>
-                    </div>
+                  <div className="content-tab-heading">
+                    <h2>已查看接口</h2>
+                    <span>{orderedViewedApiKeys.length} 个</span>
                   </div>
                   {orderedViewedApiKeys.length > 0 ? (
                     <Tabs
+                      className="doc-tabs-antd"
                       activeKey={selectedApiKey ?? undefined}
                       onChange={onViewedTabSelect}
                       type="editable-card"
@@ -727,76 +744,80 @@ const Home: React.FC = () => {
                       })}
                     />
                   ) : (
-                    <div className="content-viewed-empty">暂无已查看接口</div>
+                    <div className="content-viewed-empty">从左侧选择一个接口开始</div>
                   )}
                 </div>
-                <div className="content-scroll-area">
-                  {
-                    error && <Empty description={error}/>
-                  }
-                  {
-                    !error && selectedApi && (
-                      <Row gutter={[16, 16]} style={{height: "100%"}}>
-                        <Col span={12} className={"left-main"}>
-                          <ApiInfo api={selectedApi} codeMap={tsCodeParts}/>
-                        </Col>
 
-                        <Col span={12} style={{height: "100%"}}>
-                          <CodeCard
-                            title="Models"
-                            code={tsCodeParts?.Models}
-                            style={{
-                              display: "flex",
-                              flexDirection: "column",
-                              height: "100%",
-                            }}
-                            styles={{
-                              body: {
-                                flex: 1,
-                                overflow: "auto",
-                                padding: 0,
-                              },
-                            }}
-                          ></CodeCard>
-                        </Col>
-                      </Row>
-                    )
-                  }
-                  {
-                    !error && !selectedApi && <Empty description={"请选择 API"}/>
-                  }
+                <div className="content-scroll-area">
+                  {error && <Empty description={error}/>}
+                  {!error && selectedApi && (
+                    <div className="api-workspace-grid">
+                      <div className="left-main">
+                        <ApiInfo api={selectedApi} codeMap={tsCodeParts}/>
+                      </div>
+                      <div className="models-panel">
+                        <CodeCard title="Models" code={tsCodeParts?.Models} />
+                      </div>
+                    </div>
+                  )}
+                  {!error && !selectedApi && (
+                    <Empty description="请选择左侧 API，开始查看文档与类型模型" />
+                  )}
                 </div>
-              </Layout>
-            </Layout>
-          </Layout>
+              </main>
+            </div>
+            <Drawer
+              title="接口导航"
+              placement="left"
+              open={mobileNavOpen}
+              onClose={() => setMobileNavOpen(false)}
+              width={320}
+              className="mobile-nav-drawer"
+            >
+              <SideBar
+                scrollRequest={scrollRequest}
+                apis={apiGroups}
+                onSelectKeyChange={onMenuSelect}
+                onGroupTitleClick={handleGroupTitleClick}
+                onSearchSelectResult={handleToolbarSearchSelect}
+              />
+            </Drawer>
+          </div>
         ) : (
           <div className="home-welcome">
             <div className="home-welcome-card">
+              <img src={logoUrl} alt="TS Swagger" className="home-welcome-logo" />
               <div className="home-welcome-title">TS Swagger</div>
               <div className="home-welcome-subtitle">
-                输入 Swagger/OpenAPI 文档 URL 开始加载
+                开发者文档门户 · API 社区体验
               </div>
               <div className="home-welcome-hint">
-                示例：http://localhost:9966/v3/api-docs 或 http://localhost:3000/docs-json
+                输入 Swagger/OpenAPI 文档 URL，快速生成可搜索、可调试、可复制代码的文档界面
               </div>
               <div className="home-welcome-search">
-                <AutoComplete
-                  value={inputIp}
-                  onChange={(value) => setInputIp(value)}
-                  onSelect={handleCommitIp}
-                  options={autoCompleteOptions}
-                >
-                  <Input.Search
-                    style={{
-                      width: 360,
-                    }}
-                    size="large"
-                    placeholder="输入服务地址或 OpenAPI 文档 URL"
-                    loading={loading}
-                    enterButton="开始"
-                    onSearch={(value) => handleCommitIp(value)}
-                  />
-                </AutoComplete>
+                <div className="home-welcome-composer">
+                  <AutoComplete
+                    className="home-welcome-auto"
+                    value={inputIp}
+                    onChange={(value) => setInputIp(value)}
+                    onSelect={handleCommitIp}
+                    options={autoCompleteOptions}
+                  >
+                    <Input
+                      size="large"
+                      placeholder="例如：http://localhost:9966/v3/api-docs"
+                      onPressEnter={(event) => handleCommitIp(event.currentTarget.value)}
+                    />
+                  </AutoComplete>
+                  <button
+                    type="button"
+                    className="welcome-load-button"
+                    onClick={() => handleCommitIp(inputIp)}
+                    disabled={!inputIp.trim() || loading}
+                  >
+                    {loading ? "加载中..." : "开始探索"}
+                  </button>
+                </div>
               </div>
             </div>
 
