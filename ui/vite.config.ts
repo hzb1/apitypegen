@@ -12,6 +12,25 @@ const alias: Record<string, string> = {
   '@extension': pathResolve('../extension'),
 }
 
+const getPackageName = (id: string) => {
+  const normalized = id.replace(/\\/g, '/');
+  const segments = normalized.split('/node_modules/');
+  if (segments.length < 2) return null;
+
+  const modulePath = segments[1];
+  const parts = modulePath.split('/');
+  if (!parts.length) return null;
+
+  if (parts[0].startsWith('@')) {
+    return parts.length > 1 ? `${parts[0]}/${parts[1]}` : parts[0];
+  }
+
+  return parts[0];
+};
+
+const toChunkName = (name: string) =>
+  name.replace(/^@/, '').replace(/[\\/]/g, '-');
+
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -28,32 +47,43 @@ export default defineConfig({
             return undefined;
           }
 
-          if (id.includes("highlight.js")) {
+          const packageName = getPackageName(id);
+          if (!packageName) return "vendor";
+
+          if (packageName === "highlight.js") {
             return "highlight-vendor";
           }
 
-          if (
-            id.includes("/antd/") ||
-            id.includes("@ant-design") ||
-            id.includes("@rc-component") ||
-            id.includes("rc-")
-          ) {
-            return "antd-vendor";
-          }
-
-          if (id.includes("dayjs")) {
-            return "dayjs-vendor";
-          }
-
-          if (id.includes("react-router")) {
-            return "router-vendor";
-          }
-
-          if (id.includes("/react/") || id.includes("react-dom")) {
+          if (packageName === "react" || packageName === "react-dom" || packageName === "scheduler") {
             return "react-vendor";
           }
 
-          return "vendor";
+          if (packageName === "react-router") {
+            return "router-vendor";
+          }
+
+          if (packageName === "dayjs") {
+            return "dayjs-vendor";
+          }
+
+          if (packageName === "antd") {
+            const normalized = id.replace(/\\/g, '/');
+            const antdSegment = normalized.match(/\/node_modules\/antd\/(?:es|lib)\/([^/]+)/)?.[1];
+            if (antdSegment) {
+              return `antd-${toChunkName(antdSegment)}`;
+            }
+            return "antd-core";
+          }
+
+          if (
+            packageName.startsWith("@ant-design") ||
+            packageName.startsWith("@rc-component/") ||
+            packageName.startsWith("rc-")
+          ) {
+            return `antd-${toChunkName(packageName)}`;
+          }
+
+          return `vendor-${toChunkName(packageName)}`;
         },
       },
     },
