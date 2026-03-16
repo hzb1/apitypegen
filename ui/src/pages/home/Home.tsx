@@ -25,6 +25,7 @@ import SideBar, {
 } from "@/components/sidebar/SideBar.tsx";
 import ApiInfo from "@/components/api-info/ApiInfo.tsx";
 import CodeCard from "@/components/code-card/CodeCard.tsx";
+import ThemeDropdown from "@/components/theme/ThemeDropdown.tsx";
 import type {ApiDetail} from "../../../types.ts";
 import {getApiSlug, stableHash} from "@/utils/getApiSlug.ts";
 import type {ApiGroup} from "./utils.ts";
@@ -671,6 +672,7 @@ const Home: React.FC = () => {
                     />
                   </div>
                 </div>
+                <ThemeDropdown />
               </div>
             </header>
 

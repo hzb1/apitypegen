@@ -1,7 +1,7 @@
 import {useMemo} from "react";
 import hljs from 'highlight.js/lib/core'
 import typescript from 'highlight.js/lib/languages/typescript'
-import 'highlight.js/styles/github.css'
+import "./CodeHighlighting.css";
 
 hljs.registerLanguage('typescript', typescript)
 
@@ -13,8 +13,7 @@ const CodeHighlighting = ({code}: { code?: string }) => {
     return hljs.highlight(code, { language: 'typescript' }).value
   }, [code])
 
-
-  return <pre><code className="hljs" dangerouslySetInnerHTML={{
+  return <pre className="ts-hljs-pre"><code className="hljs ts-hljs" dangerouslySetInnerHTML={{
     __html: htmlContent
   }}></code></pre>
 }

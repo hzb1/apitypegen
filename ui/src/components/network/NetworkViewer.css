@@ -84,7 +84,7 @@
   padding: 12px;
   border-radius: var(--ts-radius-sm);
   background: var(--ts-code-bg);
-  color: var(--ts-code-fg);
+  color: var(--ts-code-fg-contrast);
   font-size: 12px;
   max-height: 260px;
   overflow: auto;

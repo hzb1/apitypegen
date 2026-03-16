@@ -1,0 +1,119 @@
+.ts-hljs-pre {
+  margin: 0;
+}
+
+.ts-hljs {
+  display: block;
+  overflow-x: auto;
+  padding: 0;
+  background: transparent !important;
+  color: var(--ts-code-fg);
+  font-family: var(--ts-font-mono), monospace;
+  line-height: 1.55;
+}
+
+.ts-hljs .hljs-comment,
+.ts-hljs .hljs-quote {
+  color: #6b7280;
+  font-style: italic;
+}
+
+.ts-hljs .hljs-keyword,
+.ts-hljs .hljs-selector-tag,
+.ts-hljs .hljs-subst {
+  color: #7c3aed;
+  font-weight: 600;
+}
+
+.ts-hljs .hljs-string,
+.ts-hljs .hljs-doctag,
+.ts-hljs .hljs-addition,
+.ts-hljs .hljs-attribute,
+.ts-hljs .hljs-literal,
+.ts-hljs .hljs-template-tag,
+.ts-hljs .hljs-template-variable {
+  color: #0f766e;
+}
+
+.ts-hljs .hljs-type,
+.ts-hljs .hljs-class .hljs-title,
+.ts-hljs .hljs-title.class_ {
+  color: #1d4ed8;
+}
+
+.ts-hljs .hljs-title.function_,
+.ts-hljs .hljs-function .hljs-title,
+.ts-hljs .hljs-title,
+.ts-hljs .hljs-built_in,
+.ts-hljs .hljs-name,
+.ts-hljs .hljs-variable,
+.ts-hljs .hljs-params {
+  color: #0f172a;
+}
+
+.ts-hljs .hljs-number,
+.ts-hljs .hljs-symbol,
+.ts-hljs .hljs-bullet,
+.ts-hljs .hljs-meta,
+.ts-hljs .hljs-meta .hljs-keyword {
+  color: #c2410c;
+}
+
+.ts-hljs .hljs-deletion,
+.ts-hljs .hljs-regexp {
+  color: #dc2626;
+}
+
+:root[data-theme="dark"] .ts-hljs {
+  color: #dbeafe;
+}
+
+:root[data-theme="dark"] .ts-hljs .hljs-comment,
+:root[data-theme="dark"] .ts-hljs .hljs-quote {
+  color: #94a3b8;
+}
+
+:root[data-theme="dark"] .ts-hljs .hljs-keyword,
+:root[data-theme="dark"] .ts-hljs .hljs-selector-tag,
+:root[data-theme="dark"] .ts-hljs .hljs-subst {
+  color: #c084fc;
+}
+
+:root[data-theme="dark"] .ts-hljs .hljs-string,
+:root[data-theme="dark"] .ts-hljs .hljs-doctag,
+:root[data-theme="dark"] .ts-hljs .hljs-addition,
+:root[data-theme="dark"] .ts-hljs .hljs-attribute,
+:root[data-theme="dark"] .ts-hljs .hljs-literal,
+:root[data-theme="dark"] .ts-hljs .hljs-template-tag,
+:root[data-theme="dark"] .ts-hljs .hljs-template-variable {
+  color: #5eead4;
+}
+
+:root[data-theme="dark"] .ts-hljs .hljs-type,
+:root[data-theme="dark"] .ts-hljs .hljs-class .hljs-title,
+:root[data-theme="dark"] .ts-hljs .hljs-title.class_ {
+  color: #93c5fd;
+}
+
+:root[data-theme="dark"] .ts-hljs .hljs-title.function_,
+:root[data-theme="dark"] .ts-hljs .hljs-function .hljs-title,
+:root[data-theme="dark"] .ts-hljs .hljs-title,
+:root[data-theme="dark"] .ts-hljs .hljs-built_in,
+:root[data-theme="dark"] .ts-hljs .hljs-name,
+:root[data-theme="dark"] .ts-hljs .hljs-variable,
+:root[data-theme="dark"] .ts-hljs .hljs-params {
+  color: #f8fafc;
+}
+
+:root[data-theme="dark"] .ts-hljs .hljs-number,
+:root[data-theme="dark"] .ts-hljs .hljs-symbol,
+:root[data-theme="dark"] .ts-hljs .hljs-bullet,
+:root[data-theme="dark"] .ts-hljs .hljs-meta,
+:root[data-theme="dark"] .ts-hljs .hljs-meta .hljs-keyword {
+  color: #fdba74;
+}
+
+:root[data-theme="dark"] .ts-hljs .hljs-deletion,
+:root[data-theme="dark"] .ts-hljs .hljs-regexp {
+  color: #fca5a5;
+}

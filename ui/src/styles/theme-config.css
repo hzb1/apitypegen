@@ -50,8 +50,8 @@
   --ts-text-muted: #6b7280; /* 弱提示文本颜色 */
   --ts-line: #e5e7eb; /* 标准分割线颜色 */
   --ts-line-strong: #d1d5db; /* 强分割线/控件边框颜色 */
-  --ts-brand: #0f766e; /* 品牌主色（十六进制语义版） */
-  --ts-brand-soft: #ccfbf1; /* 品牌浅底色 */
+  --ts-brand: rgb(var(--primary)); /* 品牌主色（跟随当前主题主色） */
+  --ts-brand-soft: rgb(var(--primary-light) / 0.32); /* 品牌浅底色 */
   --ts-info-rgb: 3 105 161; /* 信息色 RGB（用于冷色高光） */
   --ts-warning-rgb: 180 83 9; /* 警告色 RGB（用于告警标签/边框） */
   --ts-surface-soft: #f8faf7; /* 柔和面板背景 */
@@ -71,7 +71,8 @@
   --ts-tag-brand-text: #115e59; /* 品牌标签文字色 */
   --ts-tag-warning-text: #92400e; /* 警告标签文字色 */
   --ts-code-bg: #0f172a; /* 代码块背景色 */
-  --ts-code-fg: #e2e8f0; /* 代码块前景文字色 */
+  --ts-code-fg: #1f2937; /* 普通代码前景文字色（浅底区域） */
+  --ts-code-fg-contrast: #e2e8f0; /* 深色代码背景前景文字色 */
 
   /* =========================
    * 光效与交互透明层
@@ -138,15 +139,15 @@
   --ts-shadow-image: 0 6px 14px rgba(15, 23, 42, 0.12); /* 图片预览阴影 */
   --ts-shadow-float: 0 8px 20px rgba(15, 23, 42, 0.1); /* 悬浮按钮阴影 */
   --ts-shadow-fab: 0 12px 24px rgba(15, 23, 42, 0.2); /* 固定悬浮按钮阴影 */
-  --ts-shadow-brand-sm: 0 8px 18px rgba(12, 95, 88, 0.24); /* 品牌按钮 hover 阴影（小） */
-  --ts-shadow-brand-md: 0 10px 20px rgba(12, 95, 88, 0.22); /* 品牌按钮 hover 阴影（中） */
+  --ts-shadow-brand-sm: 0 8px 18px rgb(var(--primary) / 0.24); /* 品牌按钮 hover 阴影（小） */
+  --ts-shadow-brand-md: 0 10px 20px rgb(var(--primary) / 0.22); /* 品牌按钮 hover 阴影（中） */
   --ts-ease-standard: 0.16s ease; /* 统一动效曲线 */
 
   /* =========================
    * 渐变系统
    * ========================= */
-  --ts-gradient-brand: linear-gradient(160deg, #0f766e 0%, #0c5f58 100%); /* 品牌按钮渐变 */
-  --ts-gradient-brand-strong: linear-gradient(160deg, #0f766e 0%, #0b5a54 100%); /* 品牌按钮渐变（更强） */
+  --ts-gradient-brand: linear-gradient(160deg, rgb(var(--primary)) 0%, rgb(var(--primary-dark)) 100%); /* 品牌按钮渐变 */
+  --ts-gradient-brand-strong: linear-gradient(160deg, rgb(var(--primary)) 0%, rgb(var(--primary-dark)) 100%); /* 品牌按钮渐变（更强） */
   --ts-gradient-surface: linear-gradient(180deg, #ffffff 0%, var(--ts-surface-softer) 100%); /* 标准面板渐变 */
   --ts-gradient-surface-soft: linear-gradient(180deg, #ffffff 0%, var(--ts-surface-soft) 100%); /* 柔和面板渐变 */
   --ts-gradient-sidebar-header: linear-gradient(180deg, #ffffff 0%, var(--ts-surface-subtle) 100%); /* 侧栏头部渐变 */
@@ -191,4 +192,97 @@
   --ts-method-delete-active: #b91c1c; /* DELETE 激活背景/边框色 */
   --ts-method-default-active: #334155; /* 默认方法激活背景/边框色 */
   --ts-method-active-text: #ffffff; /* 方法标签激活态文字色 */
+}
+
+:root[data-theme="dark"] {
+  --ts-bg: #0b1220;
+  --ts-surface: #121a27;
+  --ts-text-primary: #e2e8f0;
+  --ts-text-strong: #f8fafc;
+  --ts-text-secondary: #cbd5e1;
+  --ts-text-muted: #94a3b8;
+  --ts-line: #2a3647;
+  --ts-line-strong: #3a4a60;
+  --ts-surface-soft: #0f1825;
+  --ts-surface-softer: #0d1522;
+  --ts-surface-subtle: #101a2a;
+  --ts-surface-neutral: #0f172a;
+  --ts-surface-elevated: rgb(18 26 39 / 0.96);
+  --ts-surface-overlay: rgb(18 26 39 / 0.92);
+  --ts-surface-overlay-86: rgb(15 23 42 / 0.86);
+  --ts-surface-overlay-80: rgb(15 23 42 / 0.8);
+  --ts-surface-overlay-72: rgb(15 23 42 / 0.72);
+  --ts-border-white-soft: rgb(148 163 184 / 0.2);
+  --ts-border-subtle-strong: rgb(58 74 96 / 0.9);
+  --ts-text-dim: rgb(226 232 240 / 0.72);
+  --ts-text-dim-strong: rgb(226 232 240 / 0.84);
+  --ts-text-faint: rgb(148 163 184 / 0.7);
+  --ts-tag-brand-text: rgb(var(--primary-light));
+  --ts-tag-warning-text: #fcd34d;
+  --ts-code-bg: #090f1b;
+  --ts-code-fg: #dbeafe;
+  --ts-code-fg-contrast: #dbeafe;
+  --ts-glow-primary-soft: rgb(var(--primary) / 0.24);
+  --ts-glow-primary-strong: rgb(var(--primary) / 0.32);
+  --ts-glow-info-soft: rgb(var(--ts-info-rgb) / 0.2);
+  --ts-topbar-bg: rgb(9 15 27 / 0.88);
+  --ts-interactive-soft: rgb(var(--primary) / 0.22);
+  --ts-interactive-soft-strong: rgb(var(--primary) / 0.3);
+  --ts-brand-border-soft: rgb(var(--primary) / 0.44);
+  --ts-brand-border-medium: rgb(var(--primary) / 0.62);
+  --ts-brand-border-strong: rgb(var(--primary) / 0.82);
+  --ts-brand-border-button: rgb(var(--primary) / 0.82);
+  --ts-brand-border-button-soft: rgb(var(--primary) / 0.72);
+  --ts-brand-surface-soft: rgb(var(--primary) / 0.2);
+  --ts-brand-surface-medium: rgb(var(--primary) / 0.3);
+  --ts-brand-surface-strong: rgb(var(--primary) / 0.44);
+  --ts-row-selected-bg: rgb(var(--primary) / 0.18);
+  --ts-row-error-bg: rgb(239 68 68 / 0.14);
+  --ts-warning-bg: rgb(var(--ts-warning-rgb) / 0.2);
+  --ts-warning-border: rgb(var(--ts-warning-rgb) / 0.44);
+  --ts-tag-brand-bg: rgb(var(--primary) / 0.16);
+  --ts-tag-brand-border: rgb(var(--primary) / 0.42);
+  --ts-ui-hover-dark-soft: rgb(226 232 240 / 0.14);
+  --ts-ui-hover-dark-faint: rgb(226 232 240 / 0.1);
+  --ts-shadow-sm: 0 8px 18px rgb(2 6 23 / 0.34);
+  --ts-shadow-md: 0 12px 28px rgb(2 6 23 / 0.38);
+  --ts-shadow-card: 0 12px 28px rgb(2 6 23 / 0.32);
+  --ts-shadow-popover: 0 10px 26px rgb(2 6 23 / 0.5);
+  --ts-shadow-hero: 0 26px 60px rgb(2 6 23 / 0.4);
+  --ts-shadow-card-blue: 0 12px 24px rgb(2 6 23 / 0.36);
+  --ts-shadow-hero-blue: 0 14px 30px rgb(2 6 23 / 0.4);
+  --ts-shadow-image: 0 6px 14px rgb(2 6 23 / 0.4);
+  --ts-shadow-float: 0 8px 20px rgb(2 6 23 / 0.46);
+  --ts-shadow-fab: 0 12px 24px rgb(2 6 23 / 0.6);
+  --ts-gradient-surface: linear-gradient(180deg, rgb(19 31 47 / 0.98) 0%, var(--ts-surface-softer) 100%);
+  --ts-gradient-surface-soft: linear-gradient(180deg, rgb(19 31 47 / 0.95) 0%, var(--ts-surface-soft) 100%);
+  --ts-gradient-sidebar-header: linear-gradient(180deg, rgb(19 31 47 / 0.98) 0%, var(--ts-surface-subtle) 100%);
+  --ts-gradient-group-sticky: linear-gradient(180deg, rgb(19 31 47 / 0.98) 45%, var(--ts-surface-overlay-86) 100%);
+  --ts-gradient-api-header:
+    linear-gradient(130deg, rgb(var(--primary) / 0.32) 0%, var(--ts-surface-overlay) 46%),
+    var(--ts-surface);
+  --ts-gradient-network-page: linear-gradient(160deg, #080f1d 0%, #0b1220 50%, #111a2c 100%);
+  --ts-gradient-proxy-page: linear-gradient(160deg, #070f1d 0%, #0b1528 45%, #111c30 100%);
+  --ts-scrollbar-thumb: rgb(100 116 139 / 0.45);
+  --ts-scrollbar-thumb-hover: rgb(var(--primary) / 0.62);
+  --ts-method-get-text: #86efac;
+  --ts-method-get-border: rgb(34 197 94 / 0.45);
+  --ts-method-get-bg: rgb(34 197 94 / 0.18);
+  --ts-method-post-text: #7dd3fc;
+  --ts-method-post-border: rgb(14 165 233 / 0.45);
+  --ts-method-post-bg: rgb(14 165 233 / 0.18);
+  --ts-method-put-text: #fdba74;
+  --ts-method-put-border: rgb(249 115 22 / 0.45);
+  --ts-method-put-bg: rgb(249 115 22 / 0.2);
+  --ts-method-delete-text: #fda4af;
+  --ts-method-delete-border: rgb(244 63 94 / 0.42);
+  --ts-method-delete-bg: rgb(244 63 94 / 0.18);
+  --ts-method-default-text: #cbd5e1;
+  --ts-method-default-border: rgb(148 163 184 / 0.45);
+  --ts-method-default-bg: rgb(148 163 184 / 0.2);
+  --ts-method-get-active: #16a34a;
+  --ts-method-post-active: #0284c7;
+  --ts-method-put-active: #ea580c;
+  --ts-method-delete-active: #e11d48;
+  --ts-method-default-active: #475569;
 }
