@@ -54,7 +54,6 @@ type ScrollRequest = {
 };
 
 type TsCodeParts = {
-  "Request Function": string;
   Models: string;
   "Query Params": string;
   "Request Body": string;
@@ -143,12 +142,7 @@ const Home: React.FC = () => {
   }, [documentData]);
 
   // 2. 调用配置持久化逻辑
-  const {configState, setConfigState, generatorOptions, resetTemplate} = useOptions();
-  const requestTemplateText = useMemo(() => {
-    const raw = configState.requestTemplateRaw;
-    if (!raw) return "";
-    return typeof raw === "string" ? raw : raw.toString();
-  }, [configState.requestTemplateRaw]);
+  const {configState, setConfigState, generatorOptions} = useOptions();
 
   const selectedApi = useMemo(() => {
     if (!selectedApiKey) return null;
@@ -542,7 +536,6 @@ const Home: React.FC = () => {
       if (cancelled) return;
 
       setTsCodeParts({
-        "Request Function": res.requestFunction,
         Models: res.models,
         "Query Params": res.queryParams,
         "Request Body": res.requestBody,
@@ -875,17 +868,6 @@ const Home: React.FC = () => {
                     style={{width: "100%"}}
                   />
                 </div>
-                <div className="project-config-template-header">
-                  <span>请求函数模板 (JS)</span>
-                  <Button size="small" onClick={resetTemplate}>重置模板</Button>
-                </div>
-                <Input.TextArea
-                  value={requestTemplateText}
-                  onChange={(event) => setConfigState((prev) => ({...prev, requestTemplateRaw: event.target.value}))}
-                  autoSize={{minRows: 10, maxRows: 20}}
-                  spellCheck={false}
-                  className="project-config-template-input"
-                />
               </div>
             </Drawer>
           </div>

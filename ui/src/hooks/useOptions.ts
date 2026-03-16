@@ -3,34 +3,7 @@ import type {GeneratorOptions} from "../utils/SwaggerParser.ts";
 
 const STORAGE_KEY = 'swagger_config_v1'
 
-const defaultTemplate = (ctx: {
-  method: string
-  url: string
-  functionName: string
-  queryParamsType: string
-  requestBodyType: string
-  responseDataType: string
-  hasQuery?: boolean
-  hasBody?: boolean
-}) => {
-  const { method, url, functionName, queryParamsType, requestBodyType, responseDataType, hasQuery, hasBody } = ctx
-
-  const args: string[] = []
-  // 如果有 path 参数或 query 参数，统一用 params
-  if (hasQuery) args.push(`params: ${queryParamsType}`)
-  if (hasBody) args.push(`data: ${requestBodyType}`)
-
-  return `export const ${functionName} = (${args.join(', ')}) => {
-  return request.${method}<${responseDataType}>(\`${url}\`, { 
-    ${hasBody ? 'data,' : ''} 
-    ${hasQuery ? 'params,' : ''} 
-  });
-};`
-}
-
 type ArrayType = 'bracket' | string
-
-type RequestTemplateRaw = GeneratorOptions['requestTemplate'] | string
 
 type ConfigState = {
   indent: number
@@ -40,7 +13,6 @@ type ConfigState = {
   arrayType: ArrayType
   int64ToString: boolean
   namingStrategy: string
-  requestTemplateRaw: RequestTemplateRaw
   showExample: boolean
 }
 
@@ -53,7 +25,6 @@ export function useOptions() {
     arrayType: 'bracket',
     int64ToString: true,
     namingStrategy: '',
-    requestTemplateRaw: defaultTemplate,
     showExample: true, // 默认开启
   })
 
@@ -80,12 +51,6 @@ export function useOptions() {
     }
   }, [configState])
 
-  const resetTemplate = () => {
-    if (typeof window !== 'undefined' && window.confirm('重置模板？')) {
-      setConfigState(prev => ({ ...prev, requestTemplateRaw: defaultTemplate }))
-    }
-  }
-
   // 核心：转换给 SwaggerToTS 使用的配置对象
   const generatorOptions = useMemo<GeneratorOptions>(() => {
     const typeNameMapper = (name: string) => {
@@ -95,29 +60,12 @@ export function useOptions() {
       return name
     }
 
-    let requestTemplate: GeneratorOptions['requestTemplate'] | undefined
-    try {
-      if (typeof configState.requestTemplateRaw === 'function') {
-        requestTemplate = configState.requestTemplateRaw
-      } else if (typeof configState.requestTemplateRaw === 'string') {
-        // eval 字符串以得到函数
-        const evaluated = eval(configState.requestTemplateRaw)
-        if (typeof evaluated === 'function') {
-          requestTemplate = evaluated as GeneratorOptions['requestTemplate']
-        }
-      }
-    } catch (e) {
-      // 保持与原实现一致：打印错误并继续
-
-      console.error('Template eval error:', e)
-    }
-
-    // 类型断言：GeneratorOptions 包含 configState 的字段 + typeNameMapper + requestTemplate
+    // 类型断言：GeneratorOptions 包含 configState 的字段 + typeNameMapper
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-expect-error
-    return { ...(configState as never), typeNameMapper, requestTemplate } as GeneratorOptions
+    return { ...(configState as never), typeNameMapper } as GeneratorOptions
     // 只在 configState 改变时重新计算
   }, [configState])
 
-  return { configState, setConfigState, generatorOptions, resetTemplate }
+  return { configState, setConfigState, generatorOptions }
 }

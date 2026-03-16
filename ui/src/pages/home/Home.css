@@ -107,18 +107,6 @@
   align-items: stretch;
 }
 
-.project-config-template-header {
-  margin-top: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.project-config-template-input {
-  font-family: var(--ts-font-mono), ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
-}
-
 .field-row {
   display: flex;
   align-items: center;

@@ -6,7 +6,6 @@ import Method from "../ui/Method/Method.tsx";
 type ApiInfoProps = {
   api: ApiDetail;
   codeMap?: {
-    "Request Function": string;
     Models: string;
     "Query Params": string;
     "Request Body": string;
@@ -83,7 +82,6 @@ const ApiInfo = ({ api, codeMap }: ApiInfoProps) => {
       ) : null}
 
       <div className="api-doc-cards">
-        <CodeCard title="Request Function" code={codeMap?.["Request Function"]} />
         <CodeCard title="Query Params" code={codeMap?.["Query Params"]} />
         <CodeCard title="Request Body" code={codeMap?.["Request Body"]} />
         <CodeCard title="Response Data" code={codeMap?.["Response Data"]} />
