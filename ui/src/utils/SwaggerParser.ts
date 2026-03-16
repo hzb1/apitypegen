@@ -1,19 +1,5 @@
 import type { OpenAPI, OpenAPIV2, OpenAPIV3 } from 'openapi-types'
 
-export interface TemplateContext {
-  method: string
-  path: string
-  url: string
-  functionName: string
-  hasQuery: boolean
-  hasBody: boolean
-  queryParamsType: string
-  requestBodyType: string
-  responseDataType: string
-  summary?: string
-  operationId?: string
-}
-
 export interface GeneratorOptions {
   indent?: number
   useInterface?: boolean
@@ -21,7 +7,6 @@ export interface GeneratorOptions {
   semicolon?: boolean
   typeNameMapper?: (rawName: string) => string
   int64ToString?: boolean
-  requestTemplate?: (ctx: TemplateContext) => string
   showExample?: boolean
 }
 
@@ -30,7 +15,6 @@ export interface GeneratedTypes {
   requestBody: string
   responseData: string
   models: string
-  requestFunction: string
 }
 
 // 定义 Schema 联合类型，涵盖 Swagger 2.0 和 OpenAPI 3.0
@@ -51,7 +35,6 @@ export class SwaggerToTS {
       semicolon: options.semicolon ?? true,
       typeNameMapper: options.typeNameMapper ?? ((name) => name),
       int64ToString: options.int64ToString ?? true,
-      requestTemplate: options.requestTemplate || (() => ''),
       showExample: options.showExample ?? true,
     }
   }
@@ -155,12 +138,6 @@ export class SwaggerToTS {
     return typeMap[schema.type as string] || 'any'
   }
 
-  private extractRawType(typeStr: string): string {
-    if (!typeStr || typeStr.startsWith('//')) return 'any'
-    const match = typeStr.match(/=\s+([\s\S]+?)(;|$)/)
-    return match?.[1]?.trim() || 'any'
-  }
-
   public getStructuredTypes(path: string, method: string): GeneratedTypes {
     this.usedDefinitions.clear()
 
@@ -169,7 +146,7 @@ export class SwaggerToTS {
     const op = pathItem?.[method.toLowerCase()] as OpenAPIV3.OperationObject | OpenAPIV2.OperationObject | undefined
 
     if (!op) {
-      return { queryParams: '', requestBody: '', responseData: '', models: '', requestFunction: '' }
+      return { queryParams: '', requestBody: '', responseData: '', models: '' }
     }
 
     const queryParams = this.generateQueryParams(op)
@@ -182,24 +159,7 @@ export class SwaggerToTS {
       models += `${this.exp}${this.options.useInterface ? 'interface' : 'type'} ${name} ${this.getTSType(schema)}\n\n`
     })
 
-    const ctx: TemplateContext = {
-      method: method.toLowerCase(),
-      path,
-      url: path.replace(/\{(\w+)\}/g, '${queryParams.$1}'),
-      functionName: op.operationId || 'apiFunc',
-      hasQuery: !queryParams.startsWith('//'),
-      hasBody: !requestBody.startsWith('//'),
-      queryParamsType: this.extractRawType(queryParams),
-      requestBodyType: this.extractRawType(requestBody),
-      responseDataType: this.extractRawType(responseData),
-      summary: op.summary,
-      operationId: op.operationId,
-    }
-
-    const functionJSDoc = this.formatJSDoc({ summary: op.summary, description: op.description })
-    const requestFunction = functionJSDoc + this.options.requestTemplate(ctx)
-
-    return { queryParams, requestBody, responseData, models, requestFunction }
+    return { queryParams, requestBody, responseData, models }
   }
 
   private generateQueryParams(op: OpenAPIV3.OperationObject | OpenAPIV2.OperationObject) {

@@ -67,6 +67,10 @@ const Home: React.FC = () => {
   const serviceUrl = searchParams.get("service") ?? undefined;
   const selectedApiKey = searchParams.get("api");
   const hasIpParam = Boolean(ipFromUrl);
+  const normalizedDocInput = useMemo(() => {
+    if (!ipFromUrl) return "";
+    return /^https?:\/\//.test(ipFromUrl) ? ipFromUrl : `http://${ipFromUrl}`;
+  }, [ipFromUrl]);
 
   // const queryApiKey = searchParams.get("api");
 
@@ -572,6 +576,49 @@ const Home: React.FC = () => {
     );
   }, [configData?.urls]);
 
+  const apiBaseUrl = useMemo(() => {
+    if (!documentData) return "";
+
+    const docRecord = documentData as Record<string, unknown>;
+    const serverList = docRecord.servers as Array<{url?: string}> | undefined;
+    const serverUrl = serverList?.find((item) => typeof item?.url === "string" && item.url.trim())?.url?.trim();
+    if (serverUrl) {
+      try {
+        const resolved = /^https?:\/\//.test(serverUrl)
+          ? serverUrl
+          : normalizedDocInput
+            ? new URL(serverUrl, normalizedDocInput).toString()
+            : serverUrl;
+        return resolved.replace(/\/+$/, "");
+      } catch {
+        // ignore and fallback
+      }
+    }
+
+    const host = typeof docRecord.host === "string" ? docRecord.host.trim() : "";
+    if (host) {
+      const schemes = Array.isArray(docRecord.schemes)
+        ? docRecord.schemes.filter((item): item is string => typeof item === "string" && Boolean(item.trim()))
+        : [];
+      const basePath = typeof docRecord.basePath === "string" ? docRecord.basePath : "";
+      const fallbackScheme = (() => {
+        try {
+          return normalizedDocInput ? new URL(normalizedDocInput).protocol.replace(":", "") : "http";
+        } catch {
+          return "http";
+        }
+      })();
+      const scheme = schemes[0] || fallbackScheme;
+      return `${scheme}://${host}${basePath}`.replace(/\/+$/, "");
+    }
+
+    try {
+      return normalizedDocInput ? new URL(normalizedDocInput).origin : "";
+    } catch {
+      return "";
+    }
+  }, [documentData, normalizedDocInput]);
+
   const apiGroups: SideBarProps["apis"] = useMemo(() => {
     return Object.entries(groupedApis).map(([tag, apis]) => {
       const id = stableHash(tag);
@@ -771,7 +818,7 @@ const Home: React.FC = () => {
                   {!error && selectedApi && (
                     <div className="api-workspace-grid">
                       <div className="left-main">
-                        <ApiInfo api={selectedApi} codeMap={tsCodeParts}/>
+                        <ApiInfo api={selectedApi} codeMap={tsCodeParts} apiBaseUrl={apiBaseUrl}/>
                       </div>
                       <div className="models-panel">
                         <CodeCard title="Models" code={tsCodeParts?.Models} />
