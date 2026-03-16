@@ -52,7 +52,7 @@ export function useOptions() {
     semicolon: true,
     arrayType: 'bracket',
     int64ToString: true,
-    namingStrategy: 'removeVO',
+    namingStrategy: '',
     requestTemplateRaw: defaultTemplate,
     showExample: true, // 默认开启
   })

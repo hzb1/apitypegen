@@ -27,12 +27,6 @@
   color: var(--ts-text-primary);
 }
 
-.sidebar-subtitle {
-  margin: 8px 0 0;
-  font-size: 12px;
-  color: var(--ts-text-muted);
-}
-
 .sidebar-search {
   margin-top: 12px;
 }

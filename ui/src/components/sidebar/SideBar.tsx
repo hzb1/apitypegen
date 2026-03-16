@@ -73,7 +73,6 @@ const SideBar: React.FC<SideBarProps> = (props) => {
       <div className="sidebar-shell">
         <div className="sidebar-header">
           <p className="sidebar-title">接口导航</p>
-          <p className="sidebar-subtitle">分组浏览与快速定位</p>
           <div className="sidebar-search">
             <ApiSearchDialog
               apis={apis}

@@ -3,6 +3,7 @@ import {
   AutoComplete,
   Dropdown,
   Input,
+  InputNumber,
   Select,
   Spin,
   Tabs,
@@ -10,6 +11,7 @@ import {
   Modal,
   Alert,
   Button,
+  Switch,
   Tooltip,
   Drawer,
 } from "antd";
@@ -17,7 +19,7 @@ import {type AutoCompleteProps} from "antd";
 import "./Home.css";
 import {useSwagger} from "@/hooks/useSwagger.ts";
 import {useOptions} from "@/hooks/useOptions.ts";
-import {DeleteOutlined, EditOutlined, MenuOutlined, PushpinOutlined, QuestionCircleOutlined} from "@ant-design/icons";
+import {DeleteOutlined, EditOutlined, MenuOutlined, PushpinOutlined, QuestionCircleOutlined, SettingOutlined} from "@ant-design/icons";
 import {usePluginEnabled} from "@/hooks/usePluginEnabled.ts";
 import {useSearchParams} from "react-router";
 import SideBar, {
@@ -86,6 +88,7 @@ const Home: React.FC = () => {
   const [renameTarget, setRenameTarget] = useState<SearchRecord | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [configDrawerOpen, setConfigDrawerOpen] = useState(false);
   const lastRecordedIpRef = useRef("");
   const scrollRequestIdRef = useRef(0);
   const [scrollRequest, setScrollRequest] = useState<ScrollRequest | undefined>(undefined);
@@ -140,7 +143,12 @@ const Home: React.FC = () => {
   }, [documentData]);
 
   // 2. 调用配置持久化逻辑
-  const {generatorOptions} = useOptions();
+  const {configState, setConfigState, generatorOptions, resetTemplate} = useOptions();
+  const requestTemplateText = useMemo(() => {
+    const raw = configState.requestTemplateRaw;
+    if (!raw) return "";
+    return typeof raw === "string" ? raw : raw.toString();
+  }, [configState.requestTemplateRaw]);
 
   const selectedApi = useMemo(() => {
     if (!selectedApiKey) return null;
@@ -678,7 +686,16 @@ const Home: React.FC = () => {
                     </div>
                   </div>
                 </div>
-                <ThemeDropdown />
+                <div className="home-topbar-tools">
+                  <Button
+                    type="default"
+                    icon={<SettingOutlined/>}
+                    onClick={() => setConfigDrawerOpen(true)}
+                  >
+                    项目配置
+                  </Button>
+                  <ThemeDropdown />
+                </div>
               </div>
             </header>
 
@@ -789,6 +806,87 @@ const Home: React.FC = () => {
                 onGroupTitleClick={handleGroupTitleClick}
                 onSearchSelectResult={handleToolbarSearchSelect}
               />
+            </Drawer>
+            <Drawer
+              title="项目配置"
+              placement="right"
+              width={460}
+              open={configDrawerOpen}
+              onClose={() => setConfigDrawerOpen(false)}
+              className="project-config-drawer"
+            >
+              <div className="project-config-panel">
+                <div className="project-config-item">
+                  <span>展示 Example</span>
+                  <Switch
+                    checked={configState.showExample}
+                    onChange={(checked) => setConfigState((prev) => ({...prev, showExample: checked}))}
+                  />
+                </div>
+                <div className="project-config-item">
+                  <span>Int64 转 String</span>
+                  <Switch
+                    checked={configState.int64ToString}
+                    onChange={(checked) => setConfigState((prev) => ({...prev, int64ToString: checked}))}
+                  />
+                </div>
+                <div className="project-config-item">
+                  <span>生成 Interface</span>
+                  <Switch
+                    checked={configState.useInterface}
+                    onChange={(checked) => setConfigState((prev) => ({...prev, useInterface: checked}))}
+                  />
+                </div>
+                <div className="project-config-item">
+                  <span>添加 Export</span>
+                  <Switch
+                    checked={configState.addExport}
+                    onChange={(checked) => setConfigState((prev) => ({...prev, addExport: checked}))}
+                  />
+                </div>
+                <div className="project-config-item">
+                  <span>语句分号</span>
+                  <Switch
+                    checked={configState.semicolon}
+                    onChange={(checked) => setConfigState((prev) => ({...prev, semicolon: checked}))}
+                  />
+                </div>
+                <div className="project-config-item project-config-item-column">
+                  <span>命名策略</span>
+                  <Select
+                    value={configState.namingStrategy || undefined}
+                    onChange={(value) => setConfigState((prev) => ({...prev, namingStrategy: value ?? ""}))}
+                    allowClear
+                    options={[
+                      {value: "removeVO", label: "去掉 VO 后缀"},
+                      {value: "removeDTO", label: "去掉 DTO 后缀"},
+                      {value: "prefixI", label: "添加 I 前缀"},
+                    ]}
+                    placeholder="不处理"
+                  />
+                </div>
+                <div className="project-config-item project-config-item-column">
+                  <span>缩进空格</span>
+                  <InputNumber
+                    min={0}
+                    max={8}
+                    value={configState.indent}
+                    onChange={(value) => setConfigState((prev) => ({...prev, indent: typeof value === "number" ? value : 2}))}
+                    style={{width: "100%"}}
+                  />
+                </div>
+                <div className="project-config-template-header">
+                  <span>请求函数模板 (JS)</span>
+                  <Button size="small" onClick={resetTemplate}>重置模板</Button>
+                </div>
+                <Input.TextArea
+                  value={requestTemplateText}
+                  onChange={(event) => setConfigState((prev) => ({...prev, requestTemplateRaw: event.target.value}))}
+                  autoSize={{minRows: 10, maxRows: 20}}
+                  spellCheck={false}
+                  className="project-config-template-input"
+                />
+              </div>
             </Drawer>
           </div>
         ) : (
