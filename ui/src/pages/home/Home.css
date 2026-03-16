@@ -18,7 +18,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
+  gap: 8px;
   padding: 14px 24px;
   border-bottom: 1px solid var(--ts-line);
   background: var(--ts-topbar-bg);
@@ -29,6 +29,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  width: 320px;
 }
 
 .mobile-nav-trigger {
@@ -70,11 +71,16 @@
 }
 
 .home-topbar-actions {
+  flex: 1;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 14px;
+  justify-content: space-between;
   min-width: 0;
+    .home-field-wrap{
+        display: flex;
+        align-items: center;
+        gap: 24px;
+    }
 }
 
 .field-row {
@@ -149,7 +155,7 @@
 }
 
 .home-topbar .field-row:first-child .field-control {
-  min-width: 320px;
+  min-width: 400px;
 }
 
 .home-topbar .field-row:last-child .field-control {
@@ -406,15 +412,22 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
 }
 
 .search-history-label {
   font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .search-history-value {
   font-size: 12px;
   color: var(--ts-text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .search-history-actions {
@@ -643,6 +656,12 @@
     flex-direction: column;
     align-items: stretch;
     gap: 10px;
+      .home-field-wrap {
+          flex-wrap: wrap;
+          .field-row{
+              width: 100%;
+          }
+      }
   }
 
   .field-row {

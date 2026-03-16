@@ -373,9 +373,9 @@ const Home: React.FC = () => {
         label: (
           <div className="search-history-option">
             <div className="search-history-text">
-              <span className="search-history-label">{record.label}</span>
+              <span className="search-history-label" title={record.label}>{record.label}</span>
               {record.label !== record.value && (
-                <span className="search-history-value">{record.value}</span>
+                <span className="search-history-value" title={record.value}>{record.value}</span>
               )}
             </div>
             <div className="search-history-actions">
@@ -596,9 +596,10 @@ const Home: React.FC = () => {
       }
 
       if (prev.length) return prev;
-      return apiGroups.map((group) => group.id);
+      const selectedGroupId = selectedApiKey ? apiKeyToGroupId.get(selectedApiKey) : undefined;
+      return selectedGroupId ? [selectedGroupId] : [];
     });
-  }, [apiGroups]);
+  }, [apiGroups, apiKeyToGroupId, selectedApiKey]);
 
 
   return (
@@ -622,54 +623,59 @@ const Home: React.FC = () => {
                 </div>
               </div>
               <div className="home-topbar-actions">
-                <div className="field-row">
-                  <div className="field-label">
-                    <span>文档地址</span>
-                    <Tooltip title="支持服务地址（自动探测）或可直接 GET 的 OpenAPI/Swagger 文档 URL">
-                      <QuestionCircleOutlined className="field-help-icon" />
-                    </Tooltip>
-                  </div>
-                  <div className="field-control">
-                    <div className="doc-address-composer">
-                      <AutoComplete
-                        className="doc-address-auto"
-                        value={inputIp}
-                        onChange={setInputIp}
-                        onSelect={handleCommitIp}
-                        options={autoCompleteOptions}
-                      >
-                        <Input
-                          placeholder="输入服务地址或 OpenAPI 文档 URL"
-                          onPressEnter={(event) => handleCommitIp(event.currentTarget.value)}
-                        />
-                      </AutoComplete>
-                      <button
-                        type="button"
-                        className="doc-load-button"
-                        onClick={() => handleCommitIp(inputIp)}
-                        disabled={!inputIp.trim() || loading}
-                      >
-                        {loading ? "加载中..." : "加载文档"}
-                      </button>
+                <div className={'home-field-wrap'}>
+                  <div className="field-row">
+                    <div className="field-label">
+                      <span>文档地址</span>
+                      <Tooltip title="支持服务地址（自动探测）或可直接 GET 的 OpenAPI/Swagger 文档 URL">
+                        <QuestionCircleOutlined className="field-help-icon" />
+                      </Tooltip>
+                    </div>
+                    <div className="field-control">
+                      <div className="doc-address-composer">
+                        <AutoComplete
+                          className="doc-address-auto"
+                          value={inputIp}
+                          onChange={setInputIp}
+                          onSelect={handleCommitIp}
+                          options={autoCompleteOptions}
+                        >
+                          <Input
+                            placeholder="输入服务地址或 OpenAPI 文档 URL"
+                            onPressEnter={(event) => handleCommitIp(event.currentTarget.value)}
+                          />
+                        </AutoComplete>
+                        <button
+                          type="button"
+                          className="doc-load-button"
+                          onClick={() => handleCommitIp(inputIp)}
+                          disabled={!inputIp.trim() || loading}
+                        >
+                          {loading ? "加载中..." : "加载文档"}
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-                <div className="field-row">
-                  <div className="field-label">
-                    <span>服务</span>
-                    <Tooltip title="当 swagger-config 返回多个服务时，在这里切换具体文档">
-                      <QuestionCircleOutlined className="field-help-icon" />
-                    </Tooltip>
-                  </div>
-                  <div className="field-control">
-                    <Select
-                      value={serviceUrl}
-                      loading={configLoading}
-                      onChange={handleServiceChange}
-                      options={serviceOptions}
-                      placeholder="选择服务"
-                      allowClear
-                    />
+                  <div className="field-row">
+                    <div className="field-label">
+                      <span>服务</span>
+                      <Tooltip title="当 swagger-config 返回多个服务时，在这里切换具体文档">
+                        <QuestionCircleOutlined className="field-help-icon" />
+                      </Tooltip>
+                    </div>
+                    <div className="field-control">
+                      <Select
+                        value={serviceUrl}
+                        loading={configLoading}
+                        onChange={handleServiceChange}
+                        options={serviceOptions}
+                        placeholder="选择服务"
+                        allowClear
+                        style={{
+                          minWidth: '120px'
+                        }}
+                      />
+                    </div>
                   </div>
                 </div>
                 <ThemeDropdown />
