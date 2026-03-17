@@ -836,7 +836,7 @@ const Home: React.FC = () => {
               placement="left"
               open={mobileNavOpen}
               onClose={() => setMobileNavOpen(false)}
-              width={320}
+              size={320}
               className="mobile-nav-drawer"
             >
               <SideBar
@@ -850,7 +850,7 @@ const Home: React.FC = () => {
             <Drawer
               title="项目配置"
               placement="right"
-              width={460}
+              size={460}
               open={configDrawerOpen}
               onClose={() => setConfigDrawerOpen(false)}
               className="project-config-drawer"

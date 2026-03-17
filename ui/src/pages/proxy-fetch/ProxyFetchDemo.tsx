@@ -816,7 +816,7 @@ const ProxyFetchDemo: React.FC = () => {
       <Drawer
         title="Network 请求"
         placement="right"
-        width={980}
+        size={980}
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         className="proxy-demo-drawer"
