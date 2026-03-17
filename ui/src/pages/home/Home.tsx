@@ -554,6 +554,9 @@ const Home: React.FC = () => {
     };
   }, [documentData, generatorOptions, selectedApi]);
 
+  const tsCodeLoading = Boolean(selectedApi && documentData && !tsCodeParts);
+  const contentLoading = hasIpParam && !error && (loading || (!documentData && !selectedApi) || tsCodeLoading);
+
   const handleServiceChange = (url?: string) => {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
@@ -652,7 +655,6 @@ const Home: React.FC = () => {
 
   return (
     <>
-      <Spin spinning={loading}>
         {hasIpParam ? (
           <div className="views">
             <header className="home-topbar">
@@ -815,7 +817,13 @@ const Home: React.FC = () => {
 
                 <div className="content-scroll-area">
                   {error && <Empty description={error}/>}
-                  {!error && selectedApi && (
+                  {!error && contentLoading && (
+                    <div className="content-center-status">
+                      <Spin size="large" />
+                      <div className="content-center-status-text">加载中...</div>
+                    </div>
+                  )}
+                  {!error && !contentLoading && selectedApi && (
                     <div className="api-workspace-grid">
                       <div className="left-main">
                         <ApiInfo api={selectedApi} codeMap={tsCodeParts} apiBaseUrl={apiBaseUrl}/>
@@ -825,8 +833,10 @@ const Home: React.FC = () => {
                       </div>
                     </div>
                   )}
-                  {!error && !selectedApi && (
-                    <Empty description="请选择左侧 API，开始查看文档与类型模型" />
+                  {!error && !contentLoading && !selectedApi && (
+                    <div className="content-center-status">
+                      <Empty description="请选择左侧 API，开始查看文档与类型模型" />
+                    </div>
                   )}
                 </div>
               </main>
@@ -981,7 +991,6 @@ const Home: React.FC = () => {
             )}
           </div>
         )}
-      </Spin>
       <Modal
         open={!!renameTarget}
         title="重命名记录"

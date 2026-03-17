@@ -373,6 +373,21 @@
   display: flex;
 }
 
+.content-center-status {
+  flex: 1;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.content-center-status-text {
+  color: var(--ts-text-muted);
+  font-size: 14px;
+}
+
 .api-workspace-grid {
   flex: 1;
   min-height: 0;
@@ -596,7 +611,7 @@
   height: 100%;
 }
 
-@media (max-width: 1380px) {
+@media (max-width: 1200px) {
   .home-topbar {
     align-items: flex-start;
     flex-direction: column;
