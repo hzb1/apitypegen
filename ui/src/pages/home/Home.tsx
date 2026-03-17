@@ -645,7 +645,7 @@ const Home: React.FC = () => {
 
       if (prev.length) return prev;
       const selectedGroupId = selectedApiKey ? apiKeyToGroupId.get(selectedApiKey) : undefined;
-      return selectedGroupId ? [selectedGroupId] : [];
+      return selectedGroupId ? [selectedGroupId] : prev;
     });
   }, [apiGroups, apiKeyToGroupId, selectedApiKey]);
 
