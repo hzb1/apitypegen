@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { Empty, Modal } from "antd";
 import { SearchOutlined } from "@ant-design/icons";
+import { useSearchParams } from "react-router";
 import SearchBar from "../ui/SearchBar/SearchBar.tsx";
 import type { ApiListProps } from "../ApiList/ApiList.tsx";
 import ApiSearchResultItem, {
@@ -21,10 +22,19 @@ const ApiSearchDialog: React.FC<ApiSearchDialogProps> = ({
   onSelectResult,
   triggerClassName,
 }) => {
+  const [searchParams] = useSearchParams();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const serviceScope = useMemo(() => {
+    const rawService = searchParams.get("service")?.trim();
+    return rawService && rawService.length > 0 ? rawService : "__default__";
+  }, [searchParams]);
+  const historyStorageKey = useMemo(
+    () => `ts-swagger-api-search-history-v1::service=${serviceScope}`,
+    [serviceScope],
+  );
   const { items: historyItems, addQuery, remove, clear } = useSearchHistory({
-    storageKey: "ts-swagger-api-search-history-v1",
+    storageKey: historyStorageKey,
     limit: 20,
     minLength: 2,
   });

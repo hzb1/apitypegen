@@ -722,7 +722,7 @@ const Home: React.FC = () => {
                         placeholder="选择服务"
                         allowClear
                         style={{
-                          minWidth: '120px'
+                          minWidth: '160px'
                         }}
                       />
                     </div>
