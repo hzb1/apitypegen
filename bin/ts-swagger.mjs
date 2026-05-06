@@ -12,7 +12,7 @@ import { SwaggerToTS } from "../src/core/swagger-to-ts.js";
 import {
   fetchJson,
   findService,
-  isLikelyDocumentUrl,
+  isOpenApiLike,
   loadOpenApiDocumentByService,
   loadOpenApiDocumentFromUrl,
   loadSwaggerConfig,
@@ -36,18 +36,18 @@ const API_METHODS = ["get", "post", "put", "delete", "patch"];
 const MAX_INTERACTIVE_API_CHOICES = 30;
 
 function printHelp() {
-  process.stdout.write(`ts-swagger CLI
+  process.stdout.write(`ts-swagger 命令行工具
 
-Usage:
+用法:
   ts-swagger services [--host <url>] [--version <v3>] [--format <text|json>]
   ts-swagger search --keyword <text> [--service <name>] [--host <url>] [--doc-url <url>] [--format <text|json>]
   ts-swagger gen [--method <method>] [--path <api-path>] [--service <name>] [--host <url>] [--doc-url <url>] [--copy] [--format <ts|json>] [--no-interactive]
 
-Notes:
-  - host priority: --host > TS_SWAGGER_HOST > ts-swagger.config.json
-  - service is selected interactively when omitted and swagger-config contains multiple services
-  - use --no-interactive in AI/CI scripts to disable prompts
-  - --doc-url bypasses swagger-config and service selection
+说明:
+  - host 优先级: --host > TS_SWAGGER_HOST > ts-swagger.config.json
+  - 未传 service 且 swagger-config 有多个服务时，会进入交互选择
+  - 在 AI/CI 脚本中可使用 --no-interactive 禁用交互
+  - --doc-url 会跳过 swagger-config 和服务选择
 `);
 }
 
@@ -107,7 +107,7 @@ async function loadUserConfig(cwd) {
     const content = await fsp.readFile(configPath, "utf8");
     return { config: JSON.parse(content), configPath, exists: true };
   } catch (error) {
-    throw new Error(`Failed to read ${CONFIG_FILENAME}: ${error.message}`);
+    throw new Error(`读取 ${CONFIG_FILENAME} 失败: ${error.message}`);
   }
 }
 
@@ -128,10 +128,10 @@ function resolveSettings(options, userConfig) {
 
 function formatTsOutput(parts) {
   const sections = [
-    { title: "Models", value: parts.models || "// 无 Models" },
-    { title: "Query Params", value: parts.queryParams || "// 无查询参数" },
-    { title: "Request Body", value: parts.requestBody || "// 无 Request Body" },
-    { title: "Response Data", value: parts.responseData || "// 无 Response Data" },
+    { title: "模型定义", value: parts.models || "// 无模型定义" },
+    { title: "查询参数", value: parts.queryParams || "// 无查询参数" },
+    { title: "请求体", value: parts.requestBody || "// 无请求体" },
+    { title: "响应数据", value: parts.responseData || "// 无响应数据" },
   ];
 
   return sections
@@ -142,7 +142,7 @@ function formatTsOutput(parts) {
 function ensureMethod(method) {
   const normalized = String(method || "").trim().toLowerCase();
   if (!API_METHODS.includes(normalized)) {
-    throw new Error(`Invalid --method "${method}". Allowed: ${API_METHODS.join(", ")}`);
+    throw new Error(`无效的 --method "${method}"。可选值: ${API_METHODS.join(", ")}`);
   }
   return normalized;
 }
@@ -167,7 +167,7 @@ async function askRequiredInput(rl, label, defaultValue = "") {
   while (true) {
     const value = await askInput(rl, label, defaultValue);
     if (value) return value;
-    process.stderr.write("Input cannot be empty.\n");
+    process.stderr.write("输入不能为空。\n");
   }
 }
 
@@ -179,7 +179,7 @@ async function askYesNo(rl, label, defaultYes = false) {
     if (!normalized) return defaultYes;
     if (["y", "yes"].includes(normalized)) return true;
     if (["n", "no"].includes(normalized)) return false;
-    process.stderr.write("Please answer with y/yes or n/no.\n");
+    process.stderr.write("请输入 y/yes 或 n/no。\n");
   }
 }
 
@@ -190,10 +190,10 @@ async function selectByNumber(rl, title, items, itemToLabel) {
   });
 
   while (true) {
-    const answer = await rl.question("Enter number: ");
+    const answer = await rl.question("请输入编号: ");
     const selectedIndex = Number.parseInt(String(answer).trim(), 10);
     if (Number.isNaN(selectedIndex) || selectedIndex < 1 || selectedIndex > items.length) {
-      process.stderr.write("Invalid number, try again.\n");
+      process.stderr.write("编号无效，请重试。\n");
       continue;
     }
     return items[selectedIndex - 1];
@@ -208,21 +208,21 @@ function formatApiChoice(api) {
 async function pickApiInteractively(rl, document) {
   const allApis = collectApis(document);
   if (allApis.length === 0) {
-    throw new Error("No API found in current document.");
+    throw new Error("当前文档未找到可用 API。");
   }
 
   let keyword = "";
   while (true) {
     const keywordInput = await askInput(
       rl,
-      "Search API keyword (press Enter to list all, use /keyword to refine later)",
+      "输入 API 关键词（回车列出全部，输入 /关键词 可重新筛选）",
       keyword,
     );
     keyword = keywordInput;
 
     const candidates = keyword ? searchApis(document, keyword) : allApis;
     if (candidates.length === 0) {
-      process.stderr.write(`No matched API for keyword "${keyword}". Try another keyword.\n`);
+      process.stderr.write(`关键词 "${keyword}" 未匹配到 API，请换一个关键词。\n`);
       keyword = "";
       continue;
     }
@@ -230,17 +230,17 @@ async function pickApiInteractively(rl, document) {
     let displayList = candidates;
     if (candidates.length > MAX_INTERACTIVE_API_CHOICES) {
       process.stderr.write(
-        `Matched ${candidates.length} APIs, showing first ${MAX_INTERACTIVE_API_CHOICES}. Refine keyword if needed.\n`,
+        `共匹配 ${candidates.length} 个 API，仅显示前 ${MAX_INTERACTIVE_API_CHOICES} 个。可用更精确关键词继续筛选。\n`,
       );
       displayList = candidates.slice(0, MAX_INTERACTIVE_API_CHOICES);
     }
 
-    process.stderr.write("Select API:\n");
+    process.stderr.write("请选择 API:\n");
     displayList.forEach((item, index) => {
       process.stderr.write(`${index + 1}. ${formatApiChoice(item)}\n`);
     });
 
-    const answer = await rl.question("Enter API number or /new-keyword: ");
+    const answer = await rl.question("输入 API 编号，或 /新关键词: ");
     const trimmed = String(answer || "").trim();
 
     if (trimmed.startsWith("/")) {
@@ -254,7 +254,7 @@ async function pickApiInteractively(rl, document) {
       selectedIndex < 1 ||
       selectedIndex > displayList.length
     ) {
-      process.stderr.write("Invalid selection. Please retry.\n");
+      process.stderr.write("选择无效，请重试。\n");
       continue;
     }
 
@@ -265,9 +265,55 @@ async function pickApiInteractively(rl, document) {
 async function loadSwaggerConfigByUrl(configUrl, timeoutMs = 15000) {
   const data = await fetchJson(configUrl, timeoutMs);
   if (!data?.urls || !Array.isArray(data.urls)) {
-    throw new Error(`Invalid swagger-config format at ${configUrl}`);
+    throw new Error(`${configUrl} 不是有效的 swagger-config 格式`);
   }
   return data;
+}
+
+function isSwaggerConfigLike(data) {
+  return Boolean(data?.urls && Array.isArray(data.urls));
+}
+
+function getUrlOrigin(value) {
+  try {
+    return normalizeBaseUrl(new URL(value).origin);
+  } catch {
+    return "";
+  }
+}
+
+async function resolveInteractiveSource(rl, settings) {
+  const sourceInput = await askRequiredInput(
+    rl,
+    "请输入 OpenAPI 文档 URL / swagger-config URL / Swagger host",
+  );
+  const sourceUrl = normalizeBaseUrl(sourceInput);
+  let directError;
+
+  try {
+    const data = await fetchJson(sourceUrl, settings.timeoutMs);
+    if (isOpenApiLike(data)) {
+      return { host: "", options: { "doc-url": sourceUrl } };
+    }
+    if (isSwaggerConfigLike(data)) {
+      return {
+        host: getUrlOrigin(sourceUrl),
+        options: { "swagger-config-url": sourceUrl },
+      };
+    }
+    directError = new Error("返回的 JSON 既不是 OpenAPI 文档，也不是 swagger-config");
+  } catch (error) {
+    directError = error;
+  }
+
+  try {
+    await loadSwaggerConfig(sourceUrl, settings.version, settings.timeoutMs);
+    return { host: sourceUrl, options: {} };
+  } catch (hostError) {
+    throw new Error(
+      `无法解析来源地址 "${sourceUrl}"。期望是 OpenAPI JSON、swagger-config JSON 或 Swagger host。直接访问错误: ${directError?.message || "未知错误"}。Host 探测错误: ${hostError.message}`,
+    );
+  }
 }
 
 async function resolveServiceDocument({ options, host, version, timeoutMs, interactiveContext }) {
@@ -292,7 +338,7 @@ async function resolveServiceDocument({ options, host, version, timeoutMs, inter
 
   const services = Array.isArray(config.urls) ? config.urls : [];
   if (services.length === 0) {
-    throw new Error(`swagger-config at ${host} has no available services`);
+    throw new Error(`${host} 的 swagger-config 中没有可用服务`);
   }
 
   let selectedService;
@@ -302,21 +348,21 @@ async function resolveServiceDocument({ options, host, version, timeoutMs, inter
     selectedService = findService(config, requestedService);
     if (!selectedService) {
       const names = services.map((item) => item.name).join(", ");
-      throw new Error(`Service "${requestedService}" not found. Available services: ${names}`);
+      throw new Error(`未找到服务 "${requestedService}"。可选服务: ${names}`);
     }
   } else if (services.length === 1) {
     selectedService = services[0];
   } else if (interactiveContext?.enabled && interactiveContext.rl) {
     selectedService = await selectByNumber(
       interactiveContext.rl,
-      "Detected multiple services. Select one:",
+      "检测到多个服务，请选择一个:",
       services,
       (item) => `${item.name} -> ${item.url}`,
     );
   } else {
     const names = services.map((item) => item.name).join(", ");
     throw new Error(
-      `Multiple services found. Pass --service <name>. Available services: ${names}`,
+      `检测到多个服务，请传入 --service <name>。可选服务: ${names}`,
     );
   }
 
@@ -370,9 +416,9 @@ async function runServicesCommand(settings, options) {
     return;
   }
 
-  process.stdout.write(`Host: ${settings.host}\n`);
+  process.stdout.write(`主机: ${settings.host}\n`);
   if (services.length === 0) {
-    process.stdout.write("No service found.\n");
+    process.stdout.write("未找到服务。\n");
     return;
   }
 
@@ -384,7 +430,7 @@ async function runServicesCommand(settings, options) {
 async function runSearchCommand(settings, options) {
   const keyword = String(options.keyword || "").trim();
   if (!keyword) {
-    throw new Error("Missing required argument: --keyword");
+    throw new Error("缺少必填参数: --keyword");
   }
 
   const context = await resolveServiceDocument({
@@ -413,14 +459,14 @@ async function runSearchCommand(settings, options) {
     return;
   }
 
-  process.stdout.write(`Keyword: ${keyword}\n`);
+  process.stdout.write(`关键词: ${keyword}\n`);
   if (context.service) {
-    process.stdout.write(`Service: ${context.service.name}\n`);
+    process.stdout.write(`服务: ${context.service.name}\n`);
   }
-  process.stdout.write(`Document: ${context.documentUrl}\n`);
+  process.stdout.write(`文档: ${context.documentUrl}\n`);
 
   if (results.length === 0) {
-    process.stdout.write("No matched API.\n");
+    process.stdout.write("未匹配到 API。\n");
     return;
   }
 
@@ -441,38 +487,14 @@ async function runGenCommand(settings, options) {
 
   try {
     if (!workingOptions["doc-url"] && !workingHost && prompt) {
-      const sourceInput = await askRequiredInput(
-        prompt,
-        "Swagger host / swagger-config URL / OpenAPI doc URL",
-      );
-      const normalizedSourceInput = normalizeBaseUrl(sourceInput);
-      const looksLikeDocUrl = isLikelyDocumentUrl(normalizedSourceInput);
-
-      if (/swagger-config/i.test(sourceInput)) {
-        workingOptions["swagger-config-url"] = sourceInput;
-        try {
-          const sourceUrl = new URL(sourceInput);
-          workingHost = normalizeBaseUrl(sourceUrl.origin);
-        } catch {
-          workingHost = "";
-        }
-      } else if (looksLikeDocUrl) {
-        try {
-          await loadOpenApiDocumentFromUrl(normalizedSourceInput, settings.timeoutMs);
-        } catch (error) {
-          throw new Error(
-            `Unable to load OpenAPI document from ${normalizedSourceInput}: ${error.message}`,
-          );
-        }
-        workingOptions["doc-url"] = normalizedSourceInput;
-      } else {
-        workingHost = normalizedSourceInput;
-      }
+      const source = await resolveInteractiveSource(prompt, settings);
+      workingHost = source.host;
+      Object.assign(workingOptions, source.options);
     }
 
     if (!workingOptions["doc-url"] && !workingHost) {
       throw new Error(
-        "Host is required. Provide --host, set TS_SWAGGER_HOST, configure ts-swagger.config.json, or use --doc-url.",
+        "缺少 host。请使用 --host、设置 TS_SWAGGER_HOST、配置 ts-swagger.config.json，或改用 --doc-url。",
       );
     }
 
@@ -491,14 +513,14 @@ async function runGenCommand(settings, options) {
       const selectedApi = await pickApiInteractively(prompt, context.document);
       method = selectedApi.method;
       pathValue = selectedApi.path;
-      process.stderr.write(`Selected API: ${method.toUpperCase()} ${pathValue}\n`);
+      process.stderr.write(`已选择 API: ${method.toUpperCase()} ${pathValue}\n`);
     }
 
     if (!method) {
-      throw new Error("Missing required argument: --method");
+      throw new Error("缺少必填参数: --method");
     }
     if (!pathValue) {
-      throw new Error("Missing required argument: --path");
+      throw new Error("缺少必填参数: --path");
     }
 
     const matchedApi = findApiByPathAndMethod(context.document, pathValue, method);
@@ -506,20 +528,20 @@ async function runGenCommand(settings, options) {
       const candidates = collectApis(context.document).filter((item) => item.path === pathValue);
       const methodTips =
         candidates.length > 0
-          ? ` Available methods for this path: ${candidates
+          ? ` 该 path 可用方法: ${candidates
               .map((item) => item.method.toUpperCase())
               .join(", ")}`
           : "";
-      throw new Error(`API not found: ${method.toUpperCase()} ${pathValue}.${methodTips}`);
+      throw new Error(`未找到 API: ${method.toUpperCase()} ${pathValue}.${methodTips}`);
     }
 
     let outputFormat = String(options.format || "").trim().toLowerCase();
     if (!outputFormat && prompt) {
       const selectedFormat = await selectByNumber(
         prompt,
-        "Select output format:",
+        "请选择输出格式:",
         ["ts", "json"],
-        (item) => (item === "ts" ? "TypeScript" : "JSON"),
+        (item) => (item === "ts" ? "TypeScript 代码" : "JSON 结构"),
       );
       outputFormat = selectedFormat;
     }
@@ -528,7 +550,7 @@ async function runGenCommand(settings, options) {
     const shouldCopy = options.copy
       ? true
       : prompt
-      ? await askYesNo(prompt, "Copy generated TypeScript to clipboard", false)
+      ? await askYesNo(prompt, "是否复制生成的 TypeScript 到剪贴板", false)
       : false;
 
     const parser = new SwaggerToTS(context.document, settings.generator);
@@ -563,10 +585,10 @@ async function runGenCommand(settings, options) {
       const copied = copyToClipboard(tsOutput);
       if (!copied) {
         throw new Error(
-          "Failed to copy output to clipboard (pbcopy/wl-copy/xclip/xsel not available)",
+          "复制到剪贴板失败（未检测到 pbcopy / wl-copy / xclip / xsel）",
         );
       }
-      process.stderr.write("Copied generated TypeScript to clipboard.\n");
+      process.stderr.write("已复制生成的 TypeScript 到剪贴板。\n");
     }
   } finally {
     prompt?.close();
@@ -592,7 +614,7 @@ async function main() {
 
   if (!settings.host && needsHost) {
     throw new Error(
-      "Host is required. Provide --host, set TS_SWAGGER_HOST, or configure host in ts-swagger.config.json.",
+      "缺少 host。请使用 --host、设置 TS_SWAGGER_HOST，或配置 ts-swagger.config.json。",
     );
   }
 
@@ -611,7 +633,7 @@ async function main() {
     return;
   }
 
-  throw new Error(`Unknown command "${command}"`);
+  throw new Error(`未知命令 "${command}"`);
 }
 
 main().catch((error) => {

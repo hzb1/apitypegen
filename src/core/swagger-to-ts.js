@@ -155,7 +155,7 @@ export class SwaggerToTS {
 
     return schema
       ? `${this.exp}type RequestBody = ${this.getTSType(schema)}${this.semi}`
-      : "// 无 Request Body";
+      : "// 无请求体";
   }
 
   generateResponse(operation) {

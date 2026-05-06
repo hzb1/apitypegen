@@ -129,7 +129,8 @@ npm run ts-swagger -- gen --doc-url http://localhost:3000/docs/json --method pos
 ### 5.5 gen 交互行为
 
 - 在交互终端中执行 `ts-swagger gen`，可不传 `--host` / `--service` / `--method` / `--path`，CLI 会逐步提问：
-- 先输入 `Swagger host / swagger-config URL / OpenAPI doc URL`。
+- 先输入来源地址：`OpenAPI doc URL / swagger-config URL / Swagger host`。
+- CLI 会先读取该地址返回的 JSON：如果是 OpenAPI 文档就直接使用；如果是 `swagger-config` 就进入服务选择；如果不是 JSON 文档，再把它当作 host 探测常见 `swagger-config` 路径。
 - 若来源是 swagger-config 且服务多于一个，会提示选择服务。
 - 然后通过关键词筛选并选择接口。
 - 最后可选择输出格式（TypeScript / JSON）及是否复制到剪贴板。
