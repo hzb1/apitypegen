@@ -15,11 +15,10 @@ import {
   Tooltip,
   Drawer,
 } from "antd";
-import {type AutoCompleteProps} from "antd";
 import "./Home.css";
 import {useSwagger} from "@/hooks/useSwagger.ts";
 import {useOptions} from "@/hooks/useOptions.ts";
-import {DeleteOutlined, EditOutlined, MenuOutlined, PushpinOutlined, QuestionCircleOutlined, SettingOutlined} from "@ant-design/icons";
+import {MenuOutlined, PushpinOutlined, QuestionCircleOutlined, SettingOutlined} from "@ant-design/icons";
 import {usePluginEnabled} from "@/hooks/usePluginEnabled.ts";
 import {useSearchParams} from "react-router";
 import SideBar, {
@@ -28,25 +27,14 @@ import SideBar, {
 import ApiInfo from "@/components/api-info/ApiInfo.tsx";
 import CodeCard from "@/components/code-card/CodeCard.tsx";
 import ThemeDropdown from "@/components/theme/ThemeDropdown.tsx";
-import type {ApiDetail} from "../../../types.ts";
-import {getApiSlug, stableHash} from "@/utils/getApiSlug.ts";
-import type {ApiGroup} from "./utils.ts";
+import {useApiNavigationData} from "@/hooks/useApiNavigationData.ts";
+import {useViewedApiTabs} from "@/hooks/useViewedApiTabs.ts";
+import {useDocSearchHistory} from "@/hooks/useDocSearchHistory.tsx";
 import logoUrl from "@/assets/logo/logo-replica-full.svg";
 
-const SEARCH_HISTORY_KEY = "ts-swagger-search-history";
-const VIEWED_API_TABS_KEY = "ts-swagger-viewed-api-tabs";
-const MAX_HISTORY = 10;
-const MAX_VIEWED_API_TABS = 12;
 const EXTENSION_URL =
   (import.meta.env.VITE_PROXY_EXTENSION_URL as string | undefined) ??
   "https://github.com/hzb1/ts-swagger/releases/latest/download/ts-swagger-extension-dist-latest.zip";
-
-type SearchRecord = {
-  id: string;
-  label: string;
-  value: string;
-  updatedAt: number;
-};
 
 type ScrollRequest = {
   key: string;
@@ -75,26 +63,19 @@ const Home: React.FC = () => {
   // const queryApiKey = searchParams.get("api");
 
   const [inputIp, setInputIp] = useState(ipFromUrl);
-  const [searchHistory, setSearchHistory] = useState<SearchRecord[]>(() => {
-    try {
-      const raw = localStorage.getItem(SEARCH_HISTORY_KEY);
-      if (!raw) return [];
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        return parsed.filter((item) => item?.value).slice(0, MAX_HISTORY);
-      }
-      return [];
-    } catch {
-      return [];
-    }
-  });
-  const [renameTarget, setRenameTarget] = useState<SearchRecord | null>(null);
-  const [renameValue, setRenameValue] = useState("");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [configDrawerOpen, setConfigDrawerOpen] = useState(false);
-  const lastRecordedIpRef = useRef("");
   const scrollRequestIdRef = useRef(0);
   const [scrollRequest, setScrollRequest] = useState<ScrollRequest | undefined>(undefined);
+  const {
+    autoCompleteOptions,
+    renameTarget,
+    renameValue,
+    setRenameTarget,
+    setRenameValue,
+    confirmRename,
+    recordSearchOnce,
+  } = useDocSearchHistory();
 
   const {documentData, configData, stage, error} = useSwagger({
     docOrHost: ipFromUrl,
@@ -120,64 +101,17 @@ const Home: React.FC = () => {
 
   const loading = configLoading || docLoading;
 
-  const groupedApis = useMemo(() => {
-    // 这里的 documentData 来自 useSwagger()
-    if (!documentData?.paths) return {};
-
-    const groups: Record<string, ApiDetail[]> = {};
-
-    for (const [path, item] of Object.entries(documentData.paths)) {
-      // 遍历所有 HTTP 方法
-      for (const method of ["get", "post", "put", "delete", "patch"] as const) {
-        const op = (item)[method];
-        if (!op) continue;
-
-        const tag = op.tags?.[0] ?? "Default";
-        (groups[tag] ||= []).push({
-          key: getApiSlug({path, method, operation: op}),
-          path,
-          method,
-          operation: op,
-        });
-      }
-    }
-
-    return groups;
-  }, [documentData]);
-
   // 2. 调用配置持久化逻辑
   const {configState, setConfigState, generatorOptions} = useOptions();
 
-  const selectedApi = useMemo(() => {
-    if (!selectedApiKey) return null;
-    const apiList = Object.entries(groupedApis).map(
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      ([_tag, apis]) => apis,
-    );
-    let findApi: ApiDetail;
-    apiList?.forEach((apis) => {
-      apis.forEach((api) => {
-        if (selectedApiKey === api.key) {
-          findApi = api;
-        }
-      });
-    });
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-expect-error
-    return findApi;
-  }, [groupedApis, selectedApiKey]);
-
-  const apiMap = useMemo(() => {
-    const map = new Map<string, ApiDetail>();
-    Object.values(groupedApis).forEach((apis) => {
-      apis.forEach((api) => map.set(api.key, api));
-    });
-    return map;
-  }, [groupedApis]);
-
   const [expandedGroupList, setExpandedGroupList] = useState<string[]>([]);
+  const {selectedApi, apiMap, apiKeyToGroupId, apiGroups} = useApiNavigationData({
+    documentData,
+    selectedApiKey,
+    expandedGroupList,
+  });
 
-  const handleGroupTitleClick = (groupItem: ApiGroup) => {
+  const handleGroupTitleClick = (groupItem: SideBarProps["apis"][number]) => {
     const groupId = groupItem.id;
     setExpandedGroupList((prev) => {
       if (prev.includes(groupId)) {
@@ -188,13 +122,33 @@ const Home: React.FC = () => {
   };
 
   const {pluginEnabled, checking} = usePluginEnabled();
-  const [viewedApiKeys, setViewedApiKeys] = useState<string[]>([]);
-  const [pinnedApiKeys, setPinnedApiKeys] = useState<string[]>([]);
   const viewedContextKey = useMemo(
     () => `${ipFromUrl}__${serviceUrl ?? ""}`,
     [ipFromUrl, serviceUrl],
   );
-  const skipNextViewedTabsPersistRef = useRef(false);
+  const handleSelectApi = useCallback((nextApiKey?: string) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (nextApiKey) {
+        next.set("api", nextApiKey);
+      } else {
+        next.delete("api");
+      }
+      return next;
+    });
+  }, [setSearchParams]);
+  const {
+    pinnedApiKeys,
+    orderedViewedApiKeys,
+    removeViewedTab,
+    closeOtherViewedTabs,
+    togglePinViewedTab,
+  } = useViewedApiTabs({
+    viewedContextKey,
+    selectedApiKey,
+    apiMap,
+    onSelectApi: handleSelectApi,
+  });
 
   const handleCommitIp = (nextIp: string) => {
     const normalized = nextIp.trim();
@@ -209,227 +163,14 @@ const Home: React.FC = () => {
     });
   };
 
-  const createRecordId = () => {
-    if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-      return crypto.randomUUID();
-    }
-    return `history-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-  };
-
-  const recordSearch = useCallback((value: string) => {
-    const normalized = value.trim();
-    if (!normalized) return;
-    setSearchHistory((prev) => {
-      const existing = prev.find((item) => item.value === normalized);
-      const label = existing?.label ?? normalized;
-      const nextItem: SearchRecord = {
-        id: existing?.id ?? createRecordId(),
-        label,
-        value: normalized,
-        updatedAt: Date.now(),
-      };
-      const nextList = [
-        nextItem,
-        ...prev.filter((item) => item.value !== normalized),
-      ];
-      return nextList.slice(0, MAX_HISTORY);
-    });
-  }, []);
-
-  const handleRename = useCallback(
-    (record: SearchRecord, event?: React.MouseEvent) => {
-      event?.preventDefault();
-      event?.stopPropagation();
-      setRenameTarget(record);
-      setRenameValue(record.label);
-    },
-    [],
-  );
-
-  const confirmRename = useCallback(() => {
-    if (!renameTarget) return;
-    const nextLabel = renameValue.trim();
-    if (!nextLabel) {
-      setRenameTarget(null);
-      return;
-    }
-    setSearchHistory((prev) =>
-      prev.map((item) =>
-        item.id === renameTarget.id ? {...item, label: nextLabel} : item,
-      ),
-    );
-    setRenameTarget(null);
-  }, [renameTarget, renameValue]);
-
-  const handleDelete = useCallback((record: SearchRecord, event?: React.MouseEvent) => {
-    event?.preventDefault();
-    event?.stopPropagation();
-    Modal.confirm({
-      title: "删除记录",
-      content: `确定删除 ${record.label} 吗？`,
-      okText: "删除",
-      cancelText: "取消",
-      onOk: () => {
-        setSearchHistory((prev) => prev.filter((item) => item.id !== record.id));
-      },
-    });
-  }, []);
-
   useEffect(() => {
     setInputIp(ipFromUrl);
   }, [ipFromUrl]);
 
   useEffect(() => {
     if (!documentData) return;
-    if (lastRecordedIpRef.current === ipFromUrl) return;
-    recordSearch(ipFromUrl);
-    lastRecordedIpRef.current = ipFromUrl;
-  }, [documentData, ipFromUrl, recordSearch]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(searchHistory));
-    } catch {
-      // ignore
-    }
-  }, [searchHistory]);
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(VIEWED_API_TABS_KEY);
-      if (!raw) {
-        skipNextViewedTabsPersistRef.current = true;
-        setViewedApiKeys([]);
-        setPinnedApiKeys([]);
-        return;
-      }
-      const parsed = JSON.parse(raw) as Record<string, string[] | {
-        keys?: string[];
-        pinned?: string[];
-      }>;
-      const entry = parsed?.[viewedContextKey];
-      const list = Array.isArray(entry) ? entry : entry?.keys;
-      const pinnedList = Array.isArray(entry) ? [] : (entry?.pinned ?? []);
-      if (!Array.isArray(list)) {
-        skipNextViewedTabsPersistRef.current = true;
-        setViewedApiKeys([]);
-        setPinnedApiKeys([]);
-        return;
-      }
-      const normalizedList = list
-        .filter((key) => typeof key === "string" && key.length > 0)
-        .slice(-MAX_VIEWED_API_TABS);
-      const normalizedPinned = pinnedList
-        .filter((key) => normalizedList.includes(key))
-        .slice(-MAX_VIEWED_API_TABS);
-      skipNextViewedTabsPersistRef.current = true;
-      setViewedApiKeys(normalizedList);
-      setPinnedApiKeys(normalizedPinned);
-    } catch {
-      skipNextViewedTabsPersistRef.current = true;
-      setViewedApiKeys([]);
-      setPinnedApiKeys([]);
-    }
-  }, [viewedContextKey]);
-
-  useEffect(() => {
-    if (skipNextViewedTabsPersistRef.current) {
-      skipNextViewedTabsPersistRef.current = false;
-      return;
-    }
-    try {
-      const raw = localStorage.getItem(VIEWED_API_TABS_KEY);
-      const parsed = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
-      parsed[viewedContextKey] = {
-        keys: viewedApiKeys.slice(-MAX_VIEWED_API_TABS),
-        pinned: pinnedApiKeys.filter((key) => viewedApiKeys.includes(key)).slice(-MAX_VIEWED_API_TABS),
-      };
-      localStorage.setItem(VIEWED_API_TABS_KEY, JSON.stringify(parsed));
-    } catch {
-      // ignore
-    }
-  }, [pinnedApiKeys, viewedApiKeys, viewedContextKey]);
-
-  useEffect(() => {
-    if (!selectedApiKey || !apiMap.has(selectedApiKey)) return;
-    setViewedApiKeys((prev) => {
-      if (prev.includes(selectedApiKey)) return prev;
-      const next = [...prev, selectedApiKey];
-      if (next.length <= MAX_VIEWED_API_TABS) return next;
-      return next.slice(next.length - MAX_VIEWED_API_TABS);
-    });
-  }, [apiMap, selectedApiKey]);
-
-  useEffect(() => {
-    setPinnedApiKeys((prev) => prev.filter((key) => viewedApiKeys.includes(key)));
-  }, [viewedApiKeys]);
-
-  const orderedViewedApiKeys = useMemo(() => {
-    const pinnedSet = new Set(pinnedApiKeys);
-    const pinned = viewedApiKeys.filter((key) => pinnedSet.has(key));
-    const unpinned = viewedApiKeys.filter((key) => !pinnedSet.has(key));
-    return [...pinned, ...unpinned];
-  }, [pinnedApiKeys, viewedApiKeys]);
-
-  const historyOptions = useMemo(
-    () =>
-      searchHistory.map((record) => ({
-        key: `history-${record.id}`,
-        value: record.value,
-        label: (
-          <div className="search-history-option">
-            <div className="search-history-text">
-              <span className="search-history-label" title={record.label}>{record.label}</span>
-              {record.label !== record.value && (
-                <span className="search-history-value" title={record.value}>{record.value}</span>
-              )}
-            </div>
-            <div className="search-history-actions">
-              <span
-                className="search-history-action"
-                onMouseDown={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                }}
-                onClick={(event) => handleRename(record, event)}
-              >
-                <EditOutlined/>
-              </span>
-              <span
-                className="search-history-action"
-                onMouseDown={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                }}
-                onClick={(event) => handleDelete(record, event)}
-              >
-                <DeleteOutlined/>
-              </span>
-            </div>
-          </div>
-        ),
-      })),
-    [searchHistory, handleDelete, handleRename],
-  );
-
-  const autoCompleteOptions = useMemo(() => {
-    const groups: AutoCompleteProps['options'] = [];
-    if (historyOptions.length) {
-      groups.push({label: "搜索记录", options: historyOptions, key: "history-group"});
-    }
-    return groups;
-  }, [historyOptions]);
-
-  const apiKeyToGroupId = useMemo(() => {
-    const map = new Map<string, string>();
-    Object.entries(groupedApis).forEach(([tag, apis]) => {
-      const groupId = stableHash(tag);
-      apis.forEach((api) => {
-        map.set(api.key, groupId);
-      });
-    });
-    return map;
-  }, [groupedApis]);
+    recordSearchOnce(ipFromUrl);
+  }, [documentData, ipFromUrl, recordSearchOnce]);
 
   /**
    * 菜单选择回调
@@ -469,54 +210,6 @@ const Home: React.FC = () => {
     setMobileNavOpen(false);
     onViewedTabSelect(key);
   };
-
-  const handleRemoveViewedTab = useCallback((targetKey: string) => {
-    const idx = viewedApiKeys.indexOf(targetKey);
-    if (idx < 0) return;
-
-    const remaining = viewedApiKeys.filter((key) => key !== targetKey);
-    setViewedApiKeys(remaining);
-    setPinnedApiKeys((prev) => prev.filter((key) => key !== targetKey));
-
-    if (selectedApiKey !== targetKey) return;
-
-    const fallbackIndex = Math.min(idx, remaining.length - 1);
-    const fallbackKey = fallbackIndex >= 0 ? remaining[fallbackIndex] : "";
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev);
-      if (fallbackKey) {
-        next.set("api", fallbackKey);
-      } else {
-        next.delete("api");
-      }
-      return next;
-    });
-  }, [selectedApiKey, setSearchParams, viewedApiKeys]);
-
-  const handleCloseOtherViewedTabs = useCallback((keepKey: string) => {
-    setViewedApiKeys((prev) => {
-      if (!prev.includes(keepKey)) return prev;
-      if (prev.length === 1 && prev[0] === keepKey) return prev;
-      return [keepKey];
-    });
-    setPinnedApiKeys((prev) => (prev.includes(keepKey) ? [keepKey] : []));
-
-    if (selectedApiKey && selectedApiKey !== keepKey) {
-      setSearchParams((prev) => {
-        const next = new URLSearchParams(prev);
-        next.set("api", keepKey);
-        return next;
-      });
-    }
-  }, [selectedApiKey, setSearchParams]);
-
-  const handleTogglePinViewedTab = useCallback((targetKey: string) => {
-    if (!viewedApiKeys.includes(targetKey)) return;
-    setPinnedApiKeys((prev) => {
-      if (prev.includes(targetKey)) return prev.filter((key) => key !== targetKey);
-      return [...prev, targetKey];
-    });
-  }, [viewedApiKeys]);
 
   const [tsCodeParts, setTsCodeParts] = useState<TsCodeParts | undefined>(undefined);
 
@@ -621,24 +314,6 @@ const Home: React.FC = () => {
       return "";
     }
   }, [documentData, normalizedDocInput]);
-
-  const apiGroups: SideBarProps["apis"] = useMemo(() => {
-    return Object.entries(groupedApis).map(([tag, apis]) => {
-      const id = stableHash(tag);
-
-      const children = apis.map((api) => ({
-        ...api,
-        isSelected: Boolean(selectedApiKey) && api.key === selectedApiKey,
-      }));
-
-      return {
-        id,
-        isExpanded: expandedGroupList.includes(id),
-        children,
-        name: tag,
-      };
-    });
-  }, [expandedGroupList, groupedApis, selectedApiKey]);
 
   useEffect(() => {
     setExpandedGroupList((prev) => {
@@ -767,7 +442,7 @@ const Home: React.FC = () => {
                       hideAdd
                       onEdit={(targetKey, action) => {
                         if (action !== "remove" || typeof targetKey !== "string") return;
-                        handleRemoveViewedTab(targetKey);
+                        removeViewedTab(targetKey);
                       }}
                       items={orderedViewedApiKeys.flatMap((key) => {
                         const api = apiMap.get(key);
@@ -792,11 +467,11 @@ const Home: React.FC = () => {
                                 ],
                                 onClick: ({key: actionKey}) => {
                                   if (actionKey === "toggle-pin") {
-                                    handleTogglePinViewedTab(key);
+                                    togglePinViewedTab(key);
                                     return;
                                   }
                                   if (actionKey === "close-others") {
-                                    handleCloseOtherViewedTabs(key);
+                                    closeOtherViewedTabs(key);
                                   }
                                 },
                               }}
