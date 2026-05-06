@@ -40,3 +40,46 @@ nvm use
 - 确认 Swagger 文档成功加载。
 - 先在左侧选择一个具体 API。
 - 若文档字段不规范（缺少 schema/response 定义），部分类型可能退化为 `any`。
+
+## 5. CLI（给 AI/脚本调用）
+
+项目根目录提供了 `ts-swagger` 命令，支持列服务、检索接口、按接口生成 TypeScript。
+
+### 5.1 默认配置
+
+根目录 `ts-swagger.config.json` 默认内容：
+
+```json
+{
+  "host": "https://swagger.huzhibin.top",
+  "version": "v3"
+}
+```
+
+host 优先级：`--host` > `ts-swagger.config.json` > 内置默认值。
+
+### 5.2 常用命令
+
+```bash
+# 列出 swagger-config 服务
+npm run ts-swagger -- services
+
+# 搜索接口
+npm run ts-swagger -- search --keyword order --service 用户服务
+
+# 生成 TS（默认输出文本）
+npm run ts-swagger -- gen --method post --path /api/order/create --service 用户服务
+
+# 生成 TS 并复制到剪切板
+npm run ts-swagger -- gen --method post --path /api/order/create --service 用户服务 --copy
+
+# 直接使用文档 URL（跳过 swagger-config / service）
+npm run ts-swagger -- gen --doc-url http://localhost:3000/docs/json --method post --path /api/showcase/v1/users  --copy
+```
+
+### 5.3 服务参数行为
+
+- `--service` 非必填：
+- 如果只有一个服务，自动选择。
+- 如果有多个服务且当前终端是交互模式（TTY），CLI 会提示选择。
+- 如果有多个服务但在非交互模式（例如 AI/脚本）下运行，会报错并列出可选服务名。

@@ -1,0 +1,12 @@
+{
+  "host": "https://swagger.huzhibin.top",
+  "version": "v3",
+  "generator": {
+    "indent": 2,
+    "useInterface": true,
+    "addExport": true,
+    "semicolon": true,
+    "int64ToString": true,
+    "showExample": true
+  }
+}

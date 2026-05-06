@@ -2,6 +2,13 @@
   "name": "swagger-ui",
   "version": "0.1.0",
   "private": false,
+  "type": "module",
+  "bin": {
+    "ts-swagger": "./bin/ts-swagger.mjs"
+  },
+  "scripts": {
+    "ts-swagger": "node ./bin/ts-swagger.mjs"
+  },
   "engines": {
     "node": "^20.19.0 || >=22.12.0"
   }
