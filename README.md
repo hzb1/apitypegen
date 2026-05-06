@@ -45,9 +45,36 @@ nvm use
 
 项目根目录提供了 `ts-swagger` 命令，支持列服务、检索接口、按接口生成 TypeScript。
 
-### 5.1 默认配置
+### 5.1 安装 / 使用
 
-根目录 `ts-swagger.config.json` 默认内容：
+本项目内开发时可直接运行：
+
+```bash
+npm run ts-swagger -- --help
+npm run ts-swagger -- services --host http://localhost:9966
+npm run ts-swagger -- gen --host http://localhost:9966 --service 用户服务 --method post --path /api/order/create
+```
+
+本机日常使用可以通过 `npm link` 注册全局命令：
+
+```bash
+npm link
+ts-swagger --help
+ts-swagger services --host http://localhost:9966
+```
+
+发布到 npm 后，可通过全局安装使用：
+
+```bash
+npm install -g ts-swagger
+ts-swagger gen --host http://localhost:9966 --service 用户服务 --method post --path /api/order/create
+```
+
+### 5.2 可选配置
+
+`ts-swagger.config.json` 不是必需文件。它适合放本机常用 host 和生成偏好，已被 `.gitignore` 忽略。
+
+如果希望少传 `--host`，可以参考 `ts-swagger.config.example.json` 新建本地配置：
 
 ```json
 {
@@ -59,26 +86,33 @@ nvm use
 host 优先级：`--host` > `TS_SWAGGER_HOST` > `ts-swagger.config.json`。
 如果三者都没有，CLI 会直接报错提示。
 
-### 5.2 常用命令
+也可以不用配置文件，改用环境变量：
+
+```bash
+export TS_SWAGGER_HOST=http://localhost:9966
+ts-swagger services
+```
+
+### 5.3 常用命令
 
 ```bash
 # 列出 swagger-config 服务
-npm run ts-swagger -- services
+npm run ts-swagger -- services --host http://localhost:9966
 
 # 搜索接口
-npm run ts-swagger -- search --keyword order --service 用户服务
+npm run ts-swagger -- search --host http://localhost:9966 --keyword order --service 用户服务
 
 # 生成 TS（默认输出文本）
-npm run ts-swagger -- gen --method post --path /api/order/create --service 用户服务
+npm run ts-swagger -- gen --host http://localhost:9966 --method post --path /api/order/create --service 用户服务
 
 # 生成 TS 并复制到剪切板
-npm run ts-swagger -- gen --method post --path /api/order/create --service 用户服务 --copy
+npm run ts-swagger -- gen --host http://localhost:9966 --method post --path /api/order/create --service 用户服务 --copy
 
 # 直接使用文档 URL（跳过 swagger-config / service）
 npm run ts-swagger -- gen --doc-url http://localhost:3000/docs/json --method post --path /api/showcase/v1/users  --copy
 ```
 
-### 5.3 服务参数行为
+### 5.4 服务参数行为
 
 - `--service` 非必填：
 - 如果只有一个服务，自动选择。
