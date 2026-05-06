@@ -52,6 +52,7 @@ nvm use
 ```bash
 npm run ts-swagger -- --help
 npm run ts-swagger -- services --host http://localhost:9966
+npm run ts-swagger -- gen
 npm run ts-swagger -- gen --host http://localhost:9966 --service 用户服务 --method post --path /api/order/create
 ```
 
@@ -96,17 +97,23 @@ ts-swagger services
 ### 5.3 常用命令
 
 ```bash
+# 交互式生成（人类友好，逐步提问 host/service/api）
+npm run ts-swagger -- gen
+
 # 列出 swagger-config 服务
 npm run ts-swagger -- services --host http://localhost:9966
 
 # 搜索接口
 npm run ts-swagger -- search --host http://localhost:9966 --keyword order --service 用户服务
 
-# 生成 TS（默认输出文本）
+# 生成 TS（脚本模式，参数完整）
 npm run ts-swagger -- gen --host http://localhost:9966 --method post --path /api/order/create --service 用户服务
 
 # 生成 TS 并复制到剪切板
 npm run ts-swagger -- gen --host http://localhost:9966 --method post --path /api/order/create --service 用户服务 --copy
+
+# 在 AI / CI 中禁用交互（缺参数直接报错）
+npm run ts-swagger -- gen --no-interactive --host http://localhost:9966 --method post --path /api/order/create --service 用户服务
 
 # 直接使用文档 URL（跳过 swagger-config / service）
 npm run ts-swagger -- gen --doc-url http://localhost:3000/docs/json --method post --path /api/showcase/v1/users  --copy
@@ -118,3 +125,11 @@ npm run ts-swagger -- gen --doc-url http://localhost:3000/docs/json --method pos
 - 如果只有一个服务，自动选择。
 - 如果有多个服务且当前终端是交互模式（TTY），CLI 会提示选择。
 - 如果有多个服务但在非交互模式（例如 AI/脚本）下运行，会报错并列出可选服务名。
+
+### 5.5 gen 交互行为
+
+- 在交互终端中执行 `ts-swagger gen`，可不传 `--host` / `--service` / `--method` / `--path`，CLI 会逐步提问：
+- 先输入 `Swagger host / swagger-config URL / OpenAPI doc URL`。
+- 若来源是 swagger-config 且服务多于一个，会提示选择服务。
+- 然后通过关键词筛选并选择接口。
+- 最后可选择输出格式（TypeScript / JSON）及是否复制到剪贴板。

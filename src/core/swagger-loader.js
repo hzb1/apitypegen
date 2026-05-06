@@ -24,6 +24,10 @@ export function isLikelyDocumentUrl(value) {
     const url = new URL(value);
     const pathname = url.pathname.toLowerCase();
     if (pathname.endsWith(".json")) return true;
+    if (pathname.endsWith("/json") && pathname.includes("/docs")) return true;
+    if (pathname.includes("/openapi")) return true;
+    if (pathname.includes("/swagger.json")) return true;
+    if (pathname.includes("/docs.json")) return true;
     return ["openapi", "swagger", "api-docs", "docs-json"].some((token) =>
       pathname.includes(token),
     );

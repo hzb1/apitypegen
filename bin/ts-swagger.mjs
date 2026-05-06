@@ -10,7 +10,9 @@ import { stdin as input } from "node:process";
 import { collectApis, findApiByPathAndMethod, searchApis } from "../src/core/api-index.js";
 import { SwaggerToTS } from "../src/core/swagger-to-ts.js";
 import {
+  fetchJson,
   findService,
+  isLikelyDocumentUrl,
   loadOpenApiDocumentByService,
   loadOpenApiDocumentFromUrl,
   loadSwaggerConfig,
@@ -31,6 +33,7 @@ const DEFAULT_CONFIG = {
 
 const CONFIG_FILENAME = "ts-swagger.config.json";
 const API_METHODS = ["get", "post", "put", "delete", "patch"];
+const MAX_INTERACTIVE_API_CHOICES = 30;
 
 function printHelp() {
   process.stdout.write(`ts-swagger CLI
@@ -38,11 +41,12 @@ function printHelp() {
 Usage:
   ts-swagger services [--host <url>] [--version <v3>] [--format <text|json>]
   ts-swagger search --keyword <text> [--service <name>] [--host <url>] [--doc-url <url>] [--format <text|json>]
-  ts-swagger gen --method <method> --path <api-path> [--service <name>] [--host <url>] [--doc-url <url>] [--copy] [--format <ts|json>]
+  ts-swagger gen [--method <method>] [--path <api-path>] [--service <name>] [--host <url>] [--doc-url <url>] [--copy] [--format <ts|json>] [--no-interactive]
 
 Notes:
   - host priority: --host > TS_SWAGGER_HOST > ts-swagger.config.json
   - service is selected interactively when omitted and swagger-config contains multiple services
+  - use --no-interactive in AI/CI scripts to disable prompts
   - --doc-url bypasses swagger-config and service selection
 `);
 }
@@ -143,38 +147,130 @@ function ensureMethod(method) {
   return normalized;
 }
 
-function printServiceList(services) {
-  services.forEach((item, index) => {
-    process.stderr.write(`${index + 1}. ${item.name} -> ${item.url}\n`);
-  });
+function isInteractiveAllowed(options) {
+  return Boolean(process.stdin.isTTY && process.stderr.isTTY && !options["no-interactive"]);
 }
 
-async function selectServiceInteractively(services) {
-  process.stderr.write("Detected multiple services. Select one:\n");
-  printServiceList(services);
+function createPrompt() {
+  return readline.createInterface({ input, output: process.stderr });
+}
 
-  const rl = readline.createInterface({ input, output: process.stderr });
-  try {
-    while (true) {
-      const answer = await rl.question("Enter service number: ");
-      const index = Number.parseInt(String(answer).trim(), 10);
-      if (Number.isNaN(index) || index < 1 || index > services.length) {
-        process.stderr.write("Invalid number, try again.\n");
-        continue;
-      }
-      return services[index - 1];
-    }
-  } finally {
-    rl.close();
+async function askInput(rl, label, defaultValue = "") {
+  const suffix = defaultValue ? ` (${defaultValue})` : "";
+  const answer = await rl.question(`${label}${suffix}: `);
+  const value = String(answer || "").trim();
+  if (value) return value;
+  return defaultValue ? String(defaultValue).trim() : "";
+}
+
+async function askRequiredInput(rl, label, defaultValue = "") {
+  while (true) {
+    const value = await askInput(rl, label, defaultValue);
+    if (value) return value;
+    process.stderr.write("Input cannot be empty.\n");
   }
 }
 
-async function resolveServiceDocument({
-  options,
-  host,
-  version,
-  timeoutMs,
-}) {
+async function askYesNo(rl, label, defaultYes = false) {
+  const hint = defaultYes ? "Y/n" : "y/N";
+  while (true) {
+    const answer = await rl.question(`${label} (${hint}): `);
+    const normalized = String(answer || "").trim().toLowerCase();
+    if (!normalized) return defaultYes;
+    if (["y", "yes"].includes(normalized)) return true;
+    if (["n", "no"].includes(normalized)) return false;
+    process.stderr.write("Please answer with y/yes or n/no.\n");
+  }
+}
+
+async function selectByNumber(rl, title, items, itemToLabel) {
+  process.stderr.write(`${title}\n`);
+  items.forEach((item, index) => {
+    process.stderr.write(`${index + 1}. ${itemToLabel(item)}\n`);
+  });
+
+  while (true) {
+    const answer = await rl.question("Enter number: ");
+    const selectedIndex = Number.parseInt(String(answer).trim(), 10);
+    if (Number.isNaN(selectedIndex) || selectedIndex < 1 || selectedIndex > items.length) {
+      process.stderr.write("Invalid number, try again.\n");
+      continue;
+    }
+    return items[selectedIndex - 1];
+  }
+}
+
+function formatApiChoice(api) {
+  const summary = api.summary || api.description || "";
+  return `${api.method.toUpperCase()} ${api.path}${summary ? `  // ${summary}` : ""}`;
+}
+
+async function pickApiInteractively(rl, document) {
+  const allApis = collectApis(document);
+  if (allApis.length === 0) {
+    throw new Error("No API found in current document.");
+  }
+
+  let keyword = "";
+  while (true) {
+    const keywordInput = await askInput(
+      rl,
+      "Search API keyword (press Enter to list all, use /keyword to refine later)",
+      keyword,
+    );
+    keyword = keywordInput;
+
+    const candidates = keyword ? searchApis(document, keyword) : allApis;
+    if (candidates.length === 0) {
+      process.stderr.write(`No matched API for keyword "${keyword}". Try another keyword.\n`);
+      keyword = "";
+      continue;
+    }
+
+    let displayList = candidates;
+    if (candidates.length > MAX_INTERACTIVE_API_CHOICES) {
+      process.stderr.write(
+        `Matched ${candidates.length} APIs, showing first ${MAX_INTERACTIVE_API_CHOICES}. Refine keyword if needed.\n`,
+      );
+      displayList = candidates.slice(0, MAX_INTERACTIVE_API_CHOICES);
+    }
+
+    process.stderr.write("Select API:\n");
+    displayList.forEach((item, index) => {
+      process.stderr.write(`${index + 1}. ${formatApiChoice(item)}\n`);
+    });
+
+    const answer = await rl.question("Enter API number or /new-keyword: ");
+    const trimmed = String(answer || "").trim();
+
+    if (trimmed.startsWith("/")) {
+      keyword = trimmed.slice(1).trim();
+      continue;
+    }
+
+    const selectedIndex = Number.parseInt(trimmed, 10);
+    if (
+      Number.isNaN(selectedIndex) ||
+      selectedIndex < 1 ||
+      selectedIndex > displayList.length
+    ) {
+      process.stderr.write("Invalid selection. Please retry.\n");
+      continue;
+    }
+
+    return displayList[selectedIndex - 1];
+  }
+}
+
+async function loadSwaggerConfigByUrl(configUrl, timeoutMs = 15000) {
+  const data = await fetchJson(configUrl, timeoutMs);
+  if (!data?.urls || !Array.isArray(data.urls)) {
+    throw new Error(`Invalid swagger-config format at ${configUrl}`);
+  }
+  return data;
+}
+
+async function resolveServiceDocument({ options, host, version, timeoutMs, interactiveContext }) {
   if (options["doc-url"]) {
     const documentUrl = String(options["doc-url"]);
     const document = await loadOpenApiDocumentFromUrl(documentUrl, timeoutMs);
@@ -187,7 +283,13 @@ async function resolveServiceDocument({
     };
   }
 
-  const config = await loadSwaggerConfig(host, version, timeoutMs);
+  let config;
+  if (options["swagger-config-url"]) {
+    config = await loadSwaggerConfigByUrl(String(options["swagger-config-url"]), timeoutMs);
+  } else {
+    config = await loadSwaggerConfig(host, version, timeoutMs);
+  }
+
   const services = Array.isArray(config.urls) ? config.urls : [];
   if (services.length === 0) {
     throw new Error(`swagger-config at ${host} has no available services`);
@@ -204,8 +306,13 @@ async function resolveServiceDocument({
     }
   } else if (services.length === 1) {
     selectedService = services[0];
-  } else if (process.stdin.isTTY && process.stderr.isTTY) {
-    selectedService = await selectServiceInteractively(services);
+  } else if (interactiveContext?.enabled && interactiveContext.rl) {
+    selectedService = await selectByNumber(
+      interactiveContext.rl,
+      "Detected multiple services. Select one:",
+      services,
+      (item) => `${item.name} -> ${item.url}`,
+    );
   } else {
     const names = services.map((item) => item.name).join(", ");
     throw new Error(
@@ -326,68 +433,143 @@ async function runSearchCommand(settings, options) {
 }
 
 async function runGenCommand(settings, options) {
-  const method = ensureMethod(options.method);
-  const pathValue = String(options.path || "").trim();
-  if (!pathValue) {
-    throw new Error("Missing required argument: --path");
-  }
+  const interactive = isInteractiveAllowed(options);
+  const prompt = interactive ? createPrompt() : null;
 
-  const context = await resolveServiceDocument({
-    options,
-    host: settings.host,
-    version: settings.version,
-    timeoutMs: settings.timeoutMs,
-  });
+  let workingHost = settings.host;
+  const workingOptions = { ...options };
 
-  const matchedApi = findApiByPathAndMethod(context.document, pathValue, method);
-  if (!matchedApi) {
-    const candidates = collectApis(context.document).filter((item) => item.path === pathValue);
-    const methodTips =
-      candidates.length > 0
-        ? ` Available methods for this path: ${candidates
-            .map((item) => item.method.toUpperCase())
-            .join(", ")}`
-        : "";
-    throw new Error(`API not found: ${method.toUpperCase()} ${pathValue}.${methodTips}`);
-  }
+  try {
+    if (!workingOptions["doc-url"] && !workingHost && prompt) {
+      const sourceInput = await askRequiredInput(
+        prompt,
+        "Swagger host / swagger-config URL / OpenAPI doc URL",
+      );
+      const normalizedSourceInput = normalizeBaseUrl(sourceInput);
+      const looksLikeDocUrl = isLikelyDocumentUrl(normalizedSourceInput);
 
-  const parser = new SwaggerToTS(context.document, settings.generator);
-  const generated = parser.getStructuredTypes(pathValue, method);
-  const tsOutput = formatTsOutput(generated);
-  const outputFormat = String(options.format || "ts").toLowerCase();
+      if (/swagger-config/i.test(sourceInput)) {
+        workingOptions["swagger-config-url"] = sourceInput;
+        try {
+          const sourceUrl = new URL(sourceInput);
+          workingHost = normalizeBaseUrl(sourceUrl.origin);
+        } catch {
+          workingHost = "";
+        }
+      } else if (looksLikeDocUrl) {
+        try {
+          await loadOpenApiDocumentFromUrl(normalizedSourceInput, settings.timeoutMs);
+        } catch (error) {
+          throw new Error(
+            `Unable to load OpenAPI document from ${normalizedSourceInput}: ${error.message}`,
+          );
+        }
+        workingOptions["doc-url"] = normalizedSourceInput;
+      } else {
+        workingHost = normalizedSourceInput;
+      }
+    }
 
-  if (outputFormat === "json") {
-    process.stdout.write(
-      `${JSON.stringify(
-        {
-          host: settings.host,
-          service: context.service?.name || null,
-          documentUrl: context.documentUrl,
-          matchedApi,
-          code: tsOutput,
-          parts: {
-            models: generated.models,
-            queryParams: generated.queryParams,
-            requestBody: generated.requestBody,
-            responseData: generated.responseData,
-          },
-        },
-        null,
-        2,
-      )}\n`,
-    );
-  } else {
-    process.stdout.write(`${tsOutput}\n`);
-  }
-
-  if (options.copy) {
-    const copied = copyToClipboard(tsOutput);
-    if (!copied) {
+    if (!workingOptions["doc-url"] && !workingHost) {
       throw new Error(
-        "Failed to copy output to clipboard (pbcopy/wl-copy/xclip/xsel not available)",
+        "Host is required. Provide --host, set TS_SWAGGER_HOST, configure ts-swagger.config.json, or use --doc-url.",
       );
     }
-    process.stderr.write("Copied generated TypeScript to clipboard.\n");
+
+    const context = await resolveServiceDocument({
+      options: workingOptions,
+      host: workingHost,
+      version: settings.version,
+      timeoutMs: settings.timeoutMs,
+      interactiveContext: { enabled: interactive, rl: prompt },
+    });
+
+    let method = options.method ? ensureMethod(options.method) : "";
+    let pathValue = String(options.path || "").trim();
+
+    if ((!method || !pathValue) && prompt) {
+      const selectedApi = await pickApiInteractively(prompt, context.document);
+      method = selectedApi.method;
+      pathValue = selectedApi.path;
+      process.stderr.write(`Selected API: ${method.toUpperCase()} ${pathValue}\n`);
+    }
+
+    if (!method) {
+      throw new Error("Missing required argument: --method");
+    }
+    if (!pathValue) {
+      throw new Error("Missing required argument: --path");
+    }
+
+    const matchedApi = findApiByPathAndMethod(context.document, pathValue, method);
+    if (!matchedApi) {
+      const candidates = collectApis(context.document).filter((item) => item.path === pathValue);
+      const methodTips =
+        candidates.length > 0
+          ? ` Available methods for this path: ${candidates
+              .map((item) => item.method.toUpperCase())
+              .join(", ")}`
+          : "";
+      throw new Error(`API not found: ${method.toUpperCase()} ${pathValue}.${methodTips}`);
+    }
+
+    let outputFormat = String(options.format || "").trim().toLowerCase();
+    if (!outputFormat && prompt) {
+      const selectedFormat = await selectByNumber(
+        prompt,
+        "Select output format:",
+        ["ts", "json"],
+        (item) => (item === "ts" ? "TypeScript" : "JSON"),
+      );
+      outputFormat = selectedFormat;
+    }
+    if (!outputFormat) outputFormat = "ts";
+
+    const shouldCopy = options.copy
+      ? true
+      : prompt
+      ? await askYesNo(prompt, "Copy generated TypeScript to clipboard", false)
+      : false;
+
+    const parser = new SwaggerToTS(context.document, settings.generator);
+    const generated = parser.getStructuredTypes(pathValue, method);
+    const tsOutput = formatTsOutput(generated);
+
+    if (outputFormat === "json") {
+      process.stdout.write(
+        `${JSON.stringify(
+          {
+            host: workingHost || null,
+            service: context.service?.name || null,
+            documentUrl: context.documentUrl,
+            matchedApi,
+            code: tsOutput,
+            parts: {
+              models: generated.models,
+              queryParams: generated.queryParams,
+              requestBody: generated.requestBody,
+              responseData: generated.responseData,
+            },
+          },
+          null,
+          2,
+        )}\n`,
+      );
+    } else {
+      process.stdout.write(`${tsOutput}\n`);
+    }
+
+    if (shouldCopy) {
+      const copied = copyToClipboard(tsOutput);
+      if (!copied) {
+        throw new Error(
+          "Failed to copy output to clipboard (pbcopy/wl-copy/xclip/xsel not available)",
+        );
+      }
+      process.stderr.write("Copied generated TypeScript to clipboard.\n");
+    }
+  } finally {
+    prompt?.close();
   }
 }
 
@@ -402,7 +584,11 @@ async function main() {
   const { config } = await loadUserConfig(process.cwd());
   const settings = resolveSettings(options, config);
   const needsHost =
-    command === "services" || ((command === "search" || command === "gen") && !options["doc-url"]);
+    command === "services" ||
+    (command === "search" && !options["doc-url"]) ||
+    (command === "gen" &&
+      !options["doc-url"] &&
+      !isInteractiveAllowed(options));
 
   if (!settings.host && needsHost) {
     throw new Error(
