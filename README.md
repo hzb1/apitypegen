@@ -51,12 +51,13 @@ nvm use
 
 ```json
 {
-  "host": "https://swagger.huzhibin.top",
+  "host": "http://localhost:9966",
   "version": "v3"
 }
 ```
 
-host 优先级：`--host` > `ts-swagger.config.json` > 内置默认值。
+host 优先级：`--host` > `TS_SWAGGER_HOST` > `ts-swagger.config.json`。
+如果三者都没有，CLI 会直接报错提示。
 
 ### 5.2 常用命令
 

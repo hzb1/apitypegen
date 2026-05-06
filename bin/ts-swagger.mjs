@@ -18,7 +18,6 @@ import {
 } from "../src/core/swagger-loader.js";
 
 const DEFAULT_CONFIG = {
-  host: "https://swagger.huzhibin.top",
   version: "v3",
   generator: {
     indent: 2,
@@ -42,7 +41,7 @@ Usage:
   ts-swagger gen --method <method> --path <api-path> [--service <name>] [--host <url>] [--doc-url <url>] [--copy] [--format <ts|json>]
 
 Notes:
-  - host priority: --host > ts-swagger.config.json > ${DEFAULT_CONFIG.host}
+  - host priority: --host > TS_SWAGGER_HOST > ts-swagger.config.json
   - service is selected interactively when omitted and swagger-config contains multiple services
   - --doc-url bypasses swagger-config and service selection
 `);
@@ -112,7 +111,7 @@ function resolveSettings(options, userConfig) {
   const host =
     options.host !== undefined
       ? normalizeBaseUrl(options.host)
-      : normalizeBaseUrl(userConfig.host || DEFAULT_CONFIG.host);
+      : normalizeBaseUrl(process.env.TS_SWAGGER_HOST || userConfig.host || "");
   const version = String(options.version || userConfig.version || DEFAULT_CONFIG.version);
   const timeoutMs = toInt(options.timeout, 15000);
   const generator = {
@@ -402,9 +401,13 @@ async function main() {
 
   const { config } = await loadUserConfig(process.cwd());
   const settings = resolveSettings(options, config);
+  const needsHost =
+    command === "services" || ((command === "search" || command === "gen") && !options["doc-url"]);
 
-  if (!settings.host && command !== "gen" && !options["doc-url"]) {
-    throw new Error("Host is empty. Configure host in ts-swagger.config.json or pass --host.");
+  if (!settings.host && needsHost) {
+    throw new Error(
+      "Host is required. Provide --host, set TS_SWAGGER_HOST, or configure host in ts-swagger.config.json.",
+    );
   }
 
   if (command === "services") {
