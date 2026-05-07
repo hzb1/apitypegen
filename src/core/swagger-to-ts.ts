@@ -1,4 +1,66 @@
-const DEFAULT_OPTIONS = {
+export interface GeneratorOptions {
+  indent?: number;
+  useInterface?: boolean;
+  addExport?: boolean;
+  semicolon?: boolean;
+  typeNameMapper?: (rawName: string) => string;
+  int64ToString?: boolean;
+  showExample?: boolean;
+}
+
+export interface GeneratedTypes {
+  queryParams: string;
+  requestBody: string;
+  responseData: string;
+  models: string;
+}
+
+type SwaggerSchema = {
+  $ref?: string;
+  type?: string;
+  format?: string;
+  enum?: unknown[];
+  items?: SwaggerSchema;
+  properties?: Record<string, SwaggerSchema | undefined>;
+  required?: string[];
+  summary?: string;
+  description?: string;
+  example?: unknown;
+  [key: string]: unknown;
+};
+
+type SwaggerParameter = {
+  in?: string;
+  name?: string;
+  required?: boolean;
+  schema?: SwaggerSchema;
+  [key: string]: unknown;
+};
+
+type SwaggerMediaType = {
+  schema?: SwaggerSchema;
+};
+
+type SwaggerRequestBody = {
+  content?: Record<string, SwaggerMediaType | undefined>;
+};
+
+type SwaggerResponse = {
+  content?: Record<string, SwaggerMediaType | undefined>;
+  schema?: SwaggerSchema;
+};
+
+type SwaggerOperation = {
+  parameters?: SwaggerParameter[];
+  requestBody?: SwaggerRequestBody;
+  responses?: Record<string, SwaggerResponse | undefined>;
+};
+
+type SwaggerDocument = {
+  paths?: Record<string, unknown>;
+};
+
+const DEFAULT_OPTIONS: Required<GeneratorOptions> = {
   indent: 2,
   useInterface: true,
   addExport: true,
@@ -9,40 +71,43 @@ const DEFAULT_OPTIONS = {
 };
 
 export class SwaggerToTS {
-  constructor(doc, options = {}) {
-    this.doc = doc;
+  private readonly doc: SwaggerDocument;
+  private readonly options: Required<GeneratorOptions>;
+  private readonly usedDefinitions = new Map<string, SwaggerSchema>();
+
+  constructor(doc: unknown, options: GeneratorOptions = {}) {
+    this.doc = doc && typeof doc === "object" ? (doc as SwaggerDocument) : {};
     this.options = {
       ...DEFAULT_OPTIONS,
       ...options,
       typeNameMapper: options.typeNameMapper ?? DEFAULT_OPTIONS.typeNameMapper,
     };
-    this.usedDefinitions = new Map();
   }
 
-  get semi() {
+  private get semi(): string {
     return this.options.semicolon ? ";" : "";
   }
 
-  get exp() {
+  private get exp(): string {
     return this.options.addExport ? "export " : "";
   }
 
-  resolveRef(ref) {
-    const path = ref.replace(/^#\//, "");
-    const parts = path.split("/");
-    const rawName = parts[parts.length - 1];
+  private resolveRef(ref: string): { schema: SwaggerSchema | undefined; name: string } {
+    const refPath = ref.replace(/^#\//, "");
+    const parts = refPath.split("/");
+    const rawName = parts[parts.length - 1] || "UnknownModel";
     const mappedName = this.options.typeNameMapper(rawName);
 
-    let current = this.doc;
+    let current: unknown = this.doc;
     for (const part of parts) {
       if (!current || typeof current !== "object") {
         current = undefined;
         break;
       }
-      current = current[part];
+      current = (current as Record<string, unknown>)[part];
     }
 
-    const schema = current;
+    const schema = current as SwaggerSchema | undefined;
     if (schema && !this.usedDefinitions.has(mappedName)) {
       this.usedDefinitions.set(mappedName, schema);
       this.getTSType(schema);
@@ -51,8 +116,8 @@ export class SwaggerToTS {
     return { schema, name: mappedName };
   }
 
-  formatJSDoc(doc, indentDepth = 0) {
-    const lines = [];
+  private formatJSDoc(doc: SwaggerSchema, indentDepth = 0): string {
+    const lines: string[] = [];
     const indent = " ".repeat(this.options.indent * indentDepth);
 
     if (doc?.summary) lines.push(doc.summary);
@@ -71,7 +136,7 @@ export class SwaggerToTS {
     return `${indent}/**\n${content}\n${indent} */\n`;
   }
 
-  getTSType(schema, depth = 1) {
+  private getTSType(schema: SwaggerSchema | undefined, depth = 1): string {
     if (!schema) return "any";
 
     if (schema.$ref) {
@@ -98,7 +163,7 @@ export class SwaggerToTS {
       for (const [key, prop] of entries) {
         const indent = " ".repeat(this.options.indent * depth);
         const optionalFlag = requiredSet.has(key) ? "" : "?";
-        objectString += this.formatJSDoc(prop, depth);
+        objectString += this.formatJSDoc(prop || {}, depth);
         objectString += `${indent}${key}${optionalFlag}: ${this.getTSType(
           prop,
           depth + 1,
@@ -115,14 +180,14 @@ export class SwaggerToTS {
       return "number";
     }
 
-    const primitiveMap = {
+    const primitiveMap: Record<string, string> = {
       string: "string",
       boolean: "boolean",
     };
-    return primitiveMap[schema.type] || "any";
+    return primitiveMap[schema.type || ""] || "any";
   }
 
-  generateQueryParams(operation) {
+  private generateQueryParams(operation: SwaggerOperation): string {
     const params = Array.isArray(operation?.parameters)
       ? operation.parameters.filter((item) => item && item.in !== "body" && item.in !== "header")
       : [];
@@ -131,16 +196,17 @@ export class SwaggerToTS {
 
     let code = `${this.exp}interface QueryParams {\n`;
     for (const item of params) {
-      const schema = item.schema || item;
-      code += `  ${item.name}${item.required ? "" : "?"}: ${this.getTSType(schema, 2)}${
-        this.semi
-      }\n`;
+      const schema = item.schema || (item as SwaggerSchema);
+      code += `  ${item.name || "unknown"}${item.required ? "" : "?"}: ${this.getTSType(
+        schema,
+        2,
+      )}${this.semi}\n`;
     }
-    return code + "}";
+    return `${code}}`;
   }
 
-  generateRequestBody(operation) {
-    let schema;
+  private generateRequestBody(operation: SwaggerOperation): string {
+    let schema: SwaggerSchema | undefined;
     if (operation?.requestBody && operation.requestBody.content) {
       const content = operation.requestBody.content;
       schema = content["application/json"]?.schema;
@@ -158,7 +224,7 @@ export class SwaggerToTS {
       : "// 无请求体";
   }
 
-  generateResponse(operation) {
+  private generateResponse(operation: SwaggerOperation): string {
     const responses =
       operation && typeof operation.responses === "object" && operation.responses
         ? operation.responses
@@ -168,7 +234,7 @@ export class SwaggerToTS {
 
     if (!response) return `${this.exp}type ResponseData = any${this.semi}`;
 
-    let schema;
+    let schema: SwaggerSchema | undefined;
     if (response.content) {
       schema =
         response.content["application/json"]?.schema ||
@@ -182,10 +248,10 @@ export class SwaggerToTS {
       : `${this.exp}type ResponseData = any${this.semi}`;
   }
 
-  getStructuredTypes(path, method) {
+  getStructuredTypes(path: string, method: string): GeneratedTypes {
     this.usedDefinitions.clear();
 
-    const pathItem = this.doc?.paths?.[path];
+    const pathItem = this.doc?.paths?.[path] as Record<string, SwaggerOperation | undefined> | undefined;
     const operation =
       pathItem && typeof pathItem === "object" ? pathItem[String(method).toLowerCase()] : undefined;
 

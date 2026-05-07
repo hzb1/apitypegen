@@ -7,9 +7,24 @@
     "ts-swagger": "./bin/ts-swagger.mjs"
   },
   "scripts": {
-    "ts-swagger": "node ./bin/ts-swagger.mjs"
+    "clean": "rm -rf dist",
+    "build": "npm run clean && tsc -p tsconfig.build.json",
+    "typecheck:core": "tsc -p tsconfig.build.json --noEmit",
+    "prepare": "npm run build",
+    "prepack": "npm run build",
+    "ts-swagger": "node ./dist/cli/ts-swagger.js"
   },
   "engines": {
     "node": "^20.19.0 || >=22.12.0"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "README.md",
+    "ts-swagger.config.example.json"
+  ],
+  "devDependencies": {
+    "@types/node": "^22.15.30",
+    "typescript": "^5.8.3"
   }
 }

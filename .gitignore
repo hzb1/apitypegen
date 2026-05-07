@@ -1,7 +1,9 @@
 
 /extension/node_modules/
+/node_modules/
 /ts-swagger-ui/node_modules/
 /extension/dist/
+/dist/
 /.idea/
 /.VSCodeCounter/
 /ts-swagger.config.json
