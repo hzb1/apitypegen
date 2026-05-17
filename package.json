@@ -9,6 +9,8 @@
   "scripts": {
     "clean": "rm -rf dist",
     "build": "npm run clean && tsc -p tsconfig.build.json",
+    "deploy:extension": "bash scripts/deploy-extension.sh",
+    "deploy:ui": "bash scripts/deploy-ui.sh",
     "typecheck:core": "tsc -p tsconfig.build.json --noEmit",
     "prepare": "npm run build",
     "prepack": "npm run build",

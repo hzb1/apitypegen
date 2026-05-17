@@ -1,5 +1,6 @@
 
 /extension/node_modules/
+/extension/release/
 /node_modules/
 /ts-swagger-ui/node_modules/
 /extension/dist/
