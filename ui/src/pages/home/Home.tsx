@@ -98,8 +98,9 @@ const Home: React.FC = () => {
 
   const configLoading = stage === 'config';
   const docLoading = stage === 'document';
+  const probeLoading = stage === 'probe';
 
-  const loading = configLoading || docLoading;
+  const loading = probeLoading || configLoading || docLoading;
 
   // 2. 调用配置持久化逻辑
   const {configState, setConfigState, generatorOptions} = useOptions();
@@ -249,6 +250,41 @@ const Home: React.FC = () => {
 
   const tsCodeLoading = Boolean(selectedApi && documentData && !tsCodeParts);
   const contentLoading = hasIpParam && !error && (loading || (!documentData && !selectedApi) || tsCodeLoading);
+  const loadingCopy = useMemo(() => {
+    if (probeLoading) {
+      return {
+        title: "正在检查文档地址与访问方式",
+        detail: "先尝试读取 OpenAPI 文档，必要时继续探测 Swagger 配置",
+        button: "检查地址...",
+      };
+    }
+    if (configLoading) {
+      return {
+        title: "正在探测 Swagger 配置",
+        detail: "正在查找可用的 swagger-config 和服务列表",
+        button: "探测配置...",
+      };
+    }
+    if (docLoading) {
+      return {
+        title: "正在读取 OpenAPI 文档",
+        detail: "正在连接文档地址并解析接口定义",
+        button: "读取文档...",
+      };
+    }
+    if (tsCodeLoading) {
+      return {
+        title: "正在生成 TypeScript 类型",
+        detail: "文档已加载，正在整理当前接口的类型信息",
+        button: "加载文档",
+      };
+    }
+    return {
+      title: "正在准备文档",
+      detail: "请稍候",
+      button: "加载文档",
+    };
+  }, [configLoading, docLoading, probeLoading, tsCodeLoading]);
 
   const handleServiceChange = (url?: string) => {
     setSearchParams((prev) => {
@@ -376,7 +412,7 @@ const Home: React.FC = () => {
                           onClick={() => handleCommitIp(inputIp)}
                           disabled={!inputIp.trim() || loading}
                         >
-                          {loading ? "加载中..." : "加载文档"}
+                          {loading ? loadingCopy.button : "加载文档"}
                         </button>
                       </div>
                     </div>
@@ -493,9 +529,10 @@ const Home: React.FC = () => {
                 <div className="content-scroll-area">
                   {error && <Empty description={error}/>}
                   {!error && contentLoading && (
-                    <div className="content-center-status">
+                    <div className="content-center-status" role="status" aria-live="polite">
                       <Spin size="large" />
-                      <div className="content-center-status-text">加载中...</div>
+                      <div className="content-center-status-text">{loadingCopy.title}</div>
+                      <div className="content-center-status-detail">{loadingCopy.detail}</div>
                     </div>
                   )}
                   {!error && !contentLoading && selectedApi && (
@@ -635,7 +672,7 @@ const Home: React.FC = () => {
                     onClick={() => handleCommitIp(inputIp)}
                     disabled={!inputIp.trim() || loading}
                   >
-                    {loading ? "加载中..." : "开始探索"}
+                    {loading ? loadingCopy.button : "开始探索"}
                   </button>
                 </div>
               </div>

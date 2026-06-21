@@ -388,6 +388,14 @@
   font-size: 14px;
 }
 
+.content-center-status-detail {
+  max-width: 420px;
+  color: var(--ts-text-muted);
+  font-size: 13px;
+  line-height: 1.6;
+  text-align: center;
+}
+
 .api-workspace-grid {
   flex: 1;
   min-height: 0;

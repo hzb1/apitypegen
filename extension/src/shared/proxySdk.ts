@@ -163,12 +163,17 @@ async function proxyFetchRaw(
       // debugger;
       if (msg.requestId !== requestId) return
 
-      cleanup(); // 收到响应，立即清理计时器和监听器
-
       if (typeof msg.result !== 'object' || msg.result === null) {
-        console.log('插件 fetch 失败:', msg)
+        cleanup()
+        console.error('插件 fetch 返回了无效响应:', msg)
+        reject(new ProxyError({
+          type: 'UNKNOWN',
+          message: '浏览器扩展返回了无效响应'
+        }))
         return
       }
+
+      cleanup(); // 收到有效响应，立即清理计时器和监听器
 
       if (!msg.result.ok) {
         const errorSpec = msg.result.error;

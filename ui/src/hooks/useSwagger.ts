@@ -13,7 +13,7 @@ const DEFAULT_SWAGGER_CONFIG_CANDIDATES = [
   "/swagger-config",
 ];
 
-export type SwaggerLoadingStage = "idle" | "config" | "document"; //
+export type SwaggerLoadingStage = "idle" | "probe" | "config" | "document";
 
 type SwaggerConfig = {
   urls: { name: string; url: string }[];
@@ -27,6 +27,7 @@ type State = {
 };
 
 type Action =
+  | { type: "PROBE" }
   | { type: "LOAD_CONFIG" }
   | { type: "LOAD_DOCUMENT" }
   | { type: "LOAD_DIRECT_DOCUMENT" }
@@ -48,6 +49,8 @@ export type UseSwaggerOptions = {
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
+    case "PROBE":
+      return { ...state, config: null, document: null, stage: "probe", error: null };
     case "LOAD_CONFIG":
       return { ...state, config: null, document: null, stage: "config", error: null }; //
     case "LOAD_DOCUMENT":
@@ -90,6 +93,7 @@ function isLikelyDocumentUrl(value: string) {
     const url = new URL(value);
     const pathname = url.pathname.toLowerCase();
     if (pathname.endsWith(".json")) return true;
+    if (/\/docs\/json\/?$/.test(pathname)) return true;
     return ["openapi", "swagger", "api-docs", "docs-json"].some((token) =>
       pathname.includes(token),
     );
@@ -137,10 +141,16 @@ export function useSwagger(params: {
     let msg = defaultMsg;
     if (err instanceof ProxyError) {
       switch (err.type) {
-        case 'NETWORK_ERROR': msg = '网络连接失败'; break;
+        case 'NETWORK_ERROR':
+          msg = '网络连接失败，请检查文档地址、HTTPS 证书或浏览器扩展';
+          break;
         case 'TIMEOUT': msg = '请求超时'; break;
         default: msg = err.message;
       }
+    } else if (err instanceof TypeError) {
+      msg = '网络连接失败，请检查文档地址、HTTPS 证书、CORS 或浏览器扩展';
+    } else if (err instanceof Error && err.message) {
+      msg = `${defaultMsg}：${err.message}`;
     }
     dispatch({ type: "ERROR", payload: msg });
   };
@@ -159,14 +169,17 @@ export function useSwagger(params: {
     hasResolvedDocumentRef.current = false;
 
     const fetchJson = async (url: string) => {
-      const res = await proxyFetch(url);
+      const res = await proxyFetch(url, { timeout: 10000 });
       if (!res.ok) throw new Error(`Status: ${res.status}`);
       return res.json();
     };
 
-    const fetchDirectDocument = async (silent = false): Promise<boolean> => {
+    const fetchDirectDocument = async (
+      silent = false,
+      probing = false,
+    ): Promise<boolean> => {
       const rid = ++docRequestIdRef.current;
-      dispatch({ type: "LOAD_DIRECT_DOCUMENT" });
+      dispatch({ type: probing ? "PROBE" : "LOAD_DIRECT_DOCUMENT" });
       try {
         const doc = (await fetchJson(baseUrl)) as unknown;
         if (rid !== docRequestIdRef.current) return false;
@@ -235,7 +248,7 @@ export function useSwagger(params: {
     }
 
     const fetchWithFallback = async () => {
-      const directOk = await fetchDirectDocument(true);
+      const directOk = await fetchDirectDocument(true, true);
       if (directOk) return;
       fetchConfig();
     };
@@ -257,8 +270,12 @@ export function useSwagger(params: {
     const fetchDocument = async () => {
       try {
         const docUrl = joinUrl(baseUrl, serviceUrl);
-        const res = await proxyFetch(docUrl);
+        const res = await proxyFetch(docUrl, { timeout: 10000 });
+        if (!res.ok) throw new Error(`Status: ${res.status}`);
         const doc = (await res.json()) as OpenAPI.Document;
+        if (!isOpenApiLike(doc)) {
+          throw new Error("文档格式不是 OpenAPI/Swagger");
+        }
 
         if (rid !== docRequestIdRef.current) return;
 
