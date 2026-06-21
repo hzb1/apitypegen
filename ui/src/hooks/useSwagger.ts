@@ -117,9 +117,10 @@ export function useSwagger(params: {
   ip: string;
   serviceUrl?: string;
   version?: string;
+  reloadKey?: number;
   options?: UseSwaggerOptions;
 }) {
-  const { docOrHost, ip, serviceUrl, version = "v3", options } = params;
+  const { docOrHost, ip, serviceUrl, version = "v3", reloadKey = 0, options } = params;
   const input = docOrHost ?? ip;
 
   const [state, dispatch] = useReducer(reducer, {
@@ -166,6 +167,7 @@ export function useSwagger(params: {
   useEffect(() => {
     const baseUrl = normalizedInput;
     if (!baseUrl) return;
+    if (serviceUrl && !directDocumentMode) return;
     hasResolvedDocumentRef.current = false;
 
     const fetchJson = async (url: string) => {
@@ -254,7 +256,7 @@ export function useSwagger(params: {
     };
 
     fetchWithFallback();
-  }, [directDocumentMode, normalizedInput, serviceUrl, version]);
+  }, [directDocumentMode, normalizedInput, reloadKey, serviceUrl, version]);
 
   /* --------------------- Effect 2: 监听 Service 变化 -> 加载文档 -------------------- */
 
@@ -291,7 +293,7 @@ export function useSwagger(params: {
     };
 
     fetchDocument();
-  }, [directDocumentMode, normalizedInput, serviceUrl]); // 当 Host + Service 变化时，加载文档
+  }, [directDocumentMode, normalizedInput, reloadKey, serviceUrl]); // 当 Host + Service 变化时，加载文档
 
   return {
     configData: state.config,

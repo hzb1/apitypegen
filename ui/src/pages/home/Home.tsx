@@ -63,6 +63,7 @@ const Home: React.FC = () => {
   // const queryApiKey = searchParams.get("api");
 
   const [inputIp, setInputIp] = useState(ipFromUrl);
+  const [reloadKey, setReloadKey] = useState(0);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [configDrawerOpen, setConfigDrawerOpen] = useState(false);
   const scrollRequestIdRef = useRef(0);
@@ -81,6 +82,7 @@ const Home: React.FC = () => {
     docOrHost: ipFromUrl,
     ip: ipFromUrl,
     serviceUrl,
+    reloadKey,
     options: {
       // 当 Hook 发现配置加载好了但 URL 没 service 时触发
       onAutoSelectService: (defaultUrl) => {
@@ -153,7 +155,9 @@ const Home: React.FC = () => {
 
   const handleCommitIp = (nextIp: string) => {
     const normalized = nextIp.trim();
+    if (!normalized) return;
     setInputIp(normalized);
+    setReloadKey((current) => current + 1);
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       next.set("doc", normalized);
@@ -250,39 +254,39 @@ const Home: React.FC = () => {
 
   const tsCodeLoading = Boolean(selectedApi && documentData && !tsCodeParts);
   const contentLoading = hasIpParam && !error && (loading || (!documentData && !selectedApi) || tsCodeLoading);
-  const loadingCopy = useMemo(() => {
+  const loadingFeedback = useMemo(() => {
     if (probeLoading) {
       return {
-        title: "正在检查文档地址与访问方式",
-        detail: "先尝试读取 OpenAPI 文档，必要时继续探测 Swagger 配置",
+        title: "正在加载文档",
         button: "检查地址...",
+        text: "正在请求文档地址，识别 OpenAPI / Swagger 数据",
       };
     }
     if (configLoading) {
       return {
-        title: "正在探测 Swagger 配置",
-        detail: "正在查找可用的 swagger-config 和服务列表",
+        title: "正在加载文档",
         button: "探测配置...",
+        text: "正在探测 swagger-config 和可用服务列表",
       };
     }
     if (docLoading) {
       return {
-        title: "正在读取 OpenAPI 文档",
-        detail: "正在连接文档地址并解析接口定义",
+        title: "正在加载文档",
         button: "读取文档...",
+        text: "正在请求 OpenAPI 文档并解析接口定义",
       };
     }
     if (tsCodeLoading) {
       return {
         title: "正在生成 TypeScript 类型",
-        detail: "文档已加载，正在整理当前接口的类型信息",
         button: "加载文档",
+        text: "正在整理当前接口的 TypeScript 类型",
       };
     }
     return {
       title: "正在准备文档",
-      detail: "请稍候",
       button: "加载文档",
+      text: "正在准备文档请求",
     };
   }, [configLoading, docLoading, probeLoading, tsCodeLoading]);
 
@@ -412,7 +416,7 @@ const Home: React.FC = () => {
                           onClick={() => handleCommitIp(inputIp)}
                           disabled={!inputIp.trim() || loading}
                         >
-                          {loading ? loadingCopy.button : "加载文档"}
+                          {loading ? loadingFeedback.button : "加载文档"}
                         </button>
                       </div>
                     </div>
@@ -453,6 +457,15 @@ const Home: React.FC = () => {
             </header>
 
             <div className="home-main-shell">
+              {!error && contentLoading && (
+                <div className="home-main-loading" role="status" aria-live="polite">
+                  <div className="home-main-loading-panel">
+                    <Spin size="large" />
+                    <div className="home-main-loading-title">{loadingFeedback.title}</div>
+                    <div className="home-main-loading-copy">{loadingFeedback.text}</div>
+                  </div>
+                </div>
+              )}
               <aside className="home-sidebar">
                 <SideBar
                   scrollRequest={scrollRequest}
@@ -528,13 +541,6 @@ const Home: React.FC = () => {
 
                 <div className="content-scroll-area">
                   {error && <Empty description={error}/>}
-                  {!error && contentLoading && (
-                    <div className="content-center-status" role="status" aria-live="polite">
-                      <Spin size="large" />
-                      <div className="content-center-status-text">{loadingCopy.title}</div>
-                      <div className="content-center-status-detail">{loadingCopy.detail}</div>
-                    </div>
-                  )}
                   {!error && !contentLoading && selectedApi && (
                     <div className="api-workspace-grid">
                       <div className="left-main">
@@ -672,7 +678,7 @@ const Home: React.FC = () => {
                     onClick={() => handleCommitIp(inputIp)}
                     disabled={!inputIp.trim() || loading}
                   >
-                    {loading ? loadingCopy.button : "开始探索"}
+                    {loading ? loadingFeedback.button : "开始探索"}
                   </button>
                 </div>
               </div>

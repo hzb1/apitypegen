@@ -187,12 +187,48 @@
 }
 
 .home-main-shell {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(268px, 320px) minmax(0, 1fr);
   gap: 16px;
   min-height: 0;
   flex: 1;
   padding: 16px 16px 18px;
+}
+
+.home-main-loading {
+  position: absolute;
+  inset: 16px 16px 18px;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--ts-line);
+  border-radius: var(--ts-radius-lg);
+  background: var(--ts-surface);
+  box-shadow: var(--ts-shadow-card);
+}
+
+.home-main-loading-panel {
+  width: min(520px, calc(100% - 32px));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.home-main-loading-title {
+  color: var(--ts-text-primary);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.home-main-loading-copy {
+  width: 100%;
+  color: var(--ts-text-muted);
+  font-size: 13px;
+  line-height: 1.6;
+  text-align: center;
 }
 
 .home-sidebar {
@@ -381,19 +417,6 @@
   align-items: center;
   justify-content: center;
   gap: 12px;
-}
-
-.content-center-status-text {
-  color: var(--ts-text-muted);
-  font-size: 14px;
-}
-
-.content-center-status-detail {
-  max-width: 420px;
-  color: var(--ts-text-muted);
-  font-size: 13px;
-  line-height: 1.6;
-  text-align: center;
 }
 
 .api-workspace-grid {
@@ -649,6 +672,10 @@
     grid-template-columns: 1fr;
     gap: 12px;
     padding: 12px;
+  }
+
+  .home-main-loading {
+    inset: 12px;
   }
 
   .home-sidebar {
