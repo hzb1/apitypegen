@@ -51,8 +51,14 @@ require_cmd rsync
 require_cmd ssh
 
 SSH_TARGET="${DEPLOY_USER}@${DEPLOY_HOST}"
-SSH_OPTS=(-p "${DEPLOY_PORT}")
-RSYNC_RSH="ssh -p ${DEPLOY_PORT}"
+SSH_CONTROL_PATH="/tmp/ts-swagger-ssh-${UID:-user}-%C"
+SSH_OPTS=(
+  -p "${DEPLOY_PORT}"
+  -o ControlMaster=auto
+  -o ControlPersist=10m
+  -o "ControlPath=${SSH_CONTROL_PATH}"
+)
+RSYNC_RSH="ssh -p ${DEPLOY_PORT} -o ControlMaster=auto -o ControlPersist=10m -o ControlPath=${SSH_CONTROL_PATH}"
 RELEASE_NAME="ui-$(date +%Y%m%d%H%M%S)"
 REMOTE_RELEASES_DIR="${DEPLOY_ROOT}/releases"
 REMOTE_RELEASE_DIR="${REMOTE_RELEASES_DIR}/${RELEASE_NAME}"
