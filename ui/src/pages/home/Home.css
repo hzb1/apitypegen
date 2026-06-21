@@ -583,6 +583,11 @@
   margin-top: 6px;
 }
 
+.home-welcome-download {
+  margin-top: 10px;
+  padding-inline: 4px;
+}
+
 .home-welcome-composer {
   display: flex;
   align-items: center;

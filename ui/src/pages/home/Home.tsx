@@ -18,7 +18,7 @@ import {
 import "./Home.css";
 import {useSwagger} from "@/hooks/useSwagger.ts";
 import {useOptions} from "@/hooks/useOptions.ts";
-import {MenuOutlined, PushpinOutlined, QuestionCircleOutlined, SettingOutlined} from "@ant-design/icons";
+import {DownloadOutlined, MenuOutlined, PushpinOutlined, QuestionCircleOutlined, SettingOutlined} from "@ant-design/icons";
 import {usePluginEnabled} from "@/hooks/usePluginEnabled.ts";
 import {useSearchParams} from "react-router";
 import SideBar, {
@@ -34,7 +34,8 @@ import logoUrl from "@/assets/logo/logo-replica-full.svg";
 
 const EXTENSION_URL =
   (import.meta.env.VITE_PROXY_EXTENSION_URL as string | undefined) ??
-  "https://github.com/hzb1/ts-swagger/releases/latest/download/ts-swagger-extension-dist-latest.zip";
+  "https://swagger.huzhibin.top/downloads/ts-swagger-extension-dist-latest.zip";
+const DEFAULT_DOC_URL = "https://api.huzhibin.top/docs/json";
 
 type ScrollRequest = {
   key: string;
@@ -62,7 +63,7 @@ const Home: React.FC = () => {
 
   // const queryApiKey = searchParams.get("api");
 
-  const [inputIp, setInputIp] = useState(ipFromUrl);
+  const [inputIp, setInputIp] = useState(ipFromUrl || DEFAULT_DOC_URL);
   const [reloadKey, setReloadKey] = useState(0);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [configDrawerOpen, setConfigDrawerOpen] = useState(false);
@@ -169,7 +170,7 @@ const Home: React.FC = () => {
   };
 
   useEffect(() => {
-    setInputIp(ipFromUrl);
+    setInputIp(ipFromUrl || DEFAULT_DOC_URL);
   }, [ipFromUrl]);
 
   useEffect(() => {
@@ -252,8 +253,7 @@ const Home: React.FC = () => {
     };
   }, [documentData, generatorOptions, selectedApi]);
 
-  const tsCodeLoading = Boolean(selectedApi && documentData && !tsCodeParts);
-  const contentLoading = hasIpParam && !error && (loading || (!documentData && !selectedApi) || tsCodeLoading);
+  const contentLoading = hasIpParam && !error && (loading || !documentData);
   const loadingFeedback = useMemo(() => {
     if (probeLoading) {
       return {
@@ -276,19 +276,12 @@ const Home: React.FC = () => {
         text: "正在请求 OpenAPI 文档并解析接口定义",
       };
     }
-    if (tsCodeLoading) {
-      return {
-        title: "正在生成 TypeScript 类型",
-        button: "加载文档",
-        text: "正在整理当前接口的 TypeScript 类型",
-      };
-    }
     return {
       title: "正在准备文档",
       button: "加载文档",
       text: "正在准备文档请求",
     };
-  }, [configLoading, docLoading, probeLoading, tsCodeLoading]);
+  }, [configLoading, docLoading, probeLoading]);
 
   const handleServiceChange = (url?: string) => {
     setSearchParams((prev) => {
@@ -668,7 +661,7 @@ const Home: React.FC = () => {
                   >
                     <Input
                       size="large"
-                      placeholder="例如：http://localhost:9966/v3/api-docs"
+                      placeholder={DEFAULT_DOC_URL}
                       onPressEnter={(event) => handleCommitIp(event.currentTarget.value)}
                     />
                   </AutoComplete>
@@ -682,6 +675,14 @@ const Home: React.FC = () => {
                   </button>
                 </div>
               </div>
+              <Button
+                className="home-welcome-download"
+                type="link"
+                icon={<DownloadOutlined />}
+                href={EXTENSION_URL}
+              >
+                下载最新浏览器扩展
+              </Button>
             </div>
 
             {!checking && !pluginEnabled && (
@@ -701,7 +702,7 @@ const Home: React.FC = () => {
                 }
                 action={
                   <Button size="small" type="primary" href={EXTENSION_URL}>
-                    下载扩展
+                    下载最新扩展
                   </Button>
                 }
                 className="home-welcome-alert"
