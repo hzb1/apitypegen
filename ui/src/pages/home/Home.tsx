@@ -65,14 +65,31 @@ const Home: React.FC = () => {
   } = useDocSearchHistory();
 
   /**
+   * 扩展状态：影响跨域/内网文档加载方式，也用于给用户展示安装和重检入口。
+   */
+  const {
+    status: pluginStatus,
+    pluginEnabled,
+    checking,
+    recheck: recheckPlugin,
+  } = usePluginEnabled();
+
+  /**
    * Swagger/OpenAPI 文档加载：Demo 使用原生 fetch，其它地址保持自动代理策略。
    */
-  const { documentData: remoteDocumentData, configData, stage, error } = useSwagger({
+  const {
+    documentData: remoteDocumentData,
+    configData,
+    stage,
+    error,
+    errorDetail,
+  } = useSwagger({
     docOrHost: ipFromUrl,
     ip: ipFromUrl,
     serviceUrl,
     reloadKey,
     fetchMode: isDemoMode ? "native" : "auto",
+    extensionAvailable: pluginEnabled,
     options: {
       onAutoSelectService: (defaultUrl) => {
         setSearchParams((prev) => {
@@ -105,6 +122,9 @@ const Home: React.FC = () => {
   const localDocumentData = activeLocalExport?.payload.openapi as OpenAPI.Document | undefined;
   const documentData = isLocalMode ? (localDocumentData ?? null) : remoteDocumentData;
   const activeError = isLocalMode ? localActiveError : error;
+  const activeErrorDetail = isLocalMode
+    ? (localActiveError ? { message: localActiveError } : null)
+    : errorDetail;
 
   /**
    * 加载态与生成配置：配置会直接影响右侧 TypeScript 输出。
@@ -194,11 +214,6 @@ const Home: React.FC = () => {
   const apiBaseUrl = activeLocalExport?.payload.source.apiBaseUrl || derivedApiBaseUrl;
   const tsCodeParts = useHomeTsCodeParts({ documentData, selectedApi, generatorOptions });
 
-  /**
-   * 插件状态只影响欢迎页提示；不阻塞本地 Demo。
-   */
-  const { pluginEnabled, checking } = usePluginEnabled();
-
   useEffect(() => {
     if (!remoteDocumentData || isLocalMode) return;
     recordSearchOnce(ipFromUrl);
@@ -220,6 +235,10 @@ const Home: React.FC = () => {
       message.error(`删除失败：${text}`);
     }
   }, [localId, removeSavedExport, setSearchParams]);
+
+  const handleBackHome = useCallback(() => {
+    setSearchParams(new URLSearchParams(), {replace: true});
+  }, [setSearchParams]);
 
   return (
     <>
@@ -257,6 +276,7 @@ const Home: React.FC = () => {
           {/* 主工作区：左侧接口导航、已查看 Tabs、接口详情和 Models 面板。 */}
           <DocumentWorkspace
             error={activeError}
+            errorDetail={activeErrorDetail}
             contentLoading={contentLoading}
             loadingFeedback={loadingFeedback}
             scrollRequest={scrollRequest}
@@ -275,6 +295,10 @@ const Home: React.FC = () => {
             selectedApi={selectedApi}
             tsCodeParts={tsCodeParts}
             apiBaseUrl={apiBaseUrl}
+            extensionChecking={checking}
+            onRecheckExtension={recheckPlugin}
+            onTryDemo={handleTryDemo}
+            onBackHome={handleBackHome}
           />
 
           {/* 移动端接口导航：复用左侧导航内容，窄屏时通过抽屉打开。 */}
@@ -305,7 +329,9 @@ const Home: React.FC = () => {
           loading={loading}
           loadingFeedback={loadingFeedback}
           checking={checking}
+          pluginStatus={pluginStatus}
           pluginEnabled={pluginEnabled}
+          onRecheckPlugin={recheckPlugin}
           savedExports={savedExports}
           localLibraryLoading={libraryLoading}
           localLibraryError={libraryError}

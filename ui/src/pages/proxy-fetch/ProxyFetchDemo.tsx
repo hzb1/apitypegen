@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Alert,
   Badge,
@@ -18,7 +18,7 @@ import {
   CheckCircleOutlined,
   CloseCircleOutlined,
 } from "@ant-design/icons";
-import { proxyFetch, checkPluginEnabled } from "@extension/src/shared/proxySdk.ts";
+import { proxyFetch } from "@extension/src/shared/proxySdk.ts";
 import {
   ProxyError,
   type ErrorSpec,
@@ -31,6 +31,7 @@ import {
 import { mapProxyExchangeToNetworkEntry } from "@extension/src/shared/networkMapper.ts";
 import type { NetworkEntry } from "@extension/src/shared/networkTypes.ts";
 import NetworkViewer from "@/components/network/NetworkViewer.tsx";
+import { usePluginEnabled } from "@/hooks/usePluginEnabled.ts";
 import "./ProxyFetchDemo.css";
 
 const { Title, Paragraph, Text } = Typography;
@@ -246,9 +247,12 @@ const SCENARIOS: Scenario[] = [
 ];
 
 const ProxyFetchDemo: React.FC = () => {
-  const [extensionStatus, setExtensionStatus] = useState<
-    "checking" | "enabled" | "disabled"
-  >("checking");
+  const {
+    status: extensionStatus,
+    pluginEnabled: pluginAvailable,
+    checking: extensionChecking,
+    recheck: checkExtension,
+  } = usePluginEnabled();
 
   const [results, setResults] = useState<Record<string, ResultState>>({});
   const [controllers, setControllers] = useState<
@@ -270,21 +274,7 @@ const ProxyFetchDemo: React.FC = () => {
   );
   const [customTimeout, setCustomTimeout] = useState("10000");
   const [useNativeFetch, setUseNativeFetch] = useState(false);
-
-  useEffect(() => {
-    const check = async () => {
-      setExtensionStatus("checking");
-      const enabled = await checkPluginEnabled();
-      setExtensionStatus(enabled ? "enabled" : "disabled");
-    };
-    void check();
-  }, []);
-
-  const checkExtension = async () => {
-    setExtensionStatus("checking");
-    const enabled = await checkPluginEnabled();
-    setExtensionStatus(enabled ? "enabled" : "disabled");
-  };
+  const proxyModeBlocked = !useNativeFetch && !pluginAvailable;
 
   const setResult = (id: string, patch: Partial<ResultState>) => {
     setResults((prev) => ({
@@ -303,6 +293,16 @@ const ProxyFetchDemo: React.FC = () => {
     Object.fromEntries(Array.from(headers.entries()));
 
   const runScenario = async (scenario: Scenario, source: "proxy" | "native") => {
+    if (source === "proxy" && !pluginAvailable) {
+      setResult(scenario.id, {
+        status: "error",
+        source: "proxy",
+        errorType: "EXTENSION_UNAVAILABLE",
+        errorMessage: "未检测到浏览器扩展，proxyFetch 模式暂不可用。",
+      });
+      return;
+    }
+
     setResult(scenario.id, { status: "running", source });
 
     let controller: AbortController | undefined;
@@ -344,7 +344,7 @@ const ProxyFetchDemo: React.FC = () => {
     const start = performance.now();
 
     try {
-      const response = useNativeFetch
+      const response = source === "native"
         ? await fetch(scenario.url, init)
         : await proxyFetch(scenario.url, init);
       const durationMs = Math.round(performance.now() - start);
@@ -447,12 +447,11 @@ const ProxyFetchDemo: React.FC = () => {
     }
   };
 
-  const pluginAvailable = extensionStatus === "enabled";
   const extensionTag = useMemo(() => {
     if (extensionStatus === "checking") {
       return <Tag color="processing">检测中</Tag>;
     }
-    if (extensionStatus === "enabled") {
+    if (extensionStatus === "available") {
       return (
         <Tag color="success" icon={<CheckCircleOutlined />}>
           已检测到扩展
@@ -526,7 +525,7 @@ const ProxyFetchDemo: React.FC = () => {
         bodyType: customBodyType,
         body,
       },
-      useNativeFetch ? "native" : (pluginAvailable ? "proxy" : "native"),
+      useNativeFetch ? "native" : "proxy",
     );
   };
 
@@ -545,7 +544,7 @@ const ProxyFetchDemo: React.FC = () => {
           <Button type="primary" disabled={!EXTENSION_URL} href={EXTENSION_URL}>
             安装扩展
           </Button>
-          <Button onClick={checkExtension}>重新检测</Button>
+          <Button onClick={checkExtension} loading={extensionChecking}>重新检测</Button>
         </Space>
       </div>
 
@@ -585,7 +584,15 @@ const ProxyFetchDemo: React.FC = () => {
             type="info"
             showIcon
             message="扩展未检测到"
-            description="安装扩展并刷新页面后再进行测试。"
+            description="原生 fetch 仍可尝试；proxyFetch 模式需要安装并启用扩展。安装后点击“重新检测”。"
+          />
+        )}
+        {proxyModeBlocked && (
+          <Alert
+            type="warning"
+            showIcon
+            message="proxyFetch 模式暂不可用"
+            description="当前未检测到扩展，请切换到原生 fetch，或安装扩展后重新检测。"
           />
         )}
       </div>
@@ -609,10 +616,11 @@ const ProxyFetchDemo: React.FC = () => {
                       type="primary"
                       size="small"
                       loading={isRunning}
+                      disabled={proxyModeBlocked}
                       onClick={() =>
                         runScenario(
                           scenario,
-                          useNativeFetch ? "native" : (pluginAvailable ? "proxy" : "native"),
+                          useNativeFetch ? "native" : "proxy",
                         )
                       }
                     >
@@ -728,7 +736,7 @@ const ProxyFetchDemo: React.FC = () => {
                 placeholder="timeout(ms)"
                 style={{ width: 140 }}
               />
-              <Button type="primary" onClick={runCustom}>
+              <Button type="primary" onClick={runCustom} disabled={proxyModeBlocked}>
                 Run
               </Button>
             </Space>

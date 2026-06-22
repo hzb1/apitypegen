@@ -1,11 +1,12 @@
 import { useState } from "react";
 import type { AutoCompleteProps } from "antd";
-import { Alert, AutoComplete, Button, Input } from "antd";
-import { DownloadOutlined } from "@ant-design/icons";
+import { AutoComplete, Button, Input, Tag } from "antd";
+import { DownloadOutlined, ReloadOutlined } from "@ant-design/icons";
 import logoUrl from "@/assets/logo/logo-replica-full.svg";
 import { EXTENSION_URL } from "../home.constants.ts";
 import type { LoadingFeedback } from "../home.types.ts";
 import type { SavedApiExport } from "../export/export.types.ts";
+import type { PluginStatus } from "@/hooks/usePluginEnabled.ts";
 import LocalApiLibrary from "./LocalApiLibrary.tsx";
 
 type WelcomeViewProps = {
@@ -15,7 +16,9 @@ type WelcomeViewProps = {
   loading: boolean;
   loadingFeedback: LoadingFeedback;
   checking: boolean;
+  pluginStatus: PluginStatus;
   pluginEnabled: boolean;
+  onRecheckPlugin: () => void;
   savedExports: SavedApiExport[];
   localLibraryLoading: boolean;
   localLibraryError?: string | null;
@@ -32,7 +35,9 @@ export default function WelcomeView(props: WelcomeViewProps) {
     loading,
     loadingFeedback,
     checking,
+    pluginStatus,
     pluginEnabled,
+    onRecheckPlugin,
     savedExports,
     localLibraryLoading,
     localLibraryError,
@@ -98,29 +103,53 @@ export default function WelcomeView(props: WelcomeViewProps) {
         </Button>
       </div>
 
-      {!checking && !pluginEnabled && (
-        <Alert
-          type="warning"
-          showIcon
-          title="未检测到浏览器扩展"
-          description={
-            <div className="home-welcome-steps">
-              <div>示例项目无需扩展；加载内网/跨域 Swagger、代理真实请求和网络调试时需要扩展。</div>
-              <div>安装步骤：</div>
-              <ol>
-                <li>1.点击“安装扩展”下载压缩包。</li>
-                <li>2.解压后打开浏览器扩展管理页。</li>
-                <li>3.开启“开发者模式”，选择“加载已解压的扩展”。</li>
-              </ol>
+      {!pluginEnabled && (
+        <section className="extension-guide">
+          <div className="extension-guide-header">
+            <div>
+              <h2>未安装扩展也可以先体验</h2>
+              <p>TS Swagger 的核心浏览和类型生成不强制依赖扩展；只有跨域、内网和代理调试场景需要它。</p>
             </div>
-          }
-          action={
-            <Button size="small" type="primary" href={EXTENSION_URL}>
-              下载最新扩展
+            <Tag color={pluginStatus === "checking" ? "processing" : "warning"}>
+              {checking ? "正在检测扩展" : "未检测到扩展"}
+            </Tag>
+          </div>
+          <div className="extension-guide-grid">
+            <div className="extension-guide-panel">
+              <h3>无扩展可用</h3>
+              <ul>
+                <li>试用示例项目</li>
+                <li>加载同源或允许 CORS 的 OpenAPI 文档</li>
+                <li>浏览接口、搜索接口、复制 TypeScript 类型</li>
+                <li>打开本地接口库、保存到本地、导出 JSON</li>
+              </ul>
+            </div>
+            <div className="extension-guide-panel">
+              <h3>需要扩展</h3>
+              <ul>
+                <li>加载内网 Swagger 地址</li>
+                <li>加载被 CORS 限制的跨域文档</li>
+                <li>代理真实接口请求</li>
+                <li>使用网络调试面板的 proxyFetch 模式</li>
+              </ul>
+            </div>
+          </div>
+          <div className="extension-guide-actions">
+            <Button type="primary" onClick={handleTryDemo}>
+              试用示例项目
             </Button>
-          }
-          className="home-welcome-alert"
-        />
+            <Button icon={<DownloadOutlined />} href={EXTENSION_URL}>
+              下载扩展
+            </Button>
+            <Button
+              icon={<ReloadOutlined />}
+              loading={checking}
+              onClick={onRecheckPlugin}
+            >
+              重新检测
+            </Button>
+          </div>
+        </section>
       )}
 
       <LocalApiLibrary

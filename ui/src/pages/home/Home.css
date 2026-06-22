@@ -419,6 +419,27 @@
   gap: 12px;
 }
 
+.document-error-state {
+  width: 100%;
+  max-width: 760px;
+  margin: auto;
+}
+
+.document-error-description {
+  color: var(--ts-text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.document-error-description p {
+  margin: 0 0 8px;
+}
+
+.document-error-description ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
 .api-workspace-grid {
   flex: 1;
   min-height: 0;
@@ -668,6 +689,71 @@
 .home-welcome-steps ol {
   margin: 8px 0 0;
   padding-left: 18px;
+}
+
+.extension-guide {
+  width: min(760px, 100%);
+  border: 1px solid var(--ts-border-subtle-strong);
+  border-radius: var(--ts-radius-lg);
+  background: var(--ts-surface-elevated);
+  box-shadow: var(--ts-shadow-card);
+  padding: 20px;
+}
+
+.extension-guide-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.extension-guide-header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.extension-guide-header p {
+  margin: 6px 0 0;
+  color: var(--ts-text-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.extension-guide-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.extension-guide-panel {
+  border: 1px solid var(--ts-line);
+  border-radius: var(--ts-radius-sm);
+  background: var(--ts-gradient-surface-soft);
+  padding: 14px;
+}
+
+.extension-guide-panel h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.extension-guide-panel ul {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--ts-text-secondary);
+  font-size: 13px;
+  line-height: 1.75;
+}
+
+.extension-guide-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 16px;
 }
 
 .local-library {
@@ -932,6 +1018,24 @@
 
   .local-library {
     padding: 16px;
+  }
+
+  .extension-guide {
+    padding: 16px;
+  }
+
+  .extension-guide-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .extension-guide-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .extension-guide-actions {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .local-library-header,

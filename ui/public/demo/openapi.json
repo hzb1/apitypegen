@@ -3,7 +3,7 @@
   "info": {
     "title": "TS Swagger Demo API",
     "description": "A local demo OpenAPI document for trying TS Swagger without a browser extension.",
-    "version": "0.5.0"
+    "version": "0.5.1"
   },
   "servers": [
     {

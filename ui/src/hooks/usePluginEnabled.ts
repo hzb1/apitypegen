@@ -1,28 +1,26 @@
 import {useCallback, useEffect, useState} from "react";
 import {checkPluginEnabled} from "../../../extension/src/shared/proxySdk.ts";
 
+export type PluginStatus = "checking" | "available" | "unavailable";
 
 /**
  * 插件可用性检测 (当页面激活时)
  */
 export const usePluginEnabled = () => {
-  const [pluginEnabled, setPluginEnabled] = useState<boolean>(false)
-
-  // 检查中
-  const [checking, setChecking] = useState<boolean>(false)
+  const [status, setStatus] = useState<PluginStatus>("checking")
 
 
   const check = useCallback(() => {
     if (document.visibilityState !== 'visible') return
 
-    // console.warn('页面激活，检查插件可用性')
-    setChecking(true)
-    checkPluginEnabled().then((enabled) => {
-      // console.warn('插件可用性:', enabled)
-      setPluginEnabled(enabled)
-    }).finally(() => {
-      setChecking(false)
-    })
+    setStatus("checking")
+    checkPluginEnabled()
+      .then((enabled) => {
+        setStatus(enabled ? "available" : "unavailable")
+      })
+      .catch(() => {
+        setStatus("unavailable")
+      })
   }, [])
 
   useEffect(() => {
@@ -30,20 +28,23 @@ export const usePluginEnabled = () => {
     check()
   }, [check])
 
-  // 当页面激活时
-  // useEffect(() => {
-  //
-  //   // 添加事件监听
-  //   document.addEventListener('visibilitychange', check)
-  //
-  //   // 组件卸载时移除事件监听
-  //   return () => {
-  //     document.removeEventListener('visibilitychange', check)
-  //   }
-  // }, [check])
+  useEffect(() => {
+    document.addEventListener('visibilitychange', check)
+    window.addEventListener('focus', check)
+
+    return () => {
+      document.removeEventListener('visibilitychange', check)
+      window.removeEventListener('focus', check)
+    }
+  }, [check])
+
+  const checking = status === "checking";
+  const pluginEnabled = status === "available";
 
   return {
+    status,
     pluginEnabled,
     checking,
+    recheck: check,
   }
 }

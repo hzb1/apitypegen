@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import {
+  Alert,
   Button,
   Card,
   Col,
@@ -43,6 +44,8 @@ import {
 import type { RequestDraft } from "@/components/network/request-editor/RequestEditor.types.ts";
 import { useSearchParams } from "react-router";
 import { useSwagger } from "@/hooks/useSwagger.ts";
+import { usePluginEnabled } from "@/hooks/usePluginEnabled.ts";
+import { EXTENSION_URL } from "@/pages/home/home.constants.ts";
 import "./NetworkPanel.css";
 
 const { Title, Text } = Typography;
@@ -88,10 +91,17 @@ const NetworkPanel: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const ipFromUrl = searchParams.get("doc")?.trim() ?? searchParams.get("ip")?.trim() ?? "";
   const serviceUrl = searchParams.get("service") ?? undefined;
+  const {
+    status: extensionStatus,
+    pluginEnabled,
+    checking: extensionChecking,
+    recheck: recheckExtension,
+  } = usePluginEnabled();
 
   const { documentData } = useSwagger({
     ip: ipFromUrl,
     serviceUrl,
+    extensionAvailable: pluginEnabled,
   });
 
   const [entries, setEntries] = useState<NetworkEntry[]>([]);
@@ -155,6 +165,11 @@ const NetworkPanel: React.FC = () => {
   };
 
   const onSend = async (nextDraft: RequestDraft) => {
+    if (!pluginEnabled) {
+      messageApi.warning("网络调试的代理请求需要安装并启用浏览器扩展。");
+      return;
+    }
+
     const { requestSpec, init } = buildRequestSpecFromDraft(nextDraft);
     const trimmedUrl = requestSpec.url;
 
@@ -360,9 +375,27 @@ const NetworkPanel: React.FC = () => {
           </Text>
         </div>
         <Space>
+          {!pluginEnabled && (
+            <Button type="primary" href={EXTENSION_URL}>
+              下载扩展
+            </Button>
+          )}
+          <Button onClick={recheckExtension} loading={extensionChecking}>
+            重新检测
+          </Button>
           <Button onClick={onClear}>清空列表</Button>
         </Space>
       </div>
+
+      {!pluginEnabled && (
+        <Alert
+          className="network-extension-alert"
+          type={extensionStatus === "checking" ? "info" : "warning"}
+          showIcon
+          message={extensionStatus === "checking" ? "正在检测浏览器扩展" : "未检测到浏览器扩展"}
+          description="Network 监控台通过扩展代理发送真实请求。未安装扩展时，可以继续查看已有记录和复制请求代码，但不能发送 proxyFetch 请求。"
+        />
+      )}
 
       <div className="network-section">
         <Card className="network-card">
@@ -370,6 +403,7 @@ const NetworkPanel: React.FC = () => {
             value={editorSeed}
             pathVariableDefaults={pathVariableDefaults}
             loading={loading}
+            disabled={!pluginEnabled}
             onChange={setCurrentDraft}
             onSend={onSend}
           />

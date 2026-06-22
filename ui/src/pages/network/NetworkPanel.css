@@ -23,6 +23,11 @@
   margin-top: 20px;
 }
 
+.network-extension-alert {
+  margin-top: 16px;
+  border-radius: var(--ts-radius-md);
+}
+
 .network-card {
   border-radius: var(--ts-radius-md);
   box-shadow: var(--ts-shadow-card-blue);
