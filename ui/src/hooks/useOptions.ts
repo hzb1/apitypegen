@@ -5,7 +5,7 @@ const STORAGE_KEY = 'swagger_config_v1'
 
 type ArrayType = 'bracket' | string
 
-type ConfigState = {
+export type ConfigState = {
   indent: number
   useInterface: boolean
   addExport: boolean
