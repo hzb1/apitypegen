@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
-import { DEFAULT_DOC_URL, DEMO_DOC_PATH, isDemoDocInput } from "../home.constants.ts";
+import { DEMO_DOC_PATH, isDemoDocInput } from "../home.constants.ts";
 
 export function useHomeDocumentState() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -69,7 +69,7 @@ export function useHomeDocumentState() {
   };
 
   useEffect(() => {
-    setInputIp(ipFromUrl || DEFAULT_DOC_URL);
+    setInputIp(ipFromUrl);
   }, [ipFromUrl]);
 
   return {

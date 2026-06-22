@@ -3,7 +3,6 @@ export const EXTENSION_URL =
   "https://swagger.huzhibin.top/downloads/ts-swagger-extension-dist-latest.zip";
 
 export const DEMO_DOC_PATH = "/demo/openapi.json";
-export const DEFAULT_DOC_URL = DEMO_DOC_PATH;
 
 export const isDemoDocInput = (value: string) => {
   const trimmed = value.trim();

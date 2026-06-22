@@ -1,13 +1,12 @@
+import { useState } from "react";
 import type { AutoCompleteProps } from "antd";
 import { Alert, AutoComplete, Button, Input } from "antd";
 import { DownloadOutlined } from "@ant-design/icons";
 import logoUrl from "@/assets/logo/logo-replica-full.svg";
-import { DEFAULT_DOC_URL, EXTENSION_URL } from "../home.constants.ts";
+import { EXTENSION_URL } from "../home.constants.ts";
 import type { LoadingFeedback } from "../home.types.ts";
 
 type WelcomeViewProps = {
-  inputIp: string;
-  setInputIp: (value: string) => void;
   autoCompleteOptions: AutoCompleteProps["options"];
   handleCommitIp: (value: string) => void;
   handleTryDemo: () => void;
@@ -19,8 +18,6 @@ type WelcomeViewProps = {
 
 export default function WelcomeView(props: WelcomeViewProps) {
   const {
-    inputIp,
-    setInputIp,
     autoCompleteOptions,
     handleCommitIp,
     handleTryDemo,
@@ -29,6 +26,7 @@ export default function WelcomeView(props: WelcomeViewProps) {
     checking,
     pluginEnabled,
   } = props;
+  const [docInput, setDocInput] = useState("");
 
   return (
     <div className="home-welcome">
@@ -55,22 +53,22 @@ export default function WelcomeView(props: WelcomeViewProps) {
           <div className="home-welcome-composer">
             <AutoComplete
               className="home-welcome-auto"
-              value={inputIp}
-              onChange={(value) => setInputIp(value)}
+              value={docInput}
+              onChange={(value) => setDocInput(value)}
               onSelect={handleCommitIp}
               options={autoCompleteOptions}
             >
               <Input
                 size="large"
-                placeholder={DEFAULT_DOC_URL}
+                placeholder="输入服务地址或 OpenAPI 文档 URL，例如：http://localhost:9966/v3/api-docs"
                 onPressEnter={(event) => handleCommitIp(event.currentTarget.value)}
               />
             </AutoComplete>
             <button
               type="button"
               className="welcome-load-button"
-              onClick={() => handleCommitIp(inputIp)}
-              disabled={!inputIp.trim() || loading}
+              onClick={() => handleCommitIp(docInput)}
+              disabled={!docInput.trim() || loading}
             >
               {loading ? loadingFeedback.button : "开始探索"}
             </button>

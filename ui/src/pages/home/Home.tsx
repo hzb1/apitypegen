@@ -228,8 +228,6 @@ const Home: React.FC = () => {
       ) : (
         /* 欢迎页：没有文档参数时，展示 Demo 入口、手动输入和扩展提示。 */
         <WelcomeView
-          inputIp={inputIp}
-          setInputIp={setInputIp}
           autoCompleteOptions={autoCompleteOptions}
           handleCommitIp={handleCommitIp}
           handleTryDemo={handleTryDemo}
