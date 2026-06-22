@@ -35,7 +35,15 @@ import logoUrl from "@/assets/logo/logo-replica-full.svg";
 const EXTENSION_URL =
   (import.meta.env.VITE_PROXY_EXTENSION_URL as string | undefined) ??
   "https://swagger.huzhibin.top/downloads/ts-swagger-extension-dist-latest.zip";
-const DEFAULT_DOC_URL = "https://api.huzhibin.top/docs/json";
+const DEMO_DOC_PATH = "/demo/openapi.json";
+const DEFAULT_DOC_URL = DEMO_DOC_PATH;
+
+const isDemoDocInput = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  if (trimmed === DEMO_DOC_PATH) return true;
+  return trimmed === new URL(DEMO_DOC_PATH, window.location.origin).toString();
+};
 
 type ScrollRequest = {
   key: string;
@@ -55,9 +63,13 @@ const Home: React.FC = () => {
   const ipFromUrl = searchParams.get("doc")?.trim() ?? searchParams.get("ip")?.trim() ?? "";
   const serviceUrl = searchParams.get("service") ?? undefined;
   const selectedApiKey = searchParams.get("api");
+  const isDemoMode = searchParams.get("demo") === "1" || isDemoDocInput(ipFromUrl);
   const hasIpParam = Boolean(ipFromUrl);
   const normalizedDocInput = useMemo(() => {
     if (!ipFromUrl) return "";
+    if (ipFromUrl.startsWith("/")) {
+      return new URL(ipFromUrl, window.location.origin).toString();
+    }
     return /^https?:\/\//.test(ipFromUrl) ? ipFromUrl : `http://${ipFromUrl}`;
   }, [ipFromUrl]);
 
@@ -84,6 +96,7 @@ const Home: React.FC = () => {
     ip: ipFromUrl,
     serviceUrl,
     reloadKey,
+    fetchMode: isDemoMode ? "native" : "auto",
     options: {
       // 当 Hook 发现配置加载好了但 URL 没 service 时触发
       onAutoSelectService: (defaultUrl) => {
@@ -163,8 +176,24 @@ const Home: React.FC = () => {
       const next = new URLSearchParams(prev);
       next.set("doc", normalized);
       next.delete("ip");
+      if (isDemoDocInput(normalized)) {
+        next.set("demo", "1");
+      } else {
+        next.delete("demo");
+      }
       next.delete("api"); // 切换 IP 时建议清除旧的 API 选中态
       next.delete("service"); // 切换 IP 时也清除旧的服务，触发 Hook 的自动补全
+      return next;
+    });
+  };
+
+  const handleTryDemo = () => {
+    setInputIp(DEMO_DOC_PATH);
+    setReloadKey((current) => current + 1);
+    setSearchParams(() => {
+      const next = new URLSearchParams();
+      next.set("doc", DEMO_DOC_PATH);
+      next.set("demo", "1");
       return next;
     });
   };
@@ -177,6 +206,19 @@ const Home: React.FC = () => {
     if (!documentData) return;
     recordSearchOnce(ipFromUrl);
   }, [documentData, ipFromUrl, recordSearchOnce]);
+
+  useEffect(() => {
+    if (!isDemoMode || selectedApiKey) return;
+    const firstApiKey = apiGroups[0]?.children?.[0]?.key;
+    if (!firstApiKey) return;
+
+    setSearchParams((prev) => {
+      if (prev.get("api")) return prev;
+      const next = new URLSearchParams(prev);
+      next.set("api", firstApiKey);
+      return next;
+    }, {replace: true});
+  }, [apiGroups, isDemoMode, selectedApiKey, setSearchParams]);
 
   /**
    * 菜单选择回调
@@ -650,6 +692,16 @@ const Home: React.FC = () => {
               <div className="home-welcome-hint">
                 输入 Swagger/OpenAPI 文档 URL，快速生成可搜索、可调试、可复制代码的文档界面
               </div>
+              <div className="home-welcome-demo-copy">
+                示例项目无需安装浏览器扩展，可直接体验接口浏览、搜索与 TypeScript 类型生成。
+              </div>
+              <button
+                type="button"
+                className="home-welcome-demo-button"
+                onClick={handleTryDemo}
+              >
+                试用示例项目
+              </button>
               <div className="home-welcome-search">
                 <div className="home-welcome-composer">
                   <AutoComplete
@@ -692,6 +744,7 @@ const Home: React.FC = () => {
                 title="未检测到浏览器扩展"
                 description={
                   <div className="home-welcome-steps">
+                    <div>示例项目无需扩展；加载内网/跨域 Swagger、代理真实请求和网络调试时需要扩展。</div>
                     <div>安装步骤：</div>
                     <ol>
                       <li>1.点击“安装扩展”下载压缩包。</li>

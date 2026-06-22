@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900">
+  <style>
+    text{font-family:Inter,"PingFang SC",sans-serif;fill:#25282d}.muted{fill:#7a8088}.label{font-size:12px}.body{font-size:14px}.title{font-size:18px;font-weight:700}.stroke{stroke:#aeb4bc;stroke-width:1.5}.dash{stroke:#aeb4bc;stroke-width:1.5;stroke-dasharray:6 5}.panel{fill:#fff;stroke:#aeb4bc;stroke-width:1.5}.soft{fill:#f2f3f5}.dark{fill:#d8dbe0}
+  </style>
+  <rect width="1440" height="900" fill="#f7f7f8"/>
+  <text x="32" y="34" class="title">TS Swagger · 主工作台原型</text>
+  <text x="32" y="56" class="label muted">目标：把“加载文档 → 找接口 → 查看类型 → 复制使用”收敛到一个连续工作流</text>
+
+  <rect x="24" y="76" width="1392" height="64" rx="8" class="panel"/>
+  <rect x="42" y="94" width="146" height="28" rx="5" class="dark"/><text x="61" y="113" class="body">TS SWAGGER</text>
+  <rect x="234" y="92" width="480" height="32" rx="5" class="soft stroke"/><text x="250" y="113" class="label muted">OpenAPI 文档地址 / Host</text>
+  <rect x="722" y="92" width="76" height="32" rx="5" class="dark"/><text x="746" y="113" class="label">加载</text>
+  <rect x="828" y="92" width="184" height="32" rx="5" class="soft stroke"/><text x="842" y="113" class="label muted">服务：用户中心 ▼</text>
+  <rect x="1230" y="92" width="74" height="32" rx="5" class="soft stroke"/><text x="1247" y="113" class="label">设置</text>
+  <rect x="1312" y="92" width="86" height="32" rx="5" class="soft stroke"/><text x="1328" y="113" class="label">浅色 ▼</text>
+
+  <rect x="24" y="156" width="300" height="720" rx="10" class="panel"/>
+  <text x="44" y="188" class="title">接口导航</text><text x="276" y="188" class="label muted">126</text>
+  <rect x="42" y="204" width="264" height="36" rx="6" class="soft stroke"/><text x="58" y="227" class="label muted">⌕ 搜索接口 / 路径 / 标签</text>
+  <rect x="42" y="256" width="264" height="34" rx="5" class="soft"/><text x="54" y="278" class="body">⌄ 用户管理</text><text x="274" y="278" class="label muted">18</text>
+  <rect x="50" y="300" width="248" height="44" rx="6" fill="#e0e2e6"/><rect x="60" y="312" width="40" height="20" rx="4" class="panel"/><text x="66" y="327" class="label">GET</text><text x="110" y="320" class="label">获取用户列表</text><text x="110" y="336" class="label muted">/api/users</text>
+  <rect x="50" y="350" width="248" height="44" rx="6" class="soft"/><rect x="60" y="362" width="40" height="20" rx="4" class="panel"/><text x="63" y="377" class="label">POST</text><text x="110" y="370" class="label">创建用户</text><text x="110" y="386" class="label muted">/api/users/create</text>
+  <rect x="42" y="408" width="264" height="34" rx="5" class="soft"/><text x="54" y="430" class="body">› 订单管理</text><text x="274" y="430" class="label muted">32</text>
+  <rect x="42" y="448" width="264" height="34" rx="5" class="soft"/><text x="54" y="470" class="body">› 商品管理</text><text x="274" y="470" class="label muted">24</text>
+  <rect x="42" y="488" width="264" height="34" rx="5" class="soft"/><text x="54" y="510" class="body">› 权限管理</text><text x="274" y="510" class="label muted">16</text>
+
+  <rect x="340" y="156" width="1076" height="720" rx="10" class="panel"/>
+  <rect x="340" y="156" width="1076" height="62" rx="10" class="soft"/>
+  <text x="364" y="180" class="label muted">最近查看</text>
+  <rect x="364" y="188" width="150" height="26" rx="5" class="panel"/><text x="378" y="206" class="label">/users  ×</text>
+  <rect x="522" y="188" width="172" height="26" rx="5" class="panel"/><text x="536" y="206" class="label">/users/create  ×</text>
+
+  <rect x="364" y="238" width="1028" height="194" rx="8" class="panel"/>
+  <text x="384" y="266" class="label muted">用户管理  ›  获取用户列表</text>
+  <rect x="384" y="282" width="54" height="28" rx="5" class="dark"/><text x="396" y="301" class="label">GET</text>
+  <text x="450" y="302" class="title">/api/users</text><text x="574" y="302" class="title">获取用户列表</text>
+  <text x="384" y="330" class="body muted">分页查询用户，可按状态、角色和关键词筛选。</text>
+  <rect x="384" y="348" width="988" height="36" rx="5" class="soft stroke"/><text x="398" y="371" class="label muted">http://localhost:9966/api/users</text><text x="1330" y="371" class="label">复制</text>
+  <text x="384" y="412" class="label">参数 3　|　请求体 无　|　响应码 3　　展开详情</text>
+
+  <rect x="364" y="448" width="1028" height="404" rx="8" class="panel"/>
+  <rect x="364" y="448" width="1028" height="46" rx="8" class="soft"/><text x="384" y="477" class="body">Query Params</text><text x="1298" y="477" class="label muted">TypeScript　复制</text>
+  <line x1="384" y1="520" x2="1372" y2="520" class="dash"/><line x1="384" y1="556" x2="1080" y2="556" class="dash"/><line x1="384" y1="592" x2="1240" y2="592" class="dash"/>
+  <rect x="384" y="632" width="988" height="196" rx="6" class="soft"/>
+  <text x="400" y="660" class="label muted">type UserQuery = {</text><text x="420" y="688" class="label muted">keyword?: string</text><text x="420" y="716" class="label muted">page?: number</text><text x="420" y="744" class="label muted">status?: UserStatus</text><text x="400" y="772" class="label muted">}</text>
+  <text x="1150" y="842" class="label muted">后续区块：Request Body / Response Data</text>
+</svg>

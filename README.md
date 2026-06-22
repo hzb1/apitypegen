@@ -10,8 +10,47 @@
 - 复制即用：代码高亮 + 一键复制，减少手写类型和低级错误
 - 兼容 Swagger v2/v3：适配常见后端文档输出格式
 - 调试友好：通过浏览器扩展代理请求，缓解浏览器跨域限制
+- 零门槛体验：v0.4.0 起内置本地 Demo，未安装扩展也能体验接口浏览、搜索和类型生成
 
-## 3. 开发环境（Node 版本）
+## 3. 3 分钟快速开始
+
+Web UI 是最适合首次体验的入口。进入 `ui` 目录启动开发服务：
+
+```bash
+cd ui
+npm install
+npm run dev
+```
+
+打开页面后点击“试用示例项目”，系统会加载内置的 `/demo/openapi.json`。这个示例文档不依赖后端服务，也不需要安装浏览器扩展。
+
+你可以在示例项目中完成这些操作：
+
+- 浏览接口分组和接口详情
+- 搜索接口
+- 查看 Query Params、Request Body、Response Data 和 Models
+- 一键复制生成的 TypeScript 类型
+
+## 4. 哪些功能需要扩展？
+
+不需要浏览器扩展：
+
+- 本地 Demo 文档
+- 同源 OpenAPI/Swagger 文档
+- 接口浏览和搜索
+- TypeScript 类型生成
+- 复制代码
+
+需要浏览器扩展：
+
+- 加载内网 Swagger 地址
+- 加载被 CORS 限制的后端文档
+- 代理请求真实接口
+- 使用网络调试面板发送跨域请求
+
+v0.4.0 是第一个“无后端、无扩展也可体验”的版本。浏览器扩展仍然是跨域和真实请求调试的增强能力，但不再是体验产品核心价值的前置条件。
+
+## 5. 开发环境（Node 版本）
 
 - 项目通过根目录 `.nvmrc` 固定 Node 版本为 `22.16.0`。
 - 首次进入项目建议执行：
@@ -21,12 +60,13 @@ nvm install
 nvm use
 ```
 
-## 4. FAQ / 排障
+## 6. FAQ / 排障
 
 ### Q1: 页面提示插件未启用怎么办？
 
-- 确认已在 Chrome 开启“开发者模式”。
-- 确认已加载 `extension/dist` 目录。
+- 如果只是体验示例项目，可以忽略该提示，点击“试用示例项目”即可。
+- 如果需要加载内网/跨域 Swagger 或代理真实请求，请确认已在 Chrome 开启“开发者模式”。
+- 确认已加载 `extension/dist` 目录，或下载最新扩展压缩包并解压加载。
 - 刷新页面后重试。
 
 ### Q2: 为什么接口请求失败或超时？
@@ -41,11 +81,11 @@ nvm use
 - 先在左侧选择一个具体 API。
 - 若文档字段不规范（缺少 schema/response 定义），部分类型可能退化为 `any`。
 
-## 5. CLI（给 AI/脚本调用）
+## 7. CLI（给 AI/脚本调用）
 
 项目根目录提供了 `ts-swagger` 命令，支持列服务、检索接口、按接口生成 TypeScript。
 
-### 5.1 安装 / 使用
+### 7.1 安装 / 使用
 
 本项目内开发时可直接运行：
 
@@ -71,7 +111,7 @@ npm install -g ts-swagger
 ts-swagger gen --host http://localhost:9966 --service 用户服务 --method post --path /api/order/create
 ```
 
-### 5.2 可选配置
+### 7.2 可选配置
 
 `ts-swagger.config.json` 不是必需文件。它适合放本机常用 host 和生成偏好，已被 `.gitignore` 忽略。
 
@@ -94,7 +134,7 @@ export TS_SWAGGER_HOST=http://localhost:9966
 ts-swagger services
 ```
 
-### 5.3 常用命令
+### 7.3 常用命令
 
 ```bash
 # 交互式生成（人类友好，逐步提问 host/service/api）
@@ -119,14 +159,14 @@ npm run ts-swagger -- gen --no-interactive --host http://localhost:9966 --method
 npm run ts-swagger -- gen --doc-url http://localhost:3000/docs/json --method post --path /api/showcase/v1/users  --copy
 ```
 
-### 5.4 服务参数行为
+### 7.4 服务参数行为
 
 - `--service` 非必填：
 - 如果只有一个服务，自动选择。
 - 如果有多个服务且当前终端是交互模式（TTY），CLI 会提示选择。
 - 如果有多个服务但在非交互模式（例如 AI/脚本）下运行，会报错并列出可选服务名。
 
-### 5.5 gen 交互行为
+### 7.5 gen 交互行为
 
 - 在交互终端中执行 `ts-swagger gen`，可不传 `--host` / `--service` / `--method` / `--path`，CLI 会逐步提问：
 - 先输入来源地址：`OpenAPI doc URL / swagger-config URL / Swagger host`。

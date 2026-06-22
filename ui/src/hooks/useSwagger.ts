@@ -43,6 +43,8 @@ export type UseSwaggerOptions = {
   onDocumentLoaded?: (doc: OpenAPI.Document) => void;
 };
 
+export type SwaggerFetchMode = "auto" | "native" | "proxy";
+
 /* -------------------------------------------------------------------------- */
 /* reducer                                   */
 /* -------------------------------------------------------------------------- */
@@ -77,7 +79,11 @@ function reducer(state: State, action: Action): State {
 function normalizeBaseUrl(rawInput: string) {
   const v = rawInput.trim();
   if (!v) return "";
-  return /^https?:\/\//.test(v) ? v : `http://${v}`; //
+  if (/^https?:\/\//.test(v)) return v;
+  if (v.startsWith("/")) {
+    return new URL(v, window.location.origin).toString();
+  }
+  return `http://${v}`; //
 }
 
 function joinUrl(baseUrl: string, path: string) {
@@ -118,9 +124,10 @@ export function useSwagger(params: {
   serviceUrl?: string;
   version?: string;
   reloadKey?: number;
+  fetchMode?: SwaggerFetchMode;
   options?: UseSwaggerOptions;
 }) {
-  const { docOrHost, ip, serviceUrl, version = "v3", reloadKey = 0, options } = params;
+  const { docOrHost, ip, serviceUrl, version = "v3", reloadKey = 0, fetchMode = "auto", options } = params;
   const input = docOrHost ?? ip;
 
   const [state, dispatch] = useReducer(reducer, {
@@ -161,6 +168,15 @@ export function useSwagger(params: {
     () => isLikelyDocumentUrl(normalizedInput),
     [normalizedInput],
   );
+  const shouldUseNativeFetch = useMemo(() => {
+    if (fetchMode === "native") return true;
+    if (fetchMode === "proxy") return false;
+    try {
+      return new URL(normalizedInput).origin === window.location.origin;
+    } catch {
+      return false;
+    }
+  }, [fetchMode, normalizedInput]);
 
   /* ----------------------- Effect 1: 监听输入变化 -> 加载配置/文档 ----------------------- */
 
@@ -171,7 +187,9 @@ export function useSwagger(params: {
     hasResolvedDocumentRef.current = false;
 
     const fetchJson = async (url: string) => {
-      const res = await proxyFetch(url, { timeout: 10000 });
+      const res = shouldUseNativeFetch
+        ? await fetch(url)
+        : await proxyFetch(url, { timeout: 10000 });
       if (!res.ok) throw new Error(`Status: ${res.status}`);
       return res.json();
     };
@@ -256,7 +274,7 @@ export function useSwagger(params: {
     };
 
     fetchWithFallback();
-  }, [directDocumentMode, normalizedInput, reloadKey, serviceUrl, version]);
+  }, [directDocumentMode, normalizedInput, reloadKey, serviceUrl, shouldUseNativeFetch, version]);
 
   /* --------------------- Effect 2: 监听 Service 变化 -> 加载文档 -------------------- */
 
@@ -272,7 +290,9 @@ export function useSwagger(params: {
     const fetchDocument = async () => {
       try {
         const docUrl = joinUrl(baseUrl, serviceUrl);
-        const res = await proxyFetch(docUrl, { timeout: 10000 });
+        const res = shouldUseNativeFetch
+          ? await fetch(docUrl)
+          : await proxyFetch(docUrl, { timeout: 10000 });
         if (!res.ok) throw new Error(`Status: ${res.status}`);
         const doc = (await res.json()) as OpenAPI.Document;
         if (!isOpenApiLike(doc)) {
@@ -293,7 +313,7 @@ export function useSwagger(params: {
     };
 
     fetchDocument();
-  }, [directDocumentMode, normalizedInput, reloadKey, serviceUrl]); // 当 Host + Service 变化时，加载文档
+  }, [directDocumentMode, normalizedInput, reloadKey, serviceUrl, shouldUseNativeFetch]); // 当 Host + Service 变化时，加载文档
 
   return {
     configData: state.config,

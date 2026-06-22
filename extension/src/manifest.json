@@ -1,7 +1,7 @@
 {
   "manifest_version": 4,
   "name": "Proxy Executor",
-  "version": "0.2.0",
+  "version": "0.4.0",
   "description": "Execute cross-origin requests via extension",
   "background": {
     "service_worker": "background.js",
