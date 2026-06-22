@@ -10,12 +10,15 @@ import { useDocSearchHistory } from "@/hooks/useDocSearchHistory.tsx";
 import DocumentTopbar from "./components/DocumentTopbar.tsx";
 import DocumentWorkspace from "./components/DocumentWorkspace.tsx";
 import ExportApiActions from "./components/ExportApiActions.tsx";
+import LocalApiLibrary from "./components/LocalApiLibrary.tsx";
 import MobileNavDrawer from "./components/MobileNavDrawer.tsx";
 import ProjectConfigDrawer from "./components/ProjectConfigDrawer.tsx";
 import RenameHistoryModal from "./components/RenameHistoryModal.tsx";
 import WelcomeView from "./components/WelcomeView.tsx";
 import type { SavedApiExport } from "./export/export.types.ts";
 import { downloadTsSwaggerExport } from "./export/downloadJson.ts";
+import { parseImportedApiExport } from "./export/importApiExport.ts";
+import { saveApiExport } from "./export/localApiExportStore.ts";
 import { useApiBaseUrl } from "./hooks/useApiBaseUrl.ts";
 import { useHomeApiNavigation } from "./hooks/useHomeApiNavigation.ts";
 import { useHomeDocumentState } from "./hooks/useHomeDocumentState.ts";
@@ -50,6 +53,7 @@ const Home: React.FC = () => {
    * 页面级弹层状态：配置抽屉属于首页局部 UI，不需要进入 URL。
    */
   const [configDrawerOpen, setConfigDrawerOpen] = useState(false);
+  const [localLibraryImporting, setLocalLibraryImporting] = useState(false);
 
   /**
    * 搜索历史：给文档地址输入框提供历史选项，并管理“重命名记录”弹窗。
@@ -236,6 +240,24 @@ const Home: React.FC = () => {
     }
   }, [localId, removeSavedExport, setSearchParams]);
 
+  const handleImportLocalExport = useCallback(async (file: File) => {
+    setLocalLibraryImporting(true);
+    try {
+      const fileText = await file.text();
+      const imported = parseImportedApiExport(fileText, file.name, configState, generatorOptions);
+      const result = await saveApiExport(imported.payload);
+      await refreshSavedExports();
+      message.success(result.created ? `已导入 ${imported.name}` : `已更新本地记录：${imported.name}`);
+      handleOpenLocalExport(result.record.id);
+    } catch (importError) {
+      const text = importError instanceof Error ? importError.message : String(importError);
+      message.error(`导入失败：${text}`);
+      throw importError;
+    } finally {
+      setLocalLibraryImporting(false);
+    }
+  }, [configState, generatorOptions, handleOpenLocalExport, refreshSavedExports]);
+
   const handleBackHome = useCallback(() => {
     setSearchParams(new URLSearchParams(), {replace: true});
   }, [setSearchParams]);
@@ -332,14 +354,20 @@ const Home: React.FC = () => {
           pluginStatus={pluginStatus}
           pluginEnabled={pluginEnabled}
           onRecheckPlugin={recheckPlugin}
-          savedExports={savedExports}
-          localLibraryLoading={libraryLoading}
-          localLibraryError={libraryError}
-          onOpenLocalExport={handleOpenLocalExport}
-          onDownloadLocalExport={handleDownloadLocalExport}
-          onDeleteLocalExport={(id) => void handleDeleteLocalExport(id)}
         />
       )}
+
+      {/* 全局本地接口库入口：不属于欢迎页内容，文档模式也能随时打开。 */}
+      <LocalApiLibrary
+        savedExports={savedExports}
+        loading={libraryLoading}
+        error={libraryError}
+        importing={localLibraryImporting}
+        onOpen={handleOpenLocalExport}
+        onDownload={handleDownloadLocalExport}
+        onDelete={(id) => void handleDeleteLocalExport(id)}
+        onImportFile={handleImportLocalExport}
+      />
 
       {/* 搜索历史重命名弹窗：无论欢迎页还是文档模式，都可能从地址历史里触发。 */}
       <RenameHistoryModal

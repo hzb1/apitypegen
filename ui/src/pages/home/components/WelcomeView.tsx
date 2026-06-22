@@ -5,9 +5,7 @@ import { DownloadOutlined, ReloadOutlined } from "@ant-design/icons";
 import logoUrl from "@/assets/logo/logo-replica-full.svg";
 import { EXTENSION_URL } from "../home.constants.ts";
 import type { LoadingFeedback } from "../home.types.ts";
-import type { SavedApiExport } from "../export/export.types.ts";
 import type { PluginStatus } from "@/hooks/usePluginEnabled.ts";
-import LocalApiLibrary from "./LocalApiLibrary.tsx";
 
 type WelcomeViewProps = {
   autoCompleteOptions: AutoCompleteProps["options"];
@@ -19,12 +17,6 @@ type WelcomeViewProps = {
   pluginStatus: PluginStatus;
   pluginEnabled: boolean;
   onRecheckPlugin: () => void;
-  savedExports: SavedApiExport[];
-  localLibraryLoading: boolean;
-  localLibraryError?: string | null;
-  onOpenLocalExport: (id: string) => void;
-  onDownloadLocalExport: (record: SavedApiExport) => void;
-  onDeleteLocalExport: (id: string) => void;
 };
 
 export default function WelcomeView(props: WelcomeViewProps) {
@@ -38,12 +30,6 @@ export default function WelcomeView(props: WelcomeViewProps) {
     pluginStatus,
     pluginEnabled,
     onRecheckPlugin,
-    savedExports,
-    localLibraryLoading,
-    localLibraryError,
-    onOpenLocalExport,
-    onDownloadLocalExport,
-    onDeleteLocalExport,
   } = props;
   const [docInput, setDocInput] = useState("");
 
@@ -151,15 +137,6 @@ export default function WelcomeView(props: WelcomeViewProps) {
           </div>
         </section>
       )}
-
-      <LocalApiLibrary
-        savedExports={savedExports}
-        loading={localLibraryLoading}
-        error={localLibraryError}
-        onOpen={onOpenLocalExport}
-        onDownload={onDownloadLocalExport}
-        onDelete={onDeleteLocalExport}
-      />
     </div>
   );
 }

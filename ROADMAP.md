@@ -71,6 +71,26 @@
 - 跨域/内网文档失败时，用户能看到需要扩展的原因和可执行操作。
 - 安装或启用扩展后，点击“重新检测”可更新状态。
 
+## v0.5.2 - 导入 JSON + 本地库管理器
+
+### 目标
+
+让用户可以导入 ts-swagger 导出的 JSON 或普通 OpenAPI/Swagger JSON，保存到浏览器本地接口库并离线打开。
+
+### 范围
+
+- 首页使用独立“本地接口库”管理弹窗，承载导入、打开、导出和删除。
+- 导入 ts-swagger 导出包时保留原始数据包。
+- 导入普通 OpenAPI/Swagger JSON 时标准化为 `TsSwaggerExport` 后保存。
+- 导入成功后写入 IndexedDB，并自动跳转到 `?local=<id>`。
+- IndexedDB 仍沿用 fingerprint 去重策略，重复导入只更新记录。
+
+### 验收标准
+
+- 合法 ts-swagger 导出包和普通 OpenAPI/Swagger JSON 都可导入并打开。
+- 非法 JSON 或非 OpenAPI JSON 会给出明确中文错误。
+- 未安装扩展时仍可导入并打开本地文档。
+
 ## v0.6.0 - 复杂 Schema 支持
 
 ### 目标

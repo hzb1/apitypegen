@@ -1,14 +1,22 @@
-import { Alert, Button, Empty, Popconfirm, Spin } from "antd";
-import { DeleteOutlined, DownloadOutlined, FolderOpenOutlined } from "@ant-design/icons";
+import { type ChangeEvent, useRef, useState } from "react";
+import { Alert, Button, Empty, Modal, Popconfirm, Spin } from "antd";
+import {
+  DeleteOutlined,
+  DownloadOutlined,
+  FolderOpenOutlined,
+  UploadOutlined,
+} from "@ant-design/icons";
 import type { SavedApiExport } from "../export/export.types.ts";
 
 type LocalApiLibraryProps = {
   savedExports: SavedApiExport[];
   loading: boolean;
   error?: string | null;
+  importing?: boolean;
   onOpen: (id: string) => void;
   onDownload: (record: SavedApiExport) => void;
   onDelete: (id: string) => void;
+  onImportFile: (file: File) => Promise<void> | void;
 };
 
 function formatDate(value: string) {
@@ -27,85 +35,152 @@ function formatDate(value: string) {
 }
 
 export default function LocalApiLibrary(props: LocalApiLibraryProps) {
-  const { savedExports, loading, error, onOpen, onDownload, onDelete } = props;
+  const {
+    savedExports,
+    loading,
+    error,
+    importing,
+    onOpen,
+    onDownload,
+    onDelete,
+    onImportFile,
+  } = props;
+  const [open, setOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleChooseFile = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    void Promise.resolve()
+      .then(() => onImportFile(file))
+      .then(() => setOpen(false))
+      .catch(() => undefined);
+  };
+
+  const handleOpenRecord = (id: string) => {
+    setOpen(false);
+    onOpen(id);
+  };
 
   return (
-    <section className="local-library">
-      <div className="local-library-header">
-        <div>
-          <h2>本地保存的接口文档</h2>
-          <p>数据仅保存在当前浏览器当前站点中，清理站点数据后会丢失。</p>
-        </div>
-        <span>{savedExports.length} 份</span>
+    <>
+      <div className="local-library-launcher">
+        <Button
+          type="primary"
+          size="large"
+          icon={<FolderOpenOutlined />}
+          loading={loading && !open}
+          onClick={() => setOpen(true)}
+        >
+          本地接口库
+          <span className="local-library-launcher-count">{savedExports.length}</span>
+        </Button>
       </div>
 
-      {loading ? (
-        <div className="local-library-loading">
-          <Spin />
-          <span>正在读取本地接口库...</span>
+      <Modal
+        title="本地接口库"
+        open={open}
+        width={860}
+        onCancel={() => setOpen(false)}
+        footer={null}
+      >
+        <div className="local-library-modal-toolbar">
+          <div>
+            <p>可以导入 ts-swagger 导出的 JSON，也可以导入普通 OpenAPI/Swagger JSON。</p>
+          </div>
+          <Button
+            type="primary"
+            icon={<UploadOutlined />}
+            loading={importing}
+            onClick={handleChooseFile}
+          >
+            导入 JSON
+          </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json,application/json"
+            className="local-library-file-input"
+            onChange={handleFileChange}
+          />
         </div>
-      ) : (
-        <>
-          {error ? (
-            <Alert
-              className="local-library-error"
-              type="warning"
-              showIcon
-              message={error}
-            />
-          ) : null}
-          {savedExports.length ? (
-            <div className="local-library-list">
-              {savedExports.map((item) => (
-                <article key={item.id} className="local-library-item">
-                  <div className="local-library-item-main">
-                    <h3 title={item.name}>{item.name}</h3>
-                    <div className="local-library-meta">
-                      <span>{item.apiCount} 个接口</span>
-                      <span>更新于 {formatDate(item.updatedAt)}</span>
-                    </div>
-                    {item.sourceDocUrl ? (
-                      <div className="local-library-source" title={item.sourceDocUrl}>
-                        来源：{item.sourceDocUrl}
+
+        {loading ? (
+          <div className="local-library-loading">
+            <Spin />
+            <span>正在读取本地接口库...</span>
+          </div>
+        ) : (
+          <>
+            {error ? (
+              <Alert
+                className="local-library-error"
+                type="warning"
+                showIcon
+                message={error}
+              />
+            ) : null}
+            {savedExports.length ? (
+              <div className="local-library-list">
+                {savedExports.map((item) => {
+                  const sourceText = item.payload.source.importedFileName || item.sourceDocUrl;
+                  return (
+                    <article key={item.id} className="local-library-item">
+                      <div className="local-library-item-main">
+                        <h3 title={item.name}>{item.name}</h3>
+                        <div className="local-library-meta">
+                          <span>{item.apiCount} 个接口</span>
+                          <span>更新于 {formatDate(item.updatedAt)}</span>
+                        </div>
+                        {sourceText ? (
+                          <div className="local-library-source" title={sourceText}>
+                            来源：{sourceText}
+                          </div>
+                        ) : null}
                       </div>
-                    ) : null}
-                  </div>
-                  <div className="local-library-actions">
-                    <Button
-                      size="small"
-                      type="primary"
-                      icon={<FolderOpenOutlined />}
-                      onClick={() => onOpen(item.id)}
-                    >
-                      打开
-                    </Button>
-                    <Button
-                      size="small"
-                      icon={<DownloadOutlined />}
-                      onClick={() => onDownload(item)}
-                    >
-                      导出 JSON
-                    </Button>
-                    <Popconfirm
-                      title="删除本地接口文档？"
-                      description="删除后只能通过重新保存或导入文件恢复。"
-                      okText="删除"
-                      cancelText="取消"
-                      onConfirm={() => onDelete(item.id)}
-                    >
-                      <Button size="small" danger icon={<DeleteOutlined />}>
-                        删除
-                      </Button>
-                    </Popconfirm>
-                  </div>
-                </article>
-              ))}
-            </div>
-          ) : (
-            <Empty description="还没有保存到本地的接口文档" />
-          )}
-        </>
-      )}
-    </section>
+                      <div className="local-library-actions">
+                        <Button
+                          size="small"
+                          type="primary"
+                          icon={<FolderOpenOutlined />}
+                          onClick={() => handleOpenRecord(item.id)}
+                        >
+                          打开
+                        </Button>
+                        <Button
+                          size="small"
+                          icon={<DownloadOutlined />}
+                          onClick={() => onDownload(item)}
+                        >
+                          导出 JSON
+                        </Button>
+                        <Popconfirm
+                          title="删除本地接口文档？"
+                          description="删除后只能通过重新保存或导入文件恢复。"
+                          okText="删除"
+                          cancelText="取消"
+                          onConfirm={() => onDelete(item.id)}
+                        >
+                          <Button size="small" danger icon={<DeleteOutlined />}>
+                            删除
+                          </Button>
+                        </Popconfirm>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            ) : (
+              <Empty description="还没有保存到本地的接口文档，可以先导入 JSON" />
+            )}
+          </>
+        )}
+      </Modal>
+    </>
   );
 }

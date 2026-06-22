@@ -756,40 +756,33 @@
   margin-top: 16px;
 }
 
-.local-library {
-  width: min(760px, 100%);
-  border: 1px solid var(--ts-border-subtle-strong);
-  border-radius: var(--ts-radius-lg);
-  background: var(--ts-surface-elevated);
-  box-shadow: var(--ts-shadow-card);
-  padding: 20px;
+.local-library-launcher {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 60;
+  pointer-events: none;
 }
 
-.local-library-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 16px;
+.local-library-launcher .ant-btn {
+  pointer-events: auto;
+  height: 44px;
+  border-radius: var(--ts-radius-pill);
+  box-shadow: var(--ts-shadow-fab);
 }
 
-.local-library-header h2 {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 700;
-}
-
-.local-library-header p {
-  margin: 6px 0 0;
-  color: var(--ts-text-muted);
-  font-size: 13px;
-  line-height: 1.5;
-}
-
-.local-library-header span {
-  color: var(--ts-text-muted);
-  font-size: 13px;
-  white-space: nowrap;
+.local-library-launcher-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  margin-left: 8px;
+  padding: 0 7px;
+  border-radius: var(--ts-radius-pill);
+  background: rgb(255 255 255 / 0.22);
+  font-size: 12px;
+  line-height: 1;
 }
 
 .local-library-loading {
@@ -806,6 +799,25 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.local-library-modal-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.local-library-modal-toolbar p {
+  margin: 0;
+  color: var(--ts-text-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.local-library-file-input {
+  display: none;
 }
 
 .local-library-error {
@@ -1016,10 +1028,6 @@
     align-items: stretch;
   }
 
-  .local-library {
-    padding: 16px;
-  }
-
   .extension-guide {
     padding: 16px;
   }
@@ -1038,10 +1046,20 @@
     flex-direction: column;
   }
 
-  .local-library-header,
+  .local-library-modal-toolbar,
   .local-library-item {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .local-library-launcher {
+    right: 14px;
+    bottom: 14px;
+  }
+
+  .local-library-launcher .ant-btn {
+    height: 40px;
+    padding-inline: 14px;
   }
 
   .local-library-meta {

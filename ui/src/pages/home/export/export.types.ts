@@ -8,6 +8,7 @@ export type TsSwaggerExport = {
     apiBaseUrl?: string;
     title?: string;
     version?: string;
+    importedFileName?: string;
   };
   generatorOptions: Record<string, unknown>;
   openapi: unknown;
@@ -52,4 +53,10 @@ export type SavedApiExport = {
 export type SaveApiExportResult = {
   record: SavedApiExport;
   created: boolean;
+};
+
+export type ImportApiExportResult = {
+  payload: TsSwaggerExport;
+  format: "ts-swagger-export" | "openapi";
+  name: string;
 };

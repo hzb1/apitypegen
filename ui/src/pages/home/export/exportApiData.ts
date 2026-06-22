@@ -12,6 +12,7 @@ type BuildTsSwaggerExportParams = {
   apiBaseUrl: string;
   docUrl: string;
   serviceUrl?: string;
+  importedFileName?: string;
   generatorConfig: ConfigState;
   generatorOptions: GeneratorOptions;
 };
@@ -59,6 +60,7 @@ export function buildTsSwaggerExport(params: BuildTsSwaggerExportParams): TsSwag
     apiBaseUrl,
     docUrl,
     serviceUrl,
+    importedFileName,
     generatorConfig,
     generatorOptions,
   } = params;
@@ -101,6 +103,7 @@ export function buildTsSwaggerExport(params: BuildTsSwaggerExportParams): TsSwag
       apiBaseUrl,
       title: info.title,
       version: info.version,
+      importedFileName,
     },
     generatorOptions: compactGeneratorOptions(generatorConfig),
     openapi: documentData,
