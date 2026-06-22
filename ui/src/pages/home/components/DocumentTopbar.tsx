@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { AutoCompleteProps } from "antd";
 import { AutoComplete, Button, Input, Select, Tooltip } from "antd";
 import { MenuOutlined, QuestionCircleOutlined, SettingOutlined } from "@ant-design/icons";
@@ -23,6 +24,7 @@ type DocumentTopbarProps = {
   handleServiceChange: (url?: string) => void;
   setMobileNavOpen: (open: boolean) => void;
   setConfigDrawerOpen: (open: boolean) => void;
+  extraActions?: ReactNode;
 };
 
 export default function DocumentTopbar(props: DocumentTopbarProps) {
@@ -39,6 +41,7 @@ export default function DocumentTopbar(props: DocumentTopbarProps) {
     handleServiceChange,
     setMobileNavOpen,
     setConfigDrawerOpen,
+    extraActions,
   } = props;
 
   return (
@@ -112,6 +115,7 @@ export default function DocumentTopbar(props: DocumentTopbarProps) {
           </div>
         </div>
         <div className="home-topbar-tools">
+          {extraActions}
           <Button
             type="default"
             icon={<SettingOutlined />}

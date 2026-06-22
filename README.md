@@ -11,6 +11,7 @@
 - 兼容 Swagger v2/v3：适配常见后端文档输出格式
 - 调试友好：通过浏览器扩展代理请求，缓解浏览器跨域限制
 - 零门槛体验：v0.4.0 起内置本地 Demo，未安装扩展也能体验接口浏览、搜索和类型生成
+- 本地接口库：v0.5.0 起支持保存到浏览器本地库，也可导出完整 JSON 数据包
 
 ## 3. 3 分钟快速开始
 
@@ -30,8 +31,27 @@ npm run dev
 - 搜索接口
 - 查看 Query Params、Request Body、Response Data 和 Models
 - 一键复制生成的 TypeScript 类型
+- 点击“保存到本地”，下次从首页的“本地保存的接口文档”继续打开
+- 点击“导出 JSON”，把当前接口文档和生成结果保存为文件
 
-## 4. 哪些功能需要扩展？
+## 4. 本地接口库与 JSON 导出
+
+v0.5.0 增加了“本地接口库 + JSON 导出”闭环。加载任意文档后，可以在顶部栏使用：
+
+- `保存到本地`：保存到当前浏览器当前站点的本地接口库。
+- `导出 JSON`：下载 `ts-swagger-{title}-{YYYY-MM-DD}.json` 文件。
+
+导出的 JSON 数据包包含原始 OpenAPI 文档、接口分组、接口列表、完整 URL、TypeScript 代码片段、来源信息、生成配置和导出时间。适合备份、传给同事或后续导入/分析。
+
+本地接口库说明：
+
+- 首页会显示“本地保存的接口文档”，支持打开、再次导出和删除。
+- 打开本地记录时使用 `?local=<id>`，不请求后端，也不依赖浏览器扩展。
+- 保存范围按浏览器 origin 隔离，例如 `http://localhost:5173` 和 `https://example.com` 是两份不同数据。
+- 清理浏览器站点数据会删除本地接口库；它不会跨浏览器、跨设备同步。
+- 相同 `docUrl + serviceUrl + OpenAPI 内容` 会更新原记录，不会重复新增；同一 URL 的文档内容变化会保存为新记录。
+
+## 5. 哪些功能需要扩展？
 
 不需要浏览器扩展：
 
@@ -40,6 +60,7 @@ npm run dev
 - 接口浏览和搜索
 - TypeScript 类型生成
 - 复制代码
+- 保存到本地、打开本地接口库、导出 JSON
 
 需要浏览器扩展：
 
@@ -49,8 +70,9 @@ npm run dev
 - 使用网络调试面板发送跨域请求
 
 v0.4.0 是第一个“无后端、无扩展也可体验”的版本。浏览器扩展仍然是跨域和真实请求调试的增强能力，但不再是体验产品核心价值的前置条件。
+v0.5.0 进一步补上“离线继续查看”的能力：保存过的接口文档可以直接从浏览器本地库打开。
 
-## 5. 开发环境（Node 版本）
+## 6. 开发环境（Node 版本）
 
 - 项目通过根目录 `.nvmrc` 固定 Node 版本为 `22.16.0`。
 - 首次进入项目建议执行：
@@ -60,7 +82,7 @@ nvm install
 nvm use
 ```
 
-## 6. FAQ / 排障
+## 7. FAQ / 排障
 
 ### Q1: 页面提示插件未启用怎么办？
 
@@ -81,11 +103,11 @@ nvm use
 - 先在左侧选择一个具体 API。
 - 若文档字段不规范（缺少 schema/response 定义），部分类型可能退化为 `any`。
 
-## 7. CLI（给 AI/脚本调用）
+## 8. CLI（给 AI/脚本调用）
 
 项目根目录提供了 `ts-swagger` 命令，支持列服务、检索接口、按接口生成 TypeScript。
 
-### 7.1 安装 / 使用
+### 8.1 安装 / 使用
 
 本项目内开发时可直接运行：
 
@@ -111,7 +133,7 @@ npm install -g ts-swagger
 ts-swagger gen --host http://localhost:9966 --service 用户服务 --method post --path /api/order/create
 ```
 
-### 7.2 可选配置
+### 8.2 可选配置
 
 `ts-swagger.config.json` 不是必需文件。它适合放本机常用 host 和生成偏好，已被 `.gitignore` 忽略。
 
@@ -134,7 +156,7 @@ export TS_SWAGGER_HOST=http://localhost:9966
 ts-swagger services
 ```
 
-### 7.3 常用命令
+### 8.3 常用命令
 
 ```bash
 # 交互式生成（人类友好，逐步提问 host/service/api）
@@ -159,14 +181,14 @@ npm run ts-swagger -- gen --no-interactive --host http://localhost:9966 --method
 npm run ts-swagger -- gen --doc-url http://localhost:3000/docs/json --method post --path /api/showcase/v1/users  --copy
 ```
 
-### 7.4 服务参数行为
+### 8.4 服务参数行为
 
 - `--service` 非必填：
 - 如果只有一个服务，自动选择。
 - 如果有多个服务且当前终端是交互模式（TTY），CLI 会提示选择。
 - 如果有多个服务但在非交互模式（例如 AI/脚本）下运行，会报错并列出可选服务名。
 
-### 7.5 gen 交互行为
+### 8.5 gen 交互行为
 
 - 在交互终端中执行 `ts-swagger gen`，可不传 `--host` / `--service` / `--method` / `--path`，CLI 会逐步提问：
 - 先输入来源地址：`OpenAPI doc URL / swagger-config URL / Swagger host`。

@@ -9,8 +9,10 @@ export function useHomeDocumentState() {
   const ipFromUrl = searchParams.get("doc")?.trim() ?? searchParams.get("ip")?.trim() ?? "";
   const serviceUrl = searchParams.get("service") ?? undefined;
   const selectedApiKey = searchParams.get("api");
+  const localId = searchParams.get("local")?.trim() || undefined;
   const isDemoMode = searchParams.get("demo") === "1" || isDemoDocInput(ipFromUrl);
   const hasIpParam = Boolean(ipFromUrl);
+  const hasDocumentSource = Boolean(ipFromUrl || localId);
   const normalizedDocInput = useMemo(() => {
     if (!ipFromUrl) return "";
     if (ipFromUrl.startsWith("/")) {
@@ -31,6 +33,7 @@ export function useHomeDocumentState() {
       const next = new URLSearchParams(prev);
       next.set("doc", normalized);
       next.delete("ip");
+      next.delete("local");
       if (isDemoDocInput(normalized)) {
         next.set("demo", "1");
       } else {
@@ -50,6 +53,16 @@ export function useHomeDocumentState() {
       const next = new URLSearchParams();
       next.set("doc", DEMO_DOC_PATH);
       next.set("demo", "1");
+      return next;
+    });
+  };
+
+  const handleOpenLocalExport = (id: string) => {
+    setInputIp("");
+    setReloadKey((current) => current + 1);
+    setSearchParams(() => {
+      const next = new URLSearchParams();
+      next.set("local", id);
       return next;
     });
   };
@@ -78,14 +91,17 @@ export function useHomeDocumentState() {
     ipFromUrl,
     serviceUrl,
     selectedApiKey,
+    localId,
     isDemoMode,
     hasIpParam,
+    hasDocumentSource,
     normalizedDocInput,
     inputIp,
     setInputIp,
     reloadKey,
     handleCommitIp,
     handleTryDemo,
+    handleOpenLocalExport,
     handleServiceChange,
   };
 }

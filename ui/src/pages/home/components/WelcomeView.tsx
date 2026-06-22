@@ -5,6 +5,8 @@ import { DownloadOutlined } from "@ant-design/icons";
 import logoUrl from "@/assets/logo/logo-replica-full.svg";
 import { EXTENSION_URL } from "../home.constants.ts";
 import type { LoadingFeedback } from "../home.types.ts";
+import type { SavedApiExport } from "../export/export.types.ts";
+import LocalApiLibrary from "./LocalApiLibrary.tsx";
 
 type WelcomeViewProps = {
   autoCompleteOptions: AutoCompleteProps["options"];
@@ -14,6 +16,12 @@ type WelcomeViewProps = {
   loadingFeedback: LoadingFeedback;
   checking: boolean;
   pluginEnabled: boolean;
+  savedExports: SavedApiExport[];
+  localLibraryLoading: boolean;
+  localLibraryError?: string | null;
+  onOpenLocalExport: (id: string) => void;
+  onDownloadLocalExport: (record: SavedApiExport) => void;
+  onDeleteLocalExport: (id: string) => void;
 };
 
 export default function WelcomeView(props: WelcomeViewProps) {
@@ -25,6 +33,12 @@ export default function WelcomeView(props: WelcomeViewProps) {
     loadingFeedback,
     checking,
     pluginEnabled,
+    savedExports,
+    localLibraryLoading,
+    localLibraryError,
+    onOpenLocalExport,
+    onDownloadLocalExport,
+    onDeleteLocalExport,
   } = props;
   const [docInput, setDocInput] = useState("");
 
@@ -108,6 +122,15 @@ export default function WelcomeView(props: WelcomeViewProps) {
           className="home-welcome-alert"
         />
       )}
+
+      <LocalApiLibrary
+        savedExports={savedExports}
+        loading={localLibraryLoading}
+        error={localLibraryError}
+        onOpen={onOpenLocalExport}
+        onDownload={onDownloadLocalExport}
+        onDelete={onDeleteLocalExport}
+      />
     </div>
   );
 }

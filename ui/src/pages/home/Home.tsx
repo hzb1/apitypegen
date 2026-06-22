@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { message } from "antd";
+import type { OpenAPI } from "openapi-types";
 import "./Home.css";
 import { useSwagger } from "@/hooks/useSwagger.ts";
 import { useOptions } from "@/hooks/useOptions.ts";
@@ -7,15 +9,19 @@ import { useViewedApiTabs } from "@/hooks/useViewedApiTabs.ts";
 import { useDocSearchHistory } from "@/hooks/useDocSearchHistory.tsx";
 import DocumentTopbar from "./components/DocumentTopbar.tsx";
 import DocumentWorkspace from "./components/DocumentWorkspace.tsx";
+import ExportApiActions from "./components/ExportApiActions.tsx";
 import MobileNavDrawer from "./components/MobileNavDrawer.tsx";
 import ProjectConfigDrawer from "./components/ProjectConfigDrawer.tsx";
 import RenameHistoryModal from "./components/RenameHistoryModal.tsx";
 import WelcomeView from "./components/WelcomeView.tsx";
+import type { SavedApiExport } from "./export/export.types.ts";
+import { downloadTsSwaggerExport } from "./export/downloadJson.ts";
 import { useApiBaseUrl } from "./hooks/useApiBaseUrl.ts";
 import { useHomeApiNavigation } from "./hooks/useHomeApiNavigation.ts";
 import { useHomeDocumentState } from "./hooks/useHomeDocumentState.ts";
 import { useHomeLoadingFeedback } from "./hooks/useHomeLoadingFeedback.ts";
 import { useHomeTsCodeParts } from "./hooks/useHomeTsCodeParts.ts";
+import { useLocalApiExports } from "./hooks/useLocalApiExports.ts";
 
 const Home: React.FC = () => {
   /**
@@ -27,14 +33,16 @@ const Home: React.FC = () => {
     ipFromUrl,
     serviceUrl,
     selectedApiKey,
+    localId,
     isDemoMode,
-    hasIpParam,
+    hasDocumentSource,
     normalizedDocInput,
     inputIp,
     setInputIp,
     reloadKey,
     handleCommitIp,
     handleTryDemo,
+    handleOpenLocalExport,
     handleServiceChange,
   } = useHomeDocumentState();
 
@@ -59,7 +67,7 @@ const Home: React.FC = () => {
   /**
    * Swagger/OpenAPI 文档加载：Demo 使用原生 fetch，其它地址保持自动代理策略。
    */
-  const { documentData, configData, stage, error } = useSwagger({
+  const { documentData: remoteDocumentData, configData, stage, error } = useSwagger({
     docOrHost: ipFromUrl,
     ip: ipFromUrl,
     serviceUrl,
@@ -80,12 +88,39 @@ const Home: React.FC = () => {
   });
 
   /**
+   * 本地接口库：local=<id> 时，从浏览器本地库读取保存过的数据包。
+   */
+  const {
+    savedExports,
+    activeLocalExport,
+    libraryLoading,
+    activeLoading,
+    libraryError,
+    activeError: localActiveError,
+    refreshSavedExports,
+    removeSavedExport,
+  } = useLocalApiExports(localId);
+
+  const isLocalMode = Boolean(localId);
+  const localDocumentData = activeLocalExport?.payload.openapi as OpenAPI.Document | undefined;
+  const documentData = isLocalMode ? (localDocumentData ?? null) : remoteDocumentData;
+  const activeError = isLocalMode ? localActiveError : error;
+
+  /**
    * 加载态与生成配置：配置会直接影响右侧 TypeScript 输出。
    */
-  const loading = stage === "probe" || stage === "config" || stage === "document";
-  const configLoading = stage === "config";
-  const contentLoading = hasIpParam && !error && (loading || !documentData);
-  const loadingFeedback = useHomeLoadingFeedback(stage);
+  const remoteLoading = stage === "probe" || stage === "config" || stage === "document";
+  const loading = isLocalMode ? activeLoading : remoteLoading;
+  const configLoading = !isLocalMode && stage === "config";
+  const contentLoading = hasDocumentSource && !activeError && (loading || !documentData);
+  const remoteLoadingFeedback = useHomeLoadingFeedback(stage);
+  const loadingFeedback = isLocalMode && activeLoading
+    ? {
+      title: "正在打开本地文档",
+      button: "读取本地...",
+      text: "正在从浏览器本地库读取接口数据",
+    }
+    : remoteLoadingFeedback;
   const { configState, setConfigState, generatorOptions } = useOptions();
 
   /**
@@ -105,7 +140,7 @@ const Home: React.FC = () => {
   } = useHomeApiNavigation({
     documentData,
     selectedApiKey,
-    isDemoMode,
+    isDemoMode: isDemoMode || isLocalMode,
     setSearchParams,
   });
 
@@ -113,8 +148,8 @@ const Home: React.FC = () => {
    * 已查看 Tabs：记录用户浏览过的 API，并支持关闭、固定和关闭其它。
    */
   const viewedContextKey = useMemo(
-    () => `${ipFromUrl}__${serviceUrl ?? ""}`,
-    [ipFromUrl, serviceUrl],
+    () => (localId ? `local:${localId}` : `${ipFromUrl}__${serviceUrl ?? ""}`),
+    [ipFromUrl, localId, serviceUrl],
   );
   const handleSelectApi = useCallback((nextApiKey?: string) => {
     setSearchParams((prev) => {
@@ -143,13 +178,20 @@ const Home: React.FC = () => {
   /**
    * 派生展示数据：服务下拉、接口完整 URL、当前 API 的 TypeScript 类型片段。
    */
-  const serviceOptions = useMemo(() => (
-    configData?.urls.map((item) => ({
+  const serviceOptions = useMemo(() => {
+    if (isLocalMode) return [];
+    return configData?.urls.map((item) => ({
       label: item.name,
       value: item.url,
-    })) || []
-  ), [configData?.urls]);
-  const apiBaseUrl = useApiBaseUrl({ documentData, normalizedDocInput });
+    })) || [];
+  }, [configData?.urls, isLocalMode]);
+  const localSourceDocUrl = activeLocalExport?.payload.source.docUrl || "";
+  const sourceDocUrl = isLocalMode ? localSourceDocUrl : ipFromUrl;
+  const derivedApiBaseUrl = useApiBaseUrl({
+    documentData,
+    normalizedDocInput: isLocalMode ? localSourceDocUrl : normalizedDocInput,
+  });
+  const apiBaseUrl = activeLocalExport?.payload.source.apiBaseUrl || derivedApiBaseUrl;
   const tsCodeParts = useHomeTsCodeParts({ documentData, selectedApi, generatorOptions });
 
   /**
@@ -158,13 +200,30 @@ const Home: React.FC = () => {
   const { pluginEnabled, checking } = usePluginEnabled();
 
   useEffect(() => {
-    if (!documentData) return;
+    if (!remoteDocumentData || isLocalMode) return;
     recordSearchOnce(ipFromUrl);
-  }, [documentData, ipFromUrl, recordSearchOnce]);
+  }, [isLocalMode, ipFromUrl, recordSearchOnce, remoteDocumentData]);
+
+  const handleDownloadLocalExport = useCallback((record: SavedApiExport) => {
+    downloadTsSwaggerExport(record.payload);
+  }, []);
+
+  const handleDeleteLocalExport = useCallback(async (id: string) => {
+    try {
+      await removeSavedExport(id);
+      message.success("已删除本地接口文档");
+      if (localId === id) {
+        setSearchParams(new URLSearchParams(), {replace: true});
+      }
+    } catch (deleteError) {
+      const text = deleteError instanceof Error ? deleteError.message : String(deleteError);
+      message.error(`删除失败：${text}`);
+    }
+  }, [localId, removeSavedExport, setSearchParams]);
 
   return (
     <>
-      {hasIpParam ? (
+      {hasDocumentSource ? (
         /* 文档模式：已经有 doc/ip 参数时，进入完整 API 工作台。 */
         <div className="views">
           {/* 顶部栏：品牌、文档地址输入、服务选择、项目配置入口和主题切换。 */}
@@ -175,17 +234,29 @@ const Home: React.FC = () => {
             handleCommitIp={handleCommitIp}
             loading={loading}
             loadingFeedback={loadingFeedback}
-            serviceUrl={serviceUrl}
+            serviceUrl={isLocalMode ? undefined : serviceUrl}
             configLoading={configLoading}
             serviceOptions={serviceOptions}
             handleServiceChange={handleServiceChange}
             setMobileNavOpen={setMobileNavOpen}
             setConfigDrawerOpen={setConfigDrawerOpen}
+            extraActions={
+              <ExportApiActions
+                documentData={documentData}
+                apiGroups={apiGroups}
+                apiBaseUrl={apiBaseUrl}
+                docUrl={sourceDocUrl}
+                serviceUrl={isLocalMode ? activeLocalExport?.payload.source.serviceUrl : serviceUrl}
+                generatorConfig={configState}
+                generatorOptions={generatorOptions}
+                onSaved={() => void refreshSavedExports()}
+              />
+            }
           />
 
           {/* 主工作区：左侧接口导航、已查看 Tabs、接口详情和 Models 面板。 */}
           <DocumentWorkspace
-            error={error}
+            error={activeError}
             contentLoading={contentLoading}
             loadingFeedback={loadingFeedback}
             scrollRequest={scrollRequest}
@@ -235,6 +306,12 @@ const Home: React.FC = () => {
           loadingFeedback={loadingFeedback}
           checking={checking}
           pluginEnabled={pluginEnabled}
+          savedExports={savedExports}
+          localLibraryLoading={libraryLoading}
+          localLibraryError={libraryError}
+          onOpenLocalExport={handleOpenLocalExport}
+          onDownloadLocalExport={handleDownloadLocalExport}
+          onDeleteLocalExport={(id) => void handleDeleteLocalExport(id)}
         />
       )}
 
