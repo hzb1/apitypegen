@@ -30,7 +30,7 @@ a {
 .method-tag {
   border-radius: var(--ts-radius-xs);
   border: 1px solid transparent;
-  letter-spacing: 0.02em;
+  letter-spacing: 0;
 }
 
 .method-tag.method-tag-get {

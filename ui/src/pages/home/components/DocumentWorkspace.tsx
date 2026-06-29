@@ -1,4 +1,5 @@
 import { Alert, Button, Empty, Space, Spin } from "antd";
+import { ApiOutlined, CodeOutlined, DatabaseOutlined } from "@ant-design/icons";
 import SideBar, { type SideBarProps } from "@/components/sidebar/SideBar.tsx";
 import ApiInfo from "@/components/api-info/ApiInfo.tsx";
 import CodeCard from "@/components/code-card/CodeCard.tsx";
@@ -63,6 +64,7 @@ export default function DocumentWorkspace(props: DocumentWorkspaceProps) {
     onTryDemo,
     onBackHome,
   } = props;
+  const apiCount = apiGroups.reduce((total, group) => total + group.children.length, 0);
 
   return (
     <div className="home-main-shell">
@@ -152,8 +154,34 @@ export default function DocumentWorkspace(props: DocumentWorkspaceProps) {
             </div>
           )}
           {!error && !contentLoading && !selectedApi && (
-            <div className="content-center-status">
-              <Empty description="请选择左侧 API，开始查看文档与类型模型" />
+            <div className="content-center-status workspace-empty-state">
+              <div className="workspace-empty-visual">
+                <div className="workspace-empty-column">
+                  <div className="workspace-empty-kicker">
+                    <ApiOutlined />
+                    <span>{apiCount} APIs</span>
+                  </div>
+                  <strong>接口导航</strong>
+                  <span>按分组定位 API</span>
+                </div>
+                <div className="workspace-empty-column is-primary">
+                  <div className="workspace-empty-kicker">
+                    <CodeOutlined />
+                    <span>TypeScript</span>
+                  </div>
+                  <strong>详情与类型</strong>
+                  <span>查看参数、请求体和响应模型</span>
+                </div>
+                <div className="workspace-empty-column">
+                  <div className="workspace-empty-kicker">
+                    <DatabaseOutlined />
+                    <span>Local</span>
+                  </div>
+                  <strong>本地接口库</strong>
+                  <span>保存或导出当前文档</span>
+                </div>
+              </div>
+              <Empty description="选择左侧 API，开始查看文档与类型模型" />
             </div>
           )}
         </div>

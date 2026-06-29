@@ -56,8 +56,8 @@ export default function DocumentTopbar(props: DocumentTopbarProps) {
         </button>
         <img src={logoUrl} alt="TS Swagger" className="home-topbar-logo" />
         <div className="home-topbar-copy">
-          <div className="home-topbar-title">API Hub</div>
-          <div className="home-topbar-subtitle">文档社区风 · 开发者入口</div>
+          <div className="home-topbar-title">API 工作台</div>
+          <div className="home-topbar-subtitle">TypeScript 类型生成</div>
         </div>
       </div>
       <div className="home-topbar-actions">
@@ -116,13 +116,15 @@ export default function DocumentTopbar(props: DocumentTopbarProps) {
         </div>
         <div className="home-topbar-tools">
           {extraActions}
-          <Button
-            type="default"
-            icon={<SettingOutlined />}
-            onClick={() => setConfigDrawerOpen(true)}
-          >
-            项目配置
-          </Button>
+          <Tooltip title="项目配置">
+            <Button
+              className="topbar-icon-button"
+              type="default"
+              icon={<SettingOutlined />}
+              aria-label="项目配置"
+              onClick={() => setConfigDrawerOpen(true)}
+            />
+          </Tooltip>
           <ThemeDropdown />
         </div>
       </div>

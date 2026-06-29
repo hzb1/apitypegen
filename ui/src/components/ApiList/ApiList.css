@@ -2,14 +2,14 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding-top: 12px;
+  gap: 8px;
+  padding-top: 10px;
   padding-right: 6px;
   padding-bottom: 12px;
 }
 
 .api-list-wrapper {
-  border-radius: var(--ts-radius-sm);
+  border-radius: var(--ts-radius-xsm);
 }
 
 .api-list-group-title {
@@ -62,7 +62,7 @@
   margin-right: 4px;
   width: calc(100% - 6px);
   border-left: 2px solid transparent;
-  border-radius: 0 var(--ts-radius-sm) var(--ts-radius-sm) 0;
+  border-radius: 0 var(--ts-radius-xsm) var(--ts-radius-xsm) 0;
   display: flex;
   align-items: flex-start;
   gap: 8px;
@@ -120,7 +120,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: var(--ts-radius-xs);
+  border-radius: var(--ts-radius-xxs);
   color: var(--ts-text-muted);
   transition: transform 0.18s ease, color 0.18s ease;
 }

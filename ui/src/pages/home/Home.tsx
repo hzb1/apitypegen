@@ -354,6 +354,7 @@ const Home: React.FC = () => {
           pluginStatus={pluginStatus}
           pluginEnabled={pluginEnabled}
           onRecheckPlugin={recheckPlugin}
+          localLibraryCount={savedExports.length}
         />
       )}
 
