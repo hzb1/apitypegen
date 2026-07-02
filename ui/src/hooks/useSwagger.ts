@@ -1,7 +1,12 @@
-import { useEffect, useMemo, useReducer, useRef } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
 import type { OpenAPI } from "openapi-types";
 import { proxyFetch } from "@extension/src/shared/proxySdk.ts";
 import { ProxyError } from "@extension/src/shared/types.ts";
+import {
+  requestDebugStore,
+  type RequestDebugSource,
+  type RequestDebugStage,
+} from "@/debug/requestDebugStore.ts";
 
 /* -------------------------------------------------------------------------- */
 /* types                                    */
@@ -121,6 +126,21 @@ function isOpenApiLike(doc: unknown): doc is OpenAPI.Document {
   return Boolean(typed.openapi || typed.swagger || typed.paths);
 }
 
+function createRequestKey(parts: Array<string | number | boolean | undefined>) {
+  return parts.map((part) => String(part ?? "")).join("|");
+}
+
+function isAbortError(error: unknown) {
+  return error instanceof DOMException && error.name === "AbortError";
+}
+
+function getAbortReason(signal: AbortSignal, fallback: string) {
+  if (signal.reason instanceof DOMException && signal.reason.message) {
+    return signal.reason.message;
+  }
+  return typeof signal.reason === "string" ? signal.reason : fallback;
+}
+
 /* -------------------------------------------------------------------------- */
 /* hook                                     */
 /* -------------------------------------------------------------------------- */
@@ -158,11 +178,63 @@ export function useSwagger(params: {
   const configRequestIdRef = useRef(0);
   const docRequestIdRef = useRef(0);
   const hasResolvedDocumentRef = useRef(false);
+  const optionsRef = useRef(options);
+  const activeAbortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    optionsRef.current = options;
+  }, [options]);
+
+  const cancelActiveRequest = useCallback((reason: string) => {
+    const controller = activeAbortRef.current;
+    if (!controller || controller.signal.aborted) return;
+    controller.abort(new DOMException(reason, "AbortError"));
+    activeAbortRef.current = null;
+  }, []);
+
+  const createRequestController = useCallback((reason: string) => {
+    cancelActiveRequest(reason);
+    const controller = new AbortController();
+    activeAbortRef.current = controller;
+    return controller;
+  }, [cancelActiveRequest]);
+
+  const clearActiveController = useCallback((controller: AbortController) => {
+    if (activeAbortRef.current === controller) {
+      activeAbortRef.current = null;
+    }
+  }, []);
+
+  useEffect(
+    () => () => {
+      cancelActiveRequest("component unmounted");
+    },
+    [cancelActiveRequest],
+  );
+
+  const normalizedInput = useMemo(() => normalizeBaseUrl(input), [input]);
+  const isSameOriginInput = useMemo(() => {
+    try {
+      return new URL(normalizedInput).origin === window.location.origin;
+    } catch {
+      return false;
+    }
+  }, [normalizedInput]);
+  const directDocumentMode = useMemo(
+    () => isLikelyDocumentUrl(normalizedInput),
+    [normalizedInput],
+  );
+  const shouldUseNativeFetch = useMemo(() => {
+    if (fetchMode === "native") return true;
+    if (fetchMode === "proxy") return false;
+    if (isSameOriginInput) return true;
+    return extensionAvailable === false;
+  }, [extensionAvailable, fetchMode, isSameOriginInput]);
 
   /**
    * 辅助：统一错误处理
    */
-  const handleError = (err: unknown, defaultMsg: string, usedNativeFetch: boolean) => {
+  const handleError = useCallback((err: unknown, defaultMsg: string, usedNativeFetch: boolean) => {
     let detail: SwaggerErrorDetail = { message: defaultMsg };
     const failedWithoutProxy = usedNativeFetch && !isSameOriginInput;
 
@@ -228,26 +300,211 @@ export function useSwagger(params: {
       };
     }
     dispatch({ type: "ERROR", payload: detail });
-  };
+  }, [isSameOriginInput]);
 
-  const normalizedInput = useMemo(() => normalizeBaseUrl(input), [input]);
-  const isSameOriginInput = useMemo(() => {
+  const fetchType = shouldUseNativeFetch ? "native" : "proxy";
+
+  const fetchJson = useCallback(async (
+    url: string,
+    meta: {
+      stage: RequestDebugStage;
+      source: RequestDebugSource;
+      reason: string;
+      requestKey: string;
+    },
+    signal: AbortSignal,
+  ) => {
+    const traceId = requestDebugStore.recordRequestStart({
+      url,
+      method: "GET",
+      stage: meta.stage,
+      source: meta.source,
+      reason: meta.reason,
+      requestKey: meta.requestKey,
+      fetchType,
+    });
+
     try {
-      return new URL(normalizedInput).origin === window.location.origin;
-    } catch {
-      return false;
+      const res = shouldUseNativeFetch
+        ? await fetch(url, { signal })
+        : await proxyFetch(url, {
+            timeout: 10000,
+            signal,
+            debugMeta: {
+              initiator: meta.source,
+              requestKey: meta.requestKey,
+            },
+          });
+      if (!res.ok) throw new Error(`Status: ${res.status}`);
+      const json = await res.json();
+      requestDebugStore.recordRequestSuccess(traceId, res.status);
+      return json;
+    } catch (error) {
+      if (isAbortError(error)) {
+        requestDebugStore.recordRequestCancelled(
+          traceId,
+          getAbortReason(signal, "request aborted"),
+        );
+      } else {
+        requestDebugStore.recordRequestError(traceId, error);
+      }
+      throw error;
     }
-  }, [normalizedInput]);
-  const directDocumentMode = useMemo(
-    () => isLikelyDocumentUrl(normalizedInput),
-    [normalizedInput],
-  );
-  const shouldUseNativeFetch = useMemo(() => {
-    if (fetchMode === "native") return true;
-    if (fetchMode === "proxy") return false;
-    if (isSameOriginInput) return true;
-    return extensionAvailable === false;
-  }, [extensionAvailable, fetchMode, isSameOriginInput]);
+  }, [fetchType, shouldUseNativeFetch]);
+
+  const loadDirectDocument = useCallback(async (baseUrl: string, rid: number, signal: AbortSignal) => {
+    dispatch({ type: "LOAD_DIRECT_DOCUMENT" });
+    const requestKey = createRequestKey([
+      "direct-document",
+      baseUrl,
+      reloadKey,
+      fetchType,
+    ]);
+
+    try {
+      const doc = (await fetchJson(baseUrl, {
+        stage: "document",
+        source: "direct-document",
+        reason: "doc changed",
+        requestKey,
+      }, signal)) as unknown;
+      if (rid !== docRequestIdRef.current) return;
+      if (signal.aborted) return;
+      if (!isOpenApiLike(doc)) {
+        throw new Error("文档格式不是 OpenAPI/Swagger");
+      }
+      hasResolvedDocumentRef.current = true;
+      dispatch({ type: "DOCUMENT_SUCCESS", payload: doc });
+      optionsRef.current?.onDocumentLoaded?.(doc);
+    } catch (err) {
+      if (isAbortError(err)) return;
+      if (rid === docRequestIdRef.current) {
+        handleError(err, "加载 Swagger 文档失败", shouldUseNativeFetch);
+      }
+    }
+  }, [fetchJson, fetchType, handleError, reloadKey, shouldUseNativeFetch]);
+
+  const loadSwaggerConfig = useCallback(async (baseUrl: string, rid: number, signal: AbortSignal) => {
+    dispatch({ type: "LOAD_CONFIG" });
+    try {
+      const configCandidates = Array.from(
+        new Set([
+          `/${version}/api-docs/swagger-config`,
+          ...DEFAULT_SWAGGER_CONFIG_CANDIDATES,
+        ]),
+      );
+
+      let config: SwaggerConfig | null = null;
+      let lastCandidateError: unknown = null;
+      for (const candidate of configCandidates) {
+        if (signal.aborted) return;
+        const url = joinUrl(baseUrl, candidate);
+        const requestKey = createRequestKey([
+          "swagger-config-probe",
+          url,
+          reloadKey,
+          fetchType,
+        ]);
+        try {
+          const parsed = (await fetchJson(url, {
+            stage: "config",
+            source: "swagger-config-probe",
+            reason: "doc changed",
+            requestKey,
+          }, signal)) as SwaggerConfig;
+          if (parsed?.urls?.length) {
+            config = parsed;
+            break;
+          }
+        } catch (candidateError) {
+          if (isAbortError(candidateError)) return;
+          lastCandidateError = candidateError;
+        }
+      }
+
+      if (!config) {
+        if (shouldUseNativeFetch && !isSameOriginInput && lastCandidateError instanceof TypeError) {
+          throw lastCandidateError;
+        }
+        throw new Error("未找到可用的 swagger-config");
+      }
+
+      if (rid !== configRequestIdRef.current) return;
+      if (signal.aborted) return;
+      dispatch({ type: "CONFIG_SUCCESS", payload: config });
+
+      if (!serviceUrl && config.urls.length > 0) {
+        const defaultService = config.urls[0];
+        requestDebugStore.recordEvent({
+          source: "auto-select-service",
+          reason: "auto selected first service",
+          requestKey: createRequestKey([
+            "auto-select-service",
+            baseUrl,
+            defaultService.url,
+            reloadKey,
+          ]),
+          url: joinUrl(baseUrl, defaultService.url),
+          detail: defaultService.name,
+        });
+        optionsRef.current?.onAutoSelectService?.(defaultService.url);
+      }
+    } catch (err) {
+      if (isAbortError(err)) return;
+      if (rid === configRequestIdRef.current) {
+        handleError(err, "加载 Swagger 配置失败，请输入文档 URL", shouldUseNativeFetch);
+      }
+    }
+  }, [
+    fetchJson,
+    fetchType,
+    handleError,
+    isSameOriginInput,
+    reloadKey,
+    serviceUrl,
+    shouldUseNativeFetch,
+    version,
+  ]);
+
+  const loadServiceDocument = useCallback(async (
+    baseUrl: string,
+    currentServiceUrl: string,
+    rid: number,
+    signal: AbortSignal,
+  ) => {
+    dispatch({ type: "LOAD_DOCUMENT" });
+    const docUrl = joinUrl(baseUrl, currentServiceUrl);
+    const requestKey = createRequestKey([
+      "service-document",
+      docUrl,
+      reloadKey,
+      fetchType,
+    ]);
+
+    try {
+      const doc = (await fetchJson(docUrl, {
+        stage: "document",
+        source: "service-document",
+        reason: "service changed",
+        requestKey,
+      }, signal)) as OpenAPI.Document;
+      if (!isOpenApiLike(doc)) {
+        throw new Error("文档格式不是 OpenAPI/Swagger");
+      }
+
+      if (rid !== docRequestIdRef.current) return;
+      if (signal.aborted) return;
+
+      hasResolvedDocumentRef.current = true;
+      dispatch({ type: "DOCUMENT_SUCCESS", payload: doc });
+      optionsRef.current?.onDocumentLoaded?.(doc);
+    } catch (err) {
+      if (isAbortError(err)) return;
+      if (rid === docRequestIdRef.current) {
+        handleError(err, "加载 Swagger 文档失败", shouldUseNativeFetch);
+      }
+    }
+  }, [fetchJson, fetchType, handleError, reloadKey, shouldUseNativeFetch]);
 
   /* ----------------------- Effect 1: 监听输入变化 -> 加载配置/文档 ----------------------- */
 
@@ -256,101 +513,29 @@ export function useSwagger(params: {
     if (!baseUrl) return;
     if (serviceUrl && !directDocumentMode) return;
     hasResolvedDocumentRef.current = false;
-
-    const fetchJson = async (url: string) => {
-      const res = shouldUseNativeFetch
-        ? await fetch(url)
-        : await proxyFetch(url, { timeout: 10000 });
-      if (!res.ok) throw new Error(`Status: ${res.status}`);
-      return res.json();
-    };
-
-    const fetchDirectDocument = async (
-      silent = false,
-      probing = false,
-    ): Promise<boolean> => {
-      const rid = ++docRequestIdRef.current;
-      dispatch({ type: probing ? "PROBE" : "LOAD_DIRECT_DOCUMENT" });
-      try {
-        const doc = (await fetchJson(baseUrl)) as unknown;
-        if (rid !== docRequestIdRef.current) return false;
-        if (!isOpenApiLike(doc)) {
-          throw new Error("文档格式不是 OpenAPI/Swagger");
-        }
-        hasResolvedDocumentRef.current = true;
-        dispatch({ type: "DOCUMENT_SUCCESS", payload: doc });
-        options?.onDocumentLoaded?.(doc);
-        return true;
-      } catch (err) {
-        if (rid === docRequestIdRef.current) {
-          if (!silent) {
-            handleError(err, "加载 Swagger 文档失败", shouldUseNativeFetch);
-          }
-        }
-        return false;
-      }
-    };
-
-    const fetchConfig = async () => {
-      const rid = ++configRequestIdRef.current;
-      dispatch({ type: "LOAD_CONFIG" });
-      try {
-        const configCandidates = [
-          `/${version}/api-docs/swagger-config`,
-          ...DEFAULT_SWAGGER_CONFIG_CANDIDATES,
-        ];
-
-        let config: SwaggerConfig | null = null;
-        let lastCandidateError: unknown = null;
-        for (const candidate of configCandidates) {
-          const url = joinUrl(baseUrl, candidate);
-          try {
-            const parsed = (await fetchJson(url)) as SwaggerConfig;
-            if (parsed?.urls?.length) {
-              config = parsed;
-              break;
-            }
-          } catch (candidateError) {
-            lastCandidateError = candidateError;
-            // continue probing
-          }
-        }
-
-        if (!config) {
-          if (shouldUseNativeFetch && !isSameOriginInput && lastCandidateError instanceof TypeError) {
-            throw lastCandidateError;
-          }
-          throw new Error("未找到可用的 swagger-config");
-        }
-
-        if (rid !== configRequestIdRef.current) return;
-        dispatch({ type: "CONFIG_SUCCESS", payload: config });
-
-        if (!serviceUrl && config.urls.length > 0) {
-          options?.onAutoSelectService?.(config.urls[0].url);
-        }
-      } catch (err) {
-        if (rid === configRequestIdRef.current) {
-          if (hasResolvedDocumentRef.current) return;
-          if (serviceUrl) return;
-          handleError(err, "加载 Swagger 配置失败，请输入文档 URL", shouldUseNativeFetch);
-        }
-      }
-    };
+    const controller = createRequestController("new request started");
 
     if (directDocumentMode) {
-      fetchDirectDocument(false);
+      const rid = ++docRequestIdRef.current;
+      void loadDirectDocument(baseUrl, rid, controller.signal).finally(() => {
+        clearActiveController(controller);
+      });
       return;
     }
 
-    const fetchWithFallback = async () => {
-      const directOk = await fetchDirectDocument(true, true);
-      if (directOk) return;
-      fetchConfig();
-    };
-
-    fetchWithFallback();
-  }, [directDocumentMode, isSameOriginInput, normalizedInput, reloadKey, serviceUrl, shouldUseNativeFetch, version]);
+    const rid = ++configRequestIdRef.current;
+    void loadSwaggerConfig(baseUrl, rid, controller.signal).finally(() => {
+      clearActiveController(controller);
+    });
+  }, [
+    clearActiveController,
+    createRequestController,
+    directDocumentMode,
+    loadDirectDocument,
+    loadSwaggerConfig,
+    normalizedInput,
+    serviceUrl,
+  ]);
 
   /* --------------------- Effect 2: 监听 Service 变化 -> 加载文档 -------------------- */
 
@@ -359,37 +544,20 @@ export function useSwagger(params: {
     if (!baseUrl || !serviceUrl) return;
     if (directDocumentMode) return;
 
-    const rid = ++docRequestIdRef.current;
     hasResolvedDocumentRef.current = false;
-    dispatch({ type: "LOAD_DOCUMENT" });
-
-    const fetchDocument = async () => {
-      try {
-        const docUrl = joinUrl(baseUrl, serviceUrl);
-        const res = shouldUseNativeFetch
-          ? await fetch(docUrl)
-          : await proxyFetch(docUrl, { timeout: 10000 });
-        if (!res.ok) throw new Error(`Status: ${res.status}`);
-        const doc = (await res.json()) as OpenAPI.Document;
-        if (!isOpenApiLike(doc)) {
-          throw new Error("文档格式不是 OpenAPI/Swagger");
-        }
-
-        if (rid !== docRequestIdRef.current) return;
-
-        hasResolvedDocumentRef.current = true;
-        dispatch({ type: "DOCUMENT_SUCCESS", payload: doc });
-        // 成功后触发回调
-        options?.onDocumentLoaded?.(doc);
-      } catch (err) {
-        if (rid === docRequestIdRef.current) {
-          handleError(err, "加载 Swagger 文档失败", shouldUseNativeFetch);
-        }
-      }
-    };
-
-    fetchDocument();
-  }, [directDocumentMode, normalizedInput, reloadKey, serviceUrl, shouldUseNativeFetch]); // 当 Host + Service 变化时，加载文档
+    const controller = createRequestController("new request started");
+    const rid = ++docRequestIdRef.current;
+    void loadServiceDocument(baseUrl, serviceUrl, rid, controller.signal).finally(() => {
+      clearActiveController(controller);
+    });
+  }, [
+    clearActiveController,
+    createRequestController,
+    directDocumentMode,
+    loadServiceDocument,
+    normalizedInput,
+    serviceUrl,
+  ]); // 当 Host + Service 变化时，加载文档
 
   return {
     configData: state.config,

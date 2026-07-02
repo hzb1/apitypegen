@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { message } from "antd";
 import type { OpenAPI } from "openapi-types";
 import "./Home.css";
+import RequestDebugPanel from "@/debug/RequestDebugPanel.tsx";
 import { useSwagger } from "@/hooks/useSwagger.ts";
 import { useOptions } from "@/hooks/useOptions.ts";
 import { usePluginEnabled } from "@/hooks/usePluginEnabled.ts";
@@ -357,6 +358,8 @@ const Home: React.FC = () => {
           localLibraryCount={savedExports.length}
         />
       )}
+
+      <RequestDebugPanel />
 
       {/* 全局本地接口库入口：不属于欢迎页内容，文档模式也能随时打开。 */}
       <LocalApiLibrary

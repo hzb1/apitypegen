@@ -1,50 +1,52 @@
-import {useCallback, useEffect, useState} from "react";
-import {checkPluginEnabled} from "../../../extension/src/shared/proxySdk.ts";
+import { useCallback, useEffect, useSyncExternalStore } from "react";
+import { pluginStatusStore } from "./pluginStatusStore.ts";
 
 export type PluginStatus = "checking" | "available" | "unavailable";
 
 /**
- * 插件可用性检测 (当页面激活时)
+ * 浏览器扩展可用性检测。
+ * 检测状态由模块级 store 共享，避免多个组件重复 PLUGIN_PING。
  */
 export const usePluginEnabled = () => {
-  const [status, setStatus] = useState<PluginStatus>("checking")
+  const snapshot = useSyncExternalStore(
+    pluginStatusStore.subscribe,
+    pluginStatusStore.getSnapshot,
+    pluginStatusStore.getSnapshot,
+  );
 
-
-  const check = useCallback(() => {
-    if (document.visibilityState !== 'visible') return
-
-    setStatus("checking")
-    checkPluginEnabled()
-      .then((enabled) => {
-        setStatus(enabled ? "available" : "unavailable")
-      })
-      .catch(() => {
-        setStatus("unavailable")
-      })
-  }, [])
+  const check = useCallback(
+    (force = false, reason = force ? "用户手动检测" : "页面可见或获得焦点") =>
+      pluginStatusStore.check({ force, reason }),
+    [],
+  );
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    check()
-  }, [check])
+    void pluginStatusStore.check({ reason: "页面初始化" });
+  }, []);
 
-  useEffect(() => {
-    document.addEventListener('visibilitychange', check)
-    window.addEventListener('focus', check)
+  // useEffect(() => {
+  //   const checkWhenVisible = () => {
+  //     void pluginStatusStore.check({ reason: "页面可见或获得焦点" });
+  //   };
+  //
+  //   document.addEventListener("visibilitychange", checkWhenVisible);
+  //   window.addEventListener("focus", checkWhenVisible);
+  //
+  //   return () => {
+  //     document.removeEventListener("visibilitychange", checkWhenVisible);
+  //     window.removeEventListener("focus", checkWhenVisible);
+  //   };
+  // }, []);
 
-    return () => {
-      document.removeEventListener('visibilitychange', check)
-      window.removeEventListener('focus', check)
-    }
-  }, [check])
-
-  const checking = status === "checking";
-  const pluginEnabled = status === "available";
+  const checking = snapshot.checking || snapshot.status === "checking";
+  const pluginEnabled = snapshot.status === "available";
 
   return {
-    status,
+    status: snapshot.status,
     pluginEnabled,
     checking,
-    recheck: check,
-  }
-}
+    lastCheckedAt: snapshot.lastCheckedAt,
+    lastReason: snapshot.lastReason,
+    recheck: () => check(true, "用户手动检测"),
+  };
+};

@@ -35,6 +35,33 @@ function normalizeHeaders(headers?: HeadersInit): Record<string, string> {
   return headers as Record<string, string>
 }
 
+export type ProxyFetchDebugMeta = {
+  initiator?: string
+  requestKey?: string
+}
+
+export type ProxyFetchInit = RequestInit & {
+  timeout?: number
+  debugMeta?: ProxyFetchDebugMeta
+}
+
+function getInitiatorLabel(initiator?: string) {
+  switch (initiator) {
+    case 'direct-document':
+      return '直接加载文档'
+    case 'swagger-config-probe':
+      return '探测 Swagger 配置'
+    case 'service-document':
+      return '加载服务文档'
+    case 'auto-select-service':
+      return '自动选择服务'
+    case 'extension-check':
+      return '检测浏览器扩展'
+    default:
+      return initiator || '未知来源'
+  }
+}
+
 /* ----------------------------------
  * 插件可用性检测
  * ---------------------------------- */
@@ -45,7 +72,43 @@ let pluginChecking: {
   cancel: () => void
 } | null = null
 
-export function checkPluginEnabled(timeout = 1000): Promise<boolean> {
+const PLUGIN_CHECK_CACHE_TTL_MS = 10_000
+let pluginCheckCache: {
+  enabled: boolean
+  checkedAt: number
+  reason?: string
+} | null = null
+
+export type CheckPluginEnabledOptions = {
+  timeout?: number
+  force?: boolean
+  reason?: string
+  onActualCheck?: (reason?: string) => void
+}
+
+export function getCachedPluginEnabled(maxAgeMs = PLUGIN_CHECK_CACHE_TTL_MS): boolean | undefined {
+  if (!pluginCheckCache) return undefined
+  if (Date.now() - pluginCheckCache.checkedAt > maxAgeMs) return undefined
+  return pluginCheckCache.enabled
+}
+
+export function getPluginCheckCache() {
+  return pluginCheckCache
+}
+
+export function checkPluginEnabled(
+  optionsOrTimeout: CheckPluginEnabledOptions | number = {},
+): Promise<boolean> {
+  const options: CheckPluginEnabledOptions = typeof optionsOrTimeout === 'number'
+    ? { timeout: optionsOrTimeout }
+    : optionsOrTimeout
+  const timeout = options.timeout ?? 1000
+  const now = Date.now()
+
+  if (!options.force && pluginCheckCache && now - pluginCheckCache.checkedAt <= PLUGIN_CHECK_CACHE_TTL_MS) {
+    return Promise.resolve(pluginCheckCache.enabled)
+  }
+
   // 如果正在检测，直接复用同一次检测
   if (pluginChecking) {
     return pluginChecking.promise
@@ -77,6 +140,7 @@ export function checkPluginEnabled(timeout = 1000): Promise<boolean> {
     }
 
     window.addEventListener('message', onMessage)
+    options.onActualCheck?.(options.reason)
     window.postMessage({ type: 'PLUGIN_PING' }, '*')
 
     timer = window.setTimeout(() => {
@@ -86,7 +150,14 @@ export function checkPluginEnabled(timeout = 1000): Promise<boolean> {
   })
 
   pluginChecking = {
-    promise,
+    promise: promise.then((enabled) => {
+      pluginCheckCache = {
+        enabled,
+        checkedAt: Date.now(),
+        reason: options.reason,
+      }
+      return enabled
+    }),
     cancel() {
       if (!finished) {
         finished = true
@@ -95,7 +166,7 @@ export function checkPluginEnabled(timeout = 1000): Promise<boolean> {
     },
   }
 
-  return promise
+  return pluginChecking.promise
 }
 
 /* ----------------------------------
@@ -104,7 +175,7 @@ export function checkPluginEnabled(timeout = 1000): Promise<boolean> {
 
 async function proxyFetchRaw(
   url: string,
-  init?: RequestInit & { timeout?: number },
+  init?: ProxyFetchInit,
 ): Promise<{
   status: number
   statusText: string
@@ -140,7 +211,9 @@ async function proxyFetchRaw(
       clearTimeout(timer); // 显式清除，防止后续触发超时 reject
       cleanup();
       // 这里可以考虑向插件发送一个“取消请求”的指令，但通常 fetch 的中断由后端 timeout 或信号控制
-      reject(new DOMException('The user aborted a request.', 'AbortError'));
+      reject(signal?.reason instanceof DOMException
+        ? signal.reason
+        : new DOMException('The user aborted a request.', 'AbortError'));
     };
 
     if (signal) {
@@ -298,19 +371,33 @@ export type ProxyFetchResponse = Response | ProxyResponse
 
 export async function proxyFetch(
   input: RequestInfo,
-  init?: RequestInit & { timeout?: number },
+  init?: ProxyFetchInit,
 ): Promise<ProxyFetchResponse> {
   const url = typeof input === 'string' ? input : input.url
 
-  const usePlugin = await checkPluginEnabled()
+  const usePlugin = await checkPluginEnabled({ reason: '代理请求前确认扩展' })
 
   if (!usePlugin) {
-    console.warn('usePlugin', usePlugin)
+    console.warn('[ts-swagger:request]', {
+      url,
+      transport: 'native',
+      transportLabel: '浏览器直连',
+      initiator: init?.debugMeta?.initiator,
+      initiatorLabel: getInitiatorLabel(init?.debugMeta?.initiator),
+      requestKey: init?.debugMeta?.requestKey,
+    })
     // 原生 fetch
     return fetch(input, init)
   }
 
-  console.warn('proxyFetch req:', url, init)
+  console.warn('[ts-swagger:request]', {
+    url,
+    transport: 'proxy',
+    transportLabel: '扩展代理',
+    initiator: init?.debugMeta?.initiator,
+    initiatorLabel: getInitiatorLabel(init?.debugMeta?.initiator),
+    requestKey: init?.debugMeta?.requestKey,
+  })
 
   try {
     const raw = await proxyFetchRaw(url, init);
