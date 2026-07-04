@@ -69,6 +69,43 @@ function stableStringify(value: unknown): string {
     .join(",")}}`;
 }
 
+export function normalizeExportDocUrl(value?: string) {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed) return "";
+  try {
+    const normalized = trimmed.startsWith("/")
+      ? new URL(trimmed, window.location.origin)
+      : new URL(/^https?:\/\//.test(trimmed) ? trimmed : `http://${trimmed}`);
+    normalized.hash = "";
+    return normalized.toString().replace(/\/$/, "");
+  } catch {
+    return trimmed.replace(/\/$/, "");
+  }
+}
+
+function isSyntheticImportDocUrl(value: string) {
+  return value === "imported-openapi" || value === "imported-ts-swagger-export";
+}
+
+export function getExportSourceKey(payload: TsSwaggerExport) {
+  const rawDocUrl = payload.source.docUrl.trim();
+  const docUrl = normalizeExportDocUrl(payload.source.docUrl);
+  if (docUrl && !isSyntheticImportDocUrl(rawDocUrl) && !isSyntheticImportDocUrl(docUrl)) {
+    return `doc:${docUrl}`;
+  }
+  return `import:${stableStringify({
+    docUrl,
+    importedFileName: payload.source.importedFileName,
+    openapi: payload.openapi,
+  })}`;
+}
+
+export function isSameExportDocUrl(left?: string, right?: string) {
+  const normalizedLeft = normalizeExportDocUrl(left);
+  const normalizedRight = normalizeExportDocUrl(right);
+  return Boolean(normalizedLeft && normalizedRight && normalizedLeft === normalizedRight);
+}
+
 function fallbackHash(input: string) {
   let hash = 0;
   for (let index = 0; index < input.length; index += 1) {
@@ -79,11 +116,7 @@ function fallbackHash(input: string) {
 }
 
 export async function createExportFingerprint(payload: TsSwaggerExport) {
-  const source = stableStringify({
-    docUrl: payload.source.docUrl,
-    serviceUrl: payload.source.serviceUrl,
-    openapi: payload.openapi,
-  });
+  const source = getExportSourceKey(payload);
 
   if (typeof crypto === "undefined" || !crypto.subtle) {
     return fallbackHash(source);
@@ -95,6 +128,15 @@ export async function createExportFingerprint(payload: TsSwaggerExport) {
     .join("");
 }
 
+function getApiCount(payload: TsSwaggerExport) {
+  return payload.services?.reduce((total, service) => total + service.apis.length, 0)
+    ?? payload.apis.length;
+}
+
+type SaveApiExportOptions = {
+  name?: string;
+};
+
 function createRecord(payload: TsSwaggerExport, fingerprint: string): SavedApiExport {
   const now = new Date().toISOString();
   const name = payload.source.title || "API Export";
@@ -104,7 +146,7 @@ function createRecord(payload: TsSwaggerExport, fingerprint: string): SavedApiEx
     fingerprint,
     savedAt: now,
     updatedAt: now,
-    apiCount: payload.apis.length,
+    apiCount: getApiCount(payload),
     sourceTitle: payload.source.title,
     sourceDocUrl: payload.source.docUrl,
     payload,
@@ -118,19 +160,37 @@ async function findByFingerprint(fingerprint: string) {
   });
 }
 
-export async function saveApiExport(payload: TsSwaggerExport): Promise<SaveApiExportResult> {
+async function findBySourceDocUrl(docUrl?: string) {
+  if (!docUrl) return undefined;
+  if (isSyntheticImportDocUrl(docUrl.trim())) return undefined;
+  const records = await listApiExports();
+  return records.find((record) =>
+    isSameExportDocUrl(record.sourceDocUrl || record.payload.source.docUrl, docUrl),
+  );
+}
+
+export async function saveApiExport(
+  payload: TsSwaggerExport,
+  options: SaveApiExportOptions = {},
+): Promise<SaveApiExportResult> {
   const fingerprint = await createExportFingerprint(payload);
-  const existing = await findByFingerprint(fingerprint);
+  const existing = await findByFingerprint(fingerprint)
+    ?? await findBySourceDocUrl(payload.source.docUrl);
   const nextRecord: SavedApiExport = existing
     ? {
       ...existing,
+      name: options.name?.trim() || existing.name,
+      fingerprint,
       updatedAt: new Date().toISOString(),
-      apiCount: payload.apis.length,
+      apiCount: getApiCount(payload),
       sourceTitle: payload.source.title,
       sourceDocUrl: payload.source.docUrl,
       payload,
     }
-    : createRecord(payload, fingerprint);
+    : {
+      ...createRecord(payload, fingerprint),
+      name: options.name?.trim() || payload.source.title || "API Export",
+    };
 
   await withStore("readwrite", (store) => requestToPromise(store.put(nextRecord)));
   return {
@@ -150,4 +210,42 @@ export async function getApiExport(id: string): Promise<SavedApiExport | undefin
 
 export async function deleteApiExport(id: string): Promise<void> {
   await withStore("readwrite", (store) => requestToPromise(store.delete(id)));
+}
+
+export async function renameApiExport(id: string, name: string): Promise<SavedApiExport> {
+  const nextName = name.trim();
+  if (!nextName) {
+    throw new Error("名称不能为空");
+  }
+  const record = await getApiExport(id);
+  if (!record) {
+    throw new Error("未找到这份本地接口文档");
+  }
+  const nextRecord: SavedApiExport = {
+    ...record,
+    name: nextName,
+    updatedAt: new Date().toISOString(),
+  };
+  await withStore("readwrite", (store) => requestToPromise(store.put(nextRecord)));
+  return nextRecord;
+}
+
+export async function renameApiExportsByDocUrl(docUrl: string, name: string): Promise<SavedApiExport[]> {
+  const nextName = name.trim();
+  if (!nextName) return [];
+  const records = await listApiExports();
+  const matched = records.filter((record) =>
+    isSameExportDocUrl(record.sourceDocUrl || record.payload.source.docUrl, docUrl),
+  );
+  if (!matched.length) return [];
+  const updatedAt = new Date().toISOString();
+  const nextRecords = matched.map((record): SavedApiExport => ({
+    ...record,
+    name: nextName,
+    updatedAt,
+  }));
+  await withStore("readwrite", async (store) => {
+    await Promise.all(nextRecords.map((record) => requestToPromise(store.put(record))));
+  });
+  return nextRecords;
 }

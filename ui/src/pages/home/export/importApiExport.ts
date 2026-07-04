@@ -56,6 +56,9 @@ function validateTsSwaggerExport(value: Record<string, unknown>): TsSwaggerExpor
     openapi: value.openapi,
     groups: value.groups as TsSwaggerExport["groups"],
     apis: value.apis as TsSwaggerExport["apis"],
+    services: Array.isArray(value.services)
+      ? value.services as TsSwaggerExport["services"]
+      : undefined,
   };
 }
 

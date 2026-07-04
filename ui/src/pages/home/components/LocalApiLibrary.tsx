@@ -1,9 +1,10 @@
 import { type ChangeEvent, useRef, useState } from "react";
-import { Alert, Button, Empty, Modal, Popconfirm, Spin } from "antd";
+import { Alert, Button, Empty, Input, Modal, Popconfirm, Spin } from "antd";
 import {
   DeleteOutlined,
   DownloadOutlined,
   FolderOpenOutlined,
+  EditOutlined,
   UploadOutlined,
 } from "@ant-design/icons";
 import type { SavedApiExport } from "../export/export.types.ts";
@@ -16,6 +17,7 @@ type LocalApiLibraryProps = {
   onOpen: (id: string) => void;
   onDownload: (record: SavedApiExport) => void;
   onDelete: (id: string) => void;
+  onRename: (record: SavedApiExport, name: string) => Promise<void> | void;
   onImportFile: (file: File) => Promise<void> | void;
 };
 
@@ -43,9 +45,13 @@ export default function LocalApiLibrary(props: LocalApiLibraryProps) {
     onOpen,
     onDownload,
     onDelete,
+    onRename,
     onImportFile,
   } = props;
   const [open, setOpen] = useState(false);
+  const [renameTarget, setRenameTarget] = useState<SavedApiExport | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [renaming, setRenaming] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleChooseFile = () => {
@@ -65,6 +71,24 @@ export default function LocalApiLibrary(props: LocalApiLibraryProps) {
   const handleOpenRecord = (id: string) => {
     setOpen(false);
     onOpen(id);
+  };
+
+  const handleStartRename = (record: SavedApiExport) => {
+    setRenameTarget(record);
+    setRenameValue(record.name);
+  };
+
+  const handleConfirmRename = async () => {
+    if (!renameTarget) return;
+    setRenaming(true);
+    try {
+      await onRename(renameTarget, renameValue);
+      setRenameTarget(null);
+    } catch {
+      // error message is handled by the caller
+    } finally {
+      setRenaming(false);
+    }
   };
 
   return (
@@ -154,6 +178,15 @@ export default function LocalApiLibrary(props: LocalApiLibraryProps) {
                         </Button>
                         <Button
                           size="small"
+                          icon={<EditOutlined />}
+                          onClick={() => handleStartRename(item)}
+                        >
+                          重命名
+                        </Button>
+                        <Button
+                          className="local-library-muted-action"
+                          size="small"
+                          type="text"
                           icon={<DownloadOutlined />}
                           onClick={() => onDownload(item)}
                         >
@@ -166,7 +199,13 @@ export default function LocalApiLibrary(props: LocalApiLibraryProps) {
                           cancelText="取消"
                           onConfirm={() => onDelete(item.id)}
                         >
-                          <Button size="small" danger icon={<DeleteOutlined />}>
+                          <Button
+                            className="local-library-muted-action"
+                            size="small"
+                            type="text"
+                            danger
+                            icon={<DeleteOutlined />}
+                          >
                             删除
                           </Button>
                         </Popconfirm>
@@ -180,6 +219,24 @@ export default function LocalApiLibrary(props: LocalApiLibraryProps) {
             )}
           </>
         )}
+      </Modal>
+
+      <Modal
+        title="重命名本地接口文档"
+        open={!!renameTarget}
+        okText="保存"
+        cancelText="取消"
+        confirmLoading={renaming}
+        onOk={() => void handleConfirmRename()}
+        onCancel={() => setRenameTarget(null)}
+      >
+        <Input
+          value={renameValue}
+          autoFocus
+          maxLength={80}
+          onChange={(event) => setRenameValue(event.target.value)}
+          onPressEnter={() => void handleConfirmRename()}
+        />
       </Modal>
     </>
   );

@@ -36,6 +36,14 @@ export type TsSwaggerExport = {
       responseData: string;
     };
   }>;
+  services?: Array<{
+    name: string;
+    url: string;
+    apiBaseUrl?: string;
+    openapi: unknown;
+    groups: TsSwaggerExport["groups"];
+    apis: TsSwaggerExport["apis"];
+  }>;
 };
 
 export type SavedApiExport = {

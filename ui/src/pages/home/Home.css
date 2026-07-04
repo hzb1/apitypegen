@@ -1199,6 +1199,14 @@
   flex-wrap: wrap;
 }
 
+.local-library-muted-action {
+  color: var(--ts-text-dim);
+}
+
+.local-library-muted-action:hover {
+  color: var(--ts-text-muted);
+}
+
 .mobile-nav-drawer .ant-drawer-body {
   padding: 0;
 }

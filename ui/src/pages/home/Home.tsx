@@ -19,7 +19,12 @@ import WelcomeView from "./components/WelcomeView.tsx";
 import type { SavedApiExport } from "./export/export.types.ts";
 import { downloadTsSwaggerExport } from "./export/downloadJson.ts";
 import { parseImportedApiExport } from "./export/importApiExport.ts";
-import { saveApiExport } from "./export/localApiExportStore.ts";
+import {
+  isSameExportDocUrl,
+  renameApiExport,
+  renameApiExportsByDocUrl,
+  saveApiExport,
+} from "./export/localApiExportStore.ts";
 import { useApiBaseUrl } from "./hooks/useApiBaseUrl.ts";
 import { useHomeApiNavigation } from "./hooks/useHomeApiNavigation.ts";
 import { useHomeDocumentState } from "./hooks/useHomeDocumentState.ts";
@@ -55,19 +60,6 @@ const Home: React.FC = () => {
    */
   const [configDrawerOpen, setConfigDrawerOpen] = useState(false);
   const [localLibraryImporting, setLocalLibraryImporting] = useState(false);
-
-  /**
-   * 搜索历史：给文档地址输入框提供历史选项，并管理“重命名记录”弹窗。
-   */
-  const {
-    autoCompleteOptions,
-    renameTarget,
-    renameValue,
-    setRenameTarget,
-    setRenameValue,
-    confirmRename,
-    recordSearchOnce,
-  } = useDocSearchHistory();
 
   /**
    * 扩展状态：影响跨域/内网文档加载方式，也用于给用户展示安装和重检入口。
@@ -123,8 +115,42 @@ const Home: React.FC = () => {
     removeSavedExport,
   } = useLocalApiExports(localId);
 
+  const handleSearchHistoryRename = useCallback((record: { value: string }, nextLabel: string) => {
+    void renameApiExportsByDocUrl(record.value, nextLabel)
+      .then((updated) => {
+        if (updated.length) {
+          void refreshSavedExports();
+        }
+      })
+      .catch(() => undefined);
+  }, [refreshSavedExports]);
+
+  /**
+   * 搜索历史：给文档地址输入框提供历史选项，并管理“重命名记录”弹窗。
+   */
+  const {
+    autoCompleteOptions,
+    renameTarget,
+    renameValue,
+    setRenameTarget,
+    setRenameValue,
+    confirmRename,
+    recordSearchOnce,
+    renameSearchRecordByValue,
+    getLabelByValue,
+  } = useDocSearchHistory({
+    onRename: handleSearchHistoryRename,
+  });
+
   const isLocalMode = Boolean(localId);
-  const localDocumentData = activeLocalExport?.payload.openapi as OpenAPI.Document | undefined;
+  const localServices = activeLocalExport?.payload.services;
+  const activeLocalService = useMemo(() => {
+    if (!localServices?.length) return undefined;
+    return localServices.find((item) => item.url === serviceUrl) ?? localServices[0];
+  }, [localServices, serviceUrl]);
+  const localDocumentData = (activeLocalService?.openapi ?? activeLocalExport?.payload.openapi) as
+    | OpenAPI.Document
+    | undefined;
   const documentData = isLocalMode ? (localDocumentData ?? null) : remoteDocumentData;
   const activeError = isLocalMode ? localActiveError : error;
   const activeErrorDetail = isLocalMode
@@ -173,8 +199,10 @@ const Home: React.FC = () => {
    * 已查看 Tabs：记录用户浏览过的 API，并支持关闭、固定和关闭其它。
    */
   const viewedContextKey = useMemo(
-    () => (localId ? `local:${localId}` : `${ipFromUrl}__${serviceUrl ?? ""}`),
-    [ipFromUrl, localId, serviceUrl],
+    () => (localId
+      ? `local:${localId}__${activeLocalService?.url ?? ""}`
+      : `${ipFromUrl}__${serviceUrl ?? ""}`),
+    [activeLocalService?.url, ipFromUrl, localId, serviceUrl],
   );
   const handleSelectApi = useCallback((nextApiKey?: string) => {
     setSearchParams((prev) => {
@@ -204,19 +232,32 @@ const Home: React.FC = () => {
    * 派生展示数据：服务下拉、接口完整 URL、当前 API 的 TypeScript 类型片段。
    */
   const serviceOptions = useMemo(() => {
-    if (isLocalMode) return [];
+    if (isLocalMode) {
+      return localServices?.map((item) => ({
+        label: item.name,
+        value: item.url,
+      })) || [];
+    }
     return configData?.urls.map((item) => ({
       label: item.name,
       value: item.url,
     })) || [];
-  }, [configData?.urls, isLocalMode]);
+  }, [configData?.urls, isLocalMode, localServices]);
   const localSourceDocUrl = activeLocalExport?.payload.source.docUrl || "";
   const sourceDocUrl = isLocalMode ? localSourceDocUrl : ipFromUrl;
   const derivedApiBaseUrl = useApiBaseUrl({
     documentData,
     normalizedDocInput: isLocalMode ? localSourceDocUrl : normalizedDocInput,
   });
-  const apiBaseUrl = activeLocalExport?.payload.source.apiBaseUrl || derivedApiBaseUrl;
+  const apiBaseUrl = activeLocalService?.apiBaseUrl
+    || (localServices?.length ? "" : activeLocalExport?.payload.source.apiBaseUrl)
+    || derivedApiBaseUrl;
+  const hasSavedCurrentDoc = useMemo(() => (
+    Boolean(sourceDocUrl) && savedExports.some((record) =>
+      isSameExportDocUrl(record.sourceDocUrl || record.payload.source.docUrl, sourceDocUrl),
+    )
+  ), [savedExports, sourceDocUrl]);
+  const saveName = getLabelByValue(sourceDocUrl);
   const tsCodeParts = useHomeTsCodeParts({ documentData, selectedApi, generatorOptions });
 
   useEffect(() => {
@@ -241,12 +282,30 @@ const Home: React.FC = () => {
     }
   }, [localId, removeSavedExport, setSearchParams]);
 
+  const handleRenameLocalExport = useCallback(async (record: SavedApiExport, name: string) => {
+    try {
+      const updated = await renameApiExport(record.id, name);
+      const docUrl = updated.sourceDocUrl || updated.payload.source.docUrl;
+      if (docUrl) {
+        renameSearchRecordByValue(docUrl, updated.name);
+      }
+      await refreshSavedExports();
+      message.success("已重命名本地接口文档");
+    } catch (renameError) {
+      const text = renameError instanceof Error ? renameError.message : String(renameError);
+      message.error(`重命名失败：${text}`);
+      throw renameError;
+    }
+  }, [refreshSavedExports, renameSearchRecordByValue]);
+
   const handleImportLocalExport = useCallback(async (file: File) => {
     setLocalLibraryImporting(true);
     try {
       const fileText = await file.text();
       const imported = parseImportedApiExport(fileText, file.name, configState, generatorOptions);
-      const result = await saveApiExport(imported.payload);
+      const result = await saveApiExport(imported.payload, {
+        name: getLabelByValue(imported.payload.source.docUrl) || imported.name,
+      });
       await refreshSavedExports();
       message.success(result.created ? `已导入 ${imported.name}` : `已更新本地记录：${imported.name}`);
       handleOpenLocalExport(result.record.id);
@@ -257,7 +316,7 @@ const Home: React.FC = () => {
     } finally {
       setLocalLibraryImporting(false);
     }
-  }, [configState, generatorOptions, handleOpenLocalExport, refreshSavedExports]);
+  }, [configState, generatorOptions, getLabelByValue, handleOpenLocalExport, refreshSavedExports]);
 
   const handleBackHome = useCallback(() => {
     setSearchParams(new URLSearchParams(), {replace: true});
@@ -276,7 +335,7 @@ const Home: React.FC = () => {
             handleCommitIp={handleCommitIp}
             loading={loading}
             loadingFeedback={loadingFeedback}
-            serviceUrl={isLocalMode ? undefined : serviceUrl}
+            serviceUrl={isLocalMode ? activeLocalService?.url : serviceUrl}
             configLoading={configLoading}
             serviceOptions={serviceOptions}
             handleServiceChange={handleServiceChange}
@@ -288,7 +347,13 @@ const Home: React.FC = () => {
                 apiGroups={apiGroups}
                 apiBaseUrl={apiBaseUrl}
                 docUrl={sourceDocUrl}
-                serviceUrl={isLocalMode ? activeLocalExport?.payload.source.serviceUrl : serviceUrl}
+                documentBaseUrl={normalizedDocInput}
+                serviceUrl={isLocalMode ? activeLocalService?.url : serviceUrl}
+                serviceOptions={!isLocalMode ? serviceOptions : undefined}
+                pluginEnabled={pluginEnabled}
+                existingPayload={isLocalMode ? activeLocalExport?.payload : undefined}
+                saveName={saveName}
+                hasSavedCurrentDoc={hasSavedCurrentDoc}
                 generatorConfig={configState}
                 generatorOptions={generatorOptions}
                 onSaved={() => void refreshSavedExports()}
@@ -370,6 +435,7 @@ const Home: React.FC = () => {
         onOpen={handleOpenLocalExport}
         onDownload={handleDownloadLocalExport}
         onDelete={(id) => void handleDeleteLocalExport(id)}
+        onRename={handleRenameLocalExport}
         onImportFile={handleImportLocalExport}
       />
 

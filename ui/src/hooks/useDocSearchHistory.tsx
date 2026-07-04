@@ -13,7 +13,12 @@ type SearchRecord = {
   updatedAt: number;
 };
 
-export function useDocSearchHistory() {
+type UseDocSearchHistoryOptions = {
+  onRename?: (record: SearchRecord, nextLabel: string) => void;
+};
+
+export function useDocSearchHistory(options: UseDocSearchHistoryOptions = {}) {
+  const { onRename } = options;
   const [searchHistory, setSearchHistory] = useState<SearchRecord[]>(() => {
     try {
       const raw = localStorage.getItem(SEARCH_HISTORY_KEY);
@@ -55,6 +60,50 @@ export function useDocSearchHistory() {
     });
   }, []);
 
+  const upsertSearchRecord = useCallback((value: string, label?: string) => {
+    const normalized = value.trim();
+    if (!normalized) return;
+    setSearchHistory((prev) => {
+      const existing = prev.find((item) => item.value === normalized);
+      const nextItem: SearchRecord = {
+        id: existing?.id ?? createRecordId(),
+        label: label?.trim() || existing?.label || normalized,
+        value: normalized,
+        updatedAt: Date.now(),
+      };
+      const nextList = [nextItem, ...prev.filter((item) => item.value !== normalized)];
+      return nextList.slice(0, MAX_HISTORY);
+    });
+  }, []);
+
+  const renameSearchRecordByValue = useCallback((value: string, label: string) => {
+    const normalized = value.trim();
+    const nextLabel = label.trim();
+    if (!normalized || !nextLabel) return;
+    setSearchHistory((prev) => {
+      const existing = prev.find((item) => item.value === normalized);
+      if (!existing) {
+        return [{
+          id: createRecordId(),
+          label: nextLabel,
+          value: normalized,
+          updatedAt: Date.now(),
+        }, ...prev].slice(0, MAX_HISTORY);
+      }
+      const nextItem: SearchRecord = {
+        ...existing,
+        label: nextLabel,
+        updatedAt: Date.now(),
+      };
+      return [nextItem, ...prev.filter((item) => item.id !== existing.id)].slice(0, MAX_HISTORY);
+    });
+  }, []);
+
+  const getLabelByValue = useCallback((value: string) => {
+    const normalized = value.trim();
+    return searchHistory.find((item) => item.value === normalized)?.label;
+  }, [searchHistory]);
+
   const recordSearchOnce = useCallback(
     (value: string) => {
       if (lastRecordedIpRef.current === value) return;
@@ -83,8 +132,9 @@ export function useDocSearchHistory() {
         item.id === renameTarget.id ? { ...item, label: nextLabel } : item,
       ),
     );
+    onRename?.(renameTarget, nextLabel);
     setRenameTarget(null);
-  }, [renameTarget, renameValue]);
+  }, [onRename, renameTarget, renameValue]);
 
   const handleDelete = useCallback((record: SearchRecord, event?: MouseEvent) => {
     event?.preventDefault();
@@ -173,5 +223,8 @@ export function useDocSearchHistory() {
     setRenameValue,
     confirmRename,
     recordSearchOnce,
+    upsertSearchRecord,
+    renameSearchRecordByValue,
+    getLabelByValue,
   };
 }
