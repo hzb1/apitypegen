@@ -27,6 +27,8 @@ type SwaggerConfig = {
 type State = {
   config: SwaggerConfig | null;
   document: OpenAPI.Document | null;
+  // 当前 document 是用哪个 serviceUrl 加载的，用于在 service 切换时同步判定"文档已过期"。
+  documentServiceUrl: string | undefined;
   stage: SwaggerLoadingStage;
   error: SwaggerErrorDetail | null;
 };
@@ -37,7 +39,7 @@ type Action =
   | { type: "LOAD_DOCUMENT" }
   | { type: "LOAD_DIRECT_DOCUMENT" }
   | { type: "CONFIG_SUCCESS"; payload: SwaggerConfig }
-  | { type: "DOCUMENT_SUCCESS"; payload: OpenAPI.Document }
+  | { type: "DOCUMENT_SUCCESS"; payload: OpenAPI.Document; serviceUrl?: string }
   | { type: "ERROR"; payload: SwaggerErrorDetail }
   | { type: "CLEAR_ERROR" };
 
@@ -74,7 +76,7 @@ function reducer(state: State, action: Action): State {
     case "CONFIG_SUCCESS":
       return { ...state, config: action.payload, stage: "idle", error: null }; //
     case "DOCUMENT_SUCCESS":
-      return { ...state, document: action.payload, stage: "idle", error: null }; //
+      return { ...state, document: action.payload, documentServiceUrl: action.serviceUrl, stage: "idle", error: null }; //
     case "ERROR":
       return { ...state, stage: "idle", error: action.payload }; //
     case "CLEAR_ERROR":
@@ -170,6 +172,7 @@ export function useSwagger(params: {
   const [state, dispatch] = useReducer(reducer, {
     config: null,
     document: null,
+    documentServiceUrl: undefined,
     stage: "idle",
     error: null,
   });
@@ -374,7 +377,8 @@ export function useSwagger(params: {
         throw new Error("文档格式不是 OpenAPI/Swagger");
       }
       hasResolvedDocumentRef.current = true;
-      dispatch({ type: "DOCUMENT_SUCCESS", payload: doc });
+      // 直连文档模式没有 service 概念，记为 undefined。
+      dispatch({ type: "DOCUMENT_SUCCESS", payload: doc, serviceUrl: undefined });
       optionsRef.current?.onDocumentLoaded?.(doc);
     } catch (err) {
       if (isAbortError(err)) return;
@@ -496,7 +500,7 @@ export function useSwagger(params: {
       if (signal.aborted) return;
 
       hasResolvedDocumentRef.current = true;
-      dispatch({ type: "DOCUMENT_SUCCESS", payload: doc });
+      dispatch({ type: "DOCUMENT_SUCCESS", payload: doc, serviceUrl: currentServiceUrl });
       optionsRef.current?.onDocumentLoaded?.(doc);
     } catch (err) {
       if (isAbortError(err)) return;
@@ -562,6 +566,7 @@ export function useSwagger(params: {
   return {
     configData: state.config,
     documentData: state.document,
+    documentServiceUrl: state.documentServiceUrl,
     stage: state.stage,
     error: state.error?.message ?? null,
     errorDetail: state.error,

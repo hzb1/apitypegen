@@ -89,6 +89,7 @@ const NetworkPanel: React.FC = () => {
     createInitialDraft(),
   );
   const [loading, setLoading] = useState(false);
+  // doc 表示文档来源；ip 是历史别名（仅旧书签 ?ip=... 兼容），与 home 页保持同一读取逻辑。
   const ipFromUrl = searchParams.get("doc")?.trim() ?? searchParams.get("ip")?.trim() ?? "";
   const serviceUrl = searchParams.get("service") ?? undefined;
   const {

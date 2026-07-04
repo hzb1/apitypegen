@@ -55,15 +55,6 @@ export function useApiNavigationData(params: UseApiNavigationDataParams) {
 
   const groupedApis = useMemo(() => buildGroupedApis(documentData), [documentData]);
 
-  const selectedApi = useMemo(() => {
-    if (!selectedApiKey) return null;
-    for (const apis of Object.values(groupedApis)) {
-      const matched = apis.find((api) => api.key === selectedApiKey);
-      if (matched) return matched;
-    }
-    return null;
-  }, [groupedApis, selectedApiKey]);
-
   const apiMap = useMemo(() => {
     const map = new Map<string, ApiDetail>();
     Object.values(groupedApis).forEach((apis) => {
@@ -71,6 +62,12 @@ export function useApiNavigationData(params: UseApiNavigationDataParams) {
     });
     return map;
   }, [groupedApis]);
+
+  // 复用上面的 apiMap 做 O(1) 查找，避免对 groupedApis 做线性扫描。
+  const selectedApi = useMemo(
+    () => (selectedApiKey ? (apiMap.get(selectedApiKey) ?? null) : null),
+    [apiMap, selectedApiKey]
+  );
 
   const apiKeyToGroupId = useMemo(() => {
     const map = new Map<string, string>();

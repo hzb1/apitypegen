@@ -42,11 +42,13 @@ export function useHomeApiNavigation(params: UseHomeApiNavigationParams) {
       ));
     }
     setMobileNavOpen(false);
+    // 接口间切换用 replace，避免后退键在多个接口间堆叠历史；
+    // 文档/服务源切换才用 push（见 useHomeDocumentState）。
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       next.set("api", key);
       return next;
-    });
+    }, { replace: true });
   }, [apiKeyToGroupId, setSearchParams]);
 
   const onViewedTabSelect = useCallback((key: string) => {

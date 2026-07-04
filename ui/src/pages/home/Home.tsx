@@ -116,6 +116,7 @@ const Home: React.FC = () => {
    */
   const {
     documentData: remoteDocumentData,
+    documentServiceUrl,
     configData,
     stage,
     error,
@@ -210,7 +211,12 @@ const Home: React.FC = () => {
   const remoteLoading = stage === "probe" || stage === "config" || stage === "document";
   const loading = isLocalMode ? activeLoading : remoteLoading;
   const configLoading = !isLocalMode && stage === "config";
-  const contentLoading = hasDocumentSource && !activeError && (loading || !documentData);
+  // service 切换时旧文档还在内存，新 api key 可能在旧文档里找不到，
+  // 在 effect 触发 LOAD_DOCUMENT 之前会闪一帧 dashboard。这里同步判定
+  // "URL 的 serviceUrl 与当前文档归属的 service 不一致"，强制 loading。
+  // local 模式文档来自内存且同步派生，不参与此判定。
+  const serviceStale = !isLocalMode && (serviceUrl ?? null) !== (documentServiceUrl ?? null);
+  const contentLoading = hasDocumentSource && !activeError && (loading || !documentData || serviceStale);
   const remoteLoadingFeedback = useHomeLoadingFeedback(stage);
   const loadingFeedback = isLocalMode && activeLoading
     ? {
@@ -251,6 +257,7 @@ const Home: React.FC = () => {
     [activeLocalService?.url, ipFromUrl, localId, serviceUrl],
   );
   const handleSelectApi = useCallback((nextApiKey?: string) => {
+    // tab 选择 / 关闭当前 tab 回退都属于接口间切换，用 replace 不污染历史栈。
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       if (nextApiKey) {
@@ -259,8 +266,20 @@ const Home: React.FC = () => {
         next.delete("api");
       }
       return next;
-    });
+    }, { replace: true });
   }, [setSearchParams]);
+
+  // 兜底：文档加载完成后，若 URL 里的 api 在当前文档中不存在（手动改 URL / 过期链接），
+  // 静默清掉它，避免 selectedApi 永远为 null 而 URL 残留无效参数。replace 不进历史。
+  useEffect(() => {
+    if (contentLoading || !selectedApiKey) return;
+    if (apiMap.has(selectedApiKey)) return;
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete("api");
+      return next;
+    }, { replace: true });
+  }, [contentLoading, selectedApiKey, apiMap, setSearchParams]);
   const {
     pinnedApiKeys,
     orderedViewedApiKeys,
