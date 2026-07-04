@@ -127,23 +127,21 @@ const ApiList: React.FC<ApiListProps> = ({
                 <RightOutlined />
               </span>
             </div>
-            <div
-              className={
-                isExpanded ? "api-group-content expanded" : "api-group-content"
-              }
-            >
-              <ul className="api-list-group-children">
-                {groupItem.children.map((apiItem) => {
-                  return (
-                    <ApiItem
-                      apiItem={apiItem}
-                      key={apiItem.key}
-                      onClick={() => onSelectKeyChange?.(apiItem.key)}
-                    />
-                  );
-                })}
-              </ul>
-            </div>
+            {isExpanded && (
+              <div className="api-group-content">
+                <ul className="api-list-group-children">
+                  {groupItem.children.map((apiItem) => {
+                    return (
+                      <ApiItem
+                        apiItem={apiItem}
+                        key={apiItem.key}
+                        onClick={() => onSelectKeyChange?.(apiItem.key)}
+                      />
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
 
           </div>
         );

@@ -130,21 +130,21 @@
   color: var(--ts-brand);
 }
 
+/* 折叠时不渲染孩子（条件渲染），只保留展开态样式 + 轻量进入动画。 */
 .api-list-wrapper .api-group-content {
-  overflow: hidden;
-  max-height: 0;
-  opacity: 0;
-  transform: translateY(-3px);
-  transition: max-height 0.24s ease, opacity 0.16s ease, transform 0.2s ease;
-  pointer-events: none;
+  padding-bottom: 6px;
+  animation: api-group-enter 0.2s ease;
 }
 
-.api-list-wrapper .api-group-content.expanded {
-  max-height: 1400px;
-  opacity: 1;
-  transform: translateY(0);
-  pointer-events: auto;
-  padding-bottom: 6px;
+@keyframes api-group-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .api-list-jump {
