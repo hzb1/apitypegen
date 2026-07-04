@@ -65,10 +65,10 @@ export default function ViewedApiTabs(props: ViewedApiTabsProps) {
                     items: [
                       {
                         key: "toggle-pin",
-                        label: isPinned ? "取消固定 Tab" : "固定 Tab",
+                        label: isPinned ? "取消固定" : "固定标签",
                         icon: <PushpinOutlined />,
                       },
-                      {key: "close-others", label: "删除其它 Tab"},
+                      {key: "close-others", label: "关闭其它标签"},
                     ],
                     onClick: ({key: actionKey}) => {
                       if (actionKey === "toggle-pin") {
@@ -82,7 +82,8 @@ export default function ViewedApiTabs(props: ViewedApiTabsProps) {
                   }}
                 >
                   <span className="viewed-tab-label" title={tooltip}>
-                    {isPinned ? `[固定] ${title}` : title}
+                    {isPinned ? <PushpinOutlined className="viewed-tab-pin" /> : null}
+                    <span>{title}</span>
                   </span>
                 </Dropdown>
               ),

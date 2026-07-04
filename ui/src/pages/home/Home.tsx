@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { message } from "antd";
 import type { OpenAPI } from "openapi-types";
 import "./Home.css";
@@ -16,6 +16,12 @@ import MobileNavDrawer from "./components/MobileNavDrawer.tsx";
 import ProjectConfigDrawer from "./components/ProjectConfigDrawer.tsx";
 import RenameHistoryModal from "./components/RenameHistoryModal.tsx";
 import WelcomeView from "./components/WelcomeView.tsx";
+import DocumentDashboard, {
+  type DashboardRecentApi,
+  type DashboardServiceItem,
+} from "./components/DocumentDashboard.tsx";
+import type { DocumentMode } from "./components/DocumentStatusChip.tsx";
+import type { AllServiceSearchGroup, SearchResultSelectContext } from "@/components/sidebar/ApiSearchDialog.tsx";
 import type { SavedApiExport } from "./export/export.types.ts";
 import { downloadTsSwaggerExport } from "./export/downloadJson.ts";
 import { parseImportedApiExport } from "./export/importApiExport.ts";
@@ -25,12 +31,41 @@ import {
   renameApiExportsByDocUrl,
   saveApiExport,
 } from "./export/localApiExportStore.ts";
+import { buildApiGroups, buildGroupedApis } from "@/hooks/useApiNavigationData.ts";
 import { useApiBaseUrl } from "./hooks/useApiBaseUrl.ts";
 import { useHomeApiNavigation } from "./hooks/useHomeApiNavigation.ts";
 import { useHomeDocumentState } from "./hooks/useHomeDocumentState.ts";
 import { useHomeLoadingFeedback } from "./hooks/useHomeLoadingFeedback.ts";
 import { useHomeTsCodeParts } from "./hooks/useHomeTsCodeParts.ts";
 import { useLocalApiExports } from "./hooks/useLocalApiExports.ts";
+import {
+  buildServiceDocumentUrl,
+  fetchOpenApiDocument,
+  normalizeDocumentBaseUrl,
+} from "./serviceDocumentLoader.ts";
+
+function getDocumentInfo(documentData: OpenAPI.Document | null) {
+  const record = documentData as Record<string, unknown> | null;
+  const info = record?.info && typeof record.info === "object"
+    ? record.info as Record<string, unknown>
+    : {};
+  return {
+    title: typeof info.title === "string" && info.title.trim() ? info.title.trim() : "",
+    version: typeof info.version === "string" && info.version.trim() ? info.version.trim() : "",
+  };
+}
+
+function buildSearchGroupsFromDocument(params: {
+  documentData: OpenAPI.Document;
+  selectedApiKey?: string | null;
+}) {
+  const groupedApis = buildGroupedApis(params.documentData);
+  return buildApiGroups({
+    groupedApis,
+    selectedApiKey: params.selectedApiKey ?? null,
+    expandedGroupList: Object.keys(groupedApis).map((tag) => String(tag)),
+  });
+}
 
 const Home: React.FC = () => {
   /**
@@ -60,6 +95,11 @@ const Home: React.FC = () => {
    */
   const [configDrawerOpen, setConfigDrawerOpen] = useState(false);
   const [localLibraryImporting, setLocalLibraryImporting] = useState(false);
+  const allServiceSearchCacheRef = useRef<{
+    key: string;
+    data?: AllServiceSearchGroup[];
+    promise?: Promise<AllServiceSearchGroup[]>;
+  } | null>(null);
 
   /**
    * 扩展状态：影响跨域/内网文档加载方式，也用于给用户展示安装和重检入口。
@@ -114,6 +154,12 @@ const Home: React.FC = () => {
     refreshSavedExports,
     removeSavedExport,
   } = useLocalApiExports(localId);
+  const savedDocUrls = useMemo(
+    () => savedExports
+      .map((record) => record.sourceDocUrl || record.payload.source.docUrl)
+      .filter((value): value is string => Boolean(value)),
+    [savedExports],
+  );
 
   const handleSearchHistoryRename = useCallback((record: { value: string }, nextLabel: string) => {
     void renameApiExportsByDocUrl(record.value, nextLabel)
@@ -140,6 +186,7 @@ const Home: React.FC = () => {
     getLabelByValue,
   } = useDocSearchHistory({
     onRename: handleSearchHistoryRename,
+    savedDocUrls,
   });
 
   const isLocalMode = Boolean(localId);
@@ -191,7 +238,6 @@ const Home: React.FC = () => {
   } = useHomeApiNavigation({
     documentData,
     selectedApiKey,
-    isDemoMode: isDemoMode || isLocalMode,
     setSearchParams,
   });
 
@@ -259,6 +305,165 @@ const Home: React.FC = () => {
   ), [savedExports, sourceDocUrl]);
   const saveName = getLabelByValue(sourceDocUrl);
   const tsCodeParts = useHomeTsCodeParts({ documentData, selectedApi, generatorOptions });
+  const documentInfo = useMemo(() => getDocumentInfo(documentData), [documentData]);
+  const documentMode: DocumentMode = isLocalMode ? "local" : isDemoMode ? "demo" : "remote";
+  const documentTitle = activeLocalExport?.name
+    || documentInfo.title
+    || (isDemoMode ? "示例项目" : "API 工作台");
+  const documentSubtitle = isLocalMode
+    ? activeLocalExport?.sourceDocUrl || activeLocalExport?.payload.source.importedFileName || "本地接口库"
+    : sourceDocUrl || "TypeScript 类型生成";
+  const apiCount = apiGroups.reduce((total, group) => total + group.children.length, 0);
+  const methodStats = useMemo(() => {
+    const stats = new Map<string, number>();
+    apiGroups.forEach((group) => {
+      group.children.forEach((api) => {
+        const method = api.method.toUpperCase();
+        stats.set(method, (stats.get(method) ?? 0) + 1);
+      });
+    });
+    const order = ["GET", "POST", "PUT", "DELETE", "PATCH"];
+    return Array.from(stats.entries())
+      .sort((a, b) => {
+        const left = order.indexOf(a[0]);
+        const right = order.indexOf(b[0]);
+        if (left !== -1 || right !== -1) {
+          return (left === -1 ? 99 : left) - (right === -1 ? 99 : right);
+        }
+        return b[1] - a[1];
+      })
+      .map(([method, count]) => ({ method, count }));
+  }, [apiGroups]);
+  const topGroups = useMemo(() => (
+    apiGroups
+      .map((group) => ({ name: group.name, count: group.children.length }))
+      .filter((group) => group.count > 0)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5)
+  ), [apiGroups]);
+  const dashboardServices: DashboardServiceItem[] = useMemo(() => {
+    if (localServices?.length) {
+      return localServices.map((service) => ({
+        name: service.name,
+        value: service.url,
+        apiCount: service.apis.length,
+        isActive: service.url === activeLocalService?.url,
+      }));
+    }
+    if (serviceOptions.length) {
+      return serviceOptions.map((service) => ({
+        name: service.label,
+        value: service.value,
+        apiCount: service.value === serviceUrl ? apiCount : undefined,
+        isActive: service.value === serviceUrl,
+      }));
+    }
+    return documentData
+      ? [{
+        name: documentTitle,
+        value: sourceDocUrl,
+        apiCount,
+        isActive: true,
+      }]
+      : [];
+  }, [
+    activeLocalService?.url,
+    apiCount,
+    documentData,
+    documentTitle,
+    localServices,
+    serviceOptions,
+    serviceUrl,
+    sourceDocUrl,
+  ]);
+  const recentApis = useMemo(() => (
+    orderedViewedApiKeys
+      .slice(-5)
+      .reverse()
+      .flatMap((key): DashboardRecentApi[] => {
+        const api = apiMap.get(key);
+        return api ? [api] : [];
+      })
+  ), [apiMap, orderedViewedApiKeys]);
+  const localAllServiceGroups = useMemo<AllServiceSearchGroup[]>(() => {
+    if (!localServices?.length) return [];
+    return localServices.map((service) => ({
+      serviceName: service.name,
+      serviceValue: service.url,
+      groups: buildSearchGroupsFromDocument({
+        documentData: service.openapi as OpenAPI.Document,
+        selectedApiKey: service.url === activeLocalService?.url ? selectedApiKey : null,
+      }),
+    }));
+  }, [activeLocalService?.url, localServices, selectedApiKey]);
+  const allServiceSearchCacheKey = useMemo(
+    () => `${normalizedDocInput}__${serviceOptions.map((item) => `${item.label}:${item.value}`).join("|")}`,
+    [normalizedDocInput, serviceOptions],
+  );
+  const loadAllServiceGroups = useCallback(async (): Promise<AllServiceSearchGroup[]> => {
+    if (!serviceOptions.length) return [];
+    const cached = allServiceSearchCacheRef.current;
+    if (cached?.key === allServiceSearchCacheKey) {
+      if (cached.data) return cached.data;
+      if (cached.promise) return cached.promise;
+    }
+
+    const baseUrl = normalizeDocumentBaseUrl(normalizedDocInput || sourceDocUrl);
+    const promise = Promise.all(serviceOptions.map(async (service) => {
+      try {
+        const doc = service.value === serviceUrl && documentData
+          ? documentData
+          : await fetchOpenApiDocument(
+            buildServiceDocumentUrl(baseUrl, service.value),
+            pluginEnabled,
+          );
+        return {
+          serviceName: service.label,
+          serviceValue: service.value,
+          groups: buildSearchGroupsFromDocument({
+            documentData: doc,
+            selectedApiKey: service.value === serviceUrl ? selectedApiKey : null,
+          }),
+        };
+      } catch (error) {
+        const text = error instanceof Error ? error.message : String(error);
+        throw new Error(`${service.label} ${text}`);
+      }
+    }));
+
+    allServiceSearchCacheRef.current = {
+      key: allServiceSearchCacheKey,
+      promise,
+    };
+    const data = await promise;
+    allServiceSearchCacheRef.current = {
+      key: allServiceSearchCacheKey,
+      data,
+    };
+    return data;
+  }, [
+    allServiceSearchCacheKey,
+    documentData,
+    normalizedDocInput,
+    pluginEnabled,
+    selectedApiKey,
+    serviceOptions,
+    serviceUrl,
+    sourceDocUrl,
+  ]);
+  const handleSearchSelect = useCallback((key: string, context?: SearchResultSelectContext) => {
+    if (context?.serviceValue && context.serviceValue !== serviceUrl) {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.set("service", context.serviceValue || "");
+        next.set("api", key);
+        return next;
+      });
+      setMobileNavOpen(false);
+      return;
+    }
+    handleToolbarSearchSelect(key);
+  }, [handleToolbarSearchSelect, serviceUrl, setMobileNavOpen, setSearchParams]);
 
   useEffect(() => {
     if (!remoteDocumentData || isLocalMode) return;
@@ -329,6 +534,12 @@ const Home: React.FC = () => {
         <div className="views">
           {/* 顶部栏：品牌、文档地址输入、服务选择、项目配置入口和主题切换。 */}
           <DocumentTopbar
+            documentMeta={{
+              title: documentTitle,
+              subtitle: documentSubtitle,
+              mode: documentMode,
+              saved: hasSavedCurrentDoc,
+            }}
             inputIp={inputIp}
             setInputIp={setInputIp}
             autoCompleteOptions={autoCompleteOptions}
@@ -371,7 +582,10 @@ const Home: React.FC = () => {
             apiGroups={apiGroups}
             onMenuSelect={onMenuSelect}
             handleGroupTitleClick={handleGroupTitleClick}
-            handleToolbarSearchSelect={handleToolbarSearchSelect}
+            handleToolbarSearchSelect={handleSearchSelect}
+            currentServiceLabel={activeLocalService?.name || serviceOptions.find((item) => item.value === serviceUrl)?.label}
+            allServiceGroups={isLocalMode ? localAllServiceGroups : undefined}
+            loadAllServiceGroups={!isLocalMode && serviceOptions.length > 1 ? loadAllServiceGroups : undefined}
             orderedViewedApiKeys={orderedViewedApiKeys}
             selectedApiKey={selectedApiKey}
             apiMap={apiMap}
@@ -383,6 +597,25 @@ const Home: React.FC = () => {
             selectedApi={selectedApi}
             tsCodeParts={tsCodeParts}
             apiBaseUrl={apiBaseUrl}
+            dashboard={
+              <DocumentDashboard
+                title={documentTitle}
+                version={documentInfo.version}
+                sourceText={documentSubtitle}
+                mode={documentMode}
+                saved={hasSavedCurrentDoc}
+                apiCount={apiCount}
+                groupCount={apiGroups.length}
+                serviceCount={dashboardServices.length}
+                localLibraryCount={savedExports.length}
+                methodStats={methodStats}
+                topGroups={topGroups}
+                recentApis={recentApis}
+                services={dashboardServices}
+                onServiceSelect={handleServiceChange}
+                onApiSelect={onViewedTabSelect}
+              />
+            }
             extensionChecking={checking}
             onRecheckExtension={recheckPlugin}
             onTryDemo={handleTryDemo}
@@ -397,7 +630,10 @@ const Home: React.FC = () => {
             apiGroups={apiGroups}
             onMenuSelect={onMenuSelect}
             handleGroupTitleClick={handleGroupTitleClick}
-            handleToolbarSearchSelect={handleToolbarSearchSelect}
+            handleToolbarSearchSelect={handleSearchSelect}
+            currentServiceLabel={activeLocalService?.name || serviceOptions.find((item) => item.value === serviceUrl)?.label}
+            allServiceGroups={isLocalMode ? localAllServiceGroups : undefined}
+            loadAllServiceGroups={!isLocalMode && serviceOptions.length > 1 ? loadAllServiceGroups : undefined}
           />
 
           {/* 项目配置抽屉：控制 TypeScript 生成偏好。 */}

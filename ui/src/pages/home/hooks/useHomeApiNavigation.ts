@@ -8,12 +8,11 @@ import type { ScrollRequest } from "../home.types.ts";
 type UseHomeApiNavigationParams = {
   documentData: OpenAPI.Document | null;
   selectedApiKey: string | null;
-  isDemoMode: boolean;
   setSearchParams: SetURLSearchParams;
 };
 
 export function useHomeApiNavigation(params: UseHomeApiNavigationParams) {
-  const { documentData, selectedApiKey, isDemoMode, setSearchParams } = params;
+  const { documentData, selectedApiKey, setSearchParams } = params;
   const [expandedGroupList, setExpandedGroupList] = useState<string[]>([]);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const scrollRequestIdRef = useRef(0);
@@ -63,20 +62,6 @@ export function useHomeApiNavigation(params: UseHomeApiNavigationParams) {
     setMobileNavOpen(false);
     onViewedTabSelect(key);
   }, [onViewedTabSelect]);
-
-  // Demo 模式需要一进来就看到内容，而不是停在“请选择 API”的空状态。
-  useEffect(() => {
-    if (!isDemoMode || selectedApiKey) return;
-    const firstApiKey = apiGroups[0]?.children?.[0]?.key;
-    if (!firstApiKey) return;
-
-    setSearchParams((prev) => {
-      if (prev.get("api")) return prev;
-      const next = new URLSearchParams(prev);
-      next.set("api", firstApiKey);
-      return next;
-    }, {replace: true});
-  }, [apiGroups, isDemoMode, selectedApiKey, setSearchParams]);
 
   // 首次进入或通过 URL 选中 API 时，自动展开对应分组。
   useEffect(() => {

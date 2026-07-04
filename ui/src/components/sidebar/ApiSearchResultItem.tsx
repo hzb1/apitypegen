@@ -6,6 +6,8 @@ export type SearchMatchType = "路径" | "名称" | "ID" | "模型" | "方法";
 export type SearchResultItemData = {
   matchType: SearchMatchType;
   groupName: string;
+  serviceName?: string;
+  serviceValue?: string;
   item: ApiGroup["children"][number];
 };
 
@@ -18,7 +20,7 @@ const ApiSearchResultItem: React.FC<ApiSearchResultItemProps> = ({
   data,
   onSelect,
 }) => {
-  const { item, groupName, matchType } = data;
+  const { item, groupName, matchType, serviceName } = data;
   const summary = item.operation?.summary || item.path;
   const method = item.method.toUpperCase();
 
@@ -46,6 +48,7 @@ const ApiSearchResultItem: React.FC<ApiSearchResultItemProps> = ({
       </div>
       <div className="mt-2 flex items-center gap-2 text-xs text-gray-500">
         <span className="rounded-md bg-gray-100 px-1.5 py-0.5">{matchType}</span>
+        {serviceName ? <span className="truncate">{serviceName}</span> : null}
         <span className="truncate">{groupName}</span>
       </div>
     </button>

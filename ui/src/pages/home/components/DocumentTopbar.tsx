@@ -5,6 +5,7 @@ import { MenuOutlined, QuestionCircleOutlined, SettingOutlined } from "@ant-desi
 import ThemeDropdown from "@/components/theme/ThemeDropdown.tsx";
 import logoUrl from "@/assets/logo/logo-replica-full.svg";
 import type { LoadingFeedback } from "../home.types.ts";
+import DocumentStatusChip, { type DocumentMode } from "./DocumentStatusChip.tsx";
 
 type ServiceOption = {
   label: string;
@@ -12,6 +13,12 @@ type ServiceOption = {
 };
 
 type DocumentTopbarProps = {
+  documentMeta: {
+    title: string;
+    subtitle?: string;
+    mode: DocumentMode;
+    saved: boolean;
+  };
   inputIp: string;
   setInputIp: (value: string) => void;
   autoCompleteOptions: AutoCompleteProps["options"];
@@ -42,7 +49,9 @@ export default function DocumentTopbar(props: DocumentTopbarProps) {
     setMobileNavOpen,
     setConfigDrawerOpen,
     extraActions,
+    documentMeta,
   } = props;
+  const showServiceSelect = serviceOptions.length > 1;
 
   return (
     <header className="home-topbar">
@@ -56,12 +65,19 @@ export default function DocumentTopbar(props: DocumentTopbarProps) {
         </button>
         <img src={logoUrl} alt="TS Swagger" className="home-topbar-logo" />
         <div className="home-topbar-copy">
-          <div className="home-topbar-title">API 工作台</div>
-          <div className="home-topbar-subtitle">TypeScript 类型生成</div>
+          <div className="home-topbar-title-row">
+            <div className="home-topbar-title" title={documentMeta.title}>
+              {documentMeta.title}
+            </div>
+            <DocumentStatusChip mode={documentMeta.mode} saved={documentMeta.saved} />
+          </div>
+          <div className="home-topbar-subtitle" title={documentMeta.subtitle}>
+            {documentMeta.subtitle || "TypeScript 类型生成"}
+          </div>
         </div>
       </div>
       <div className="home-topbar-actions">
-        <div className="home-field-wrap">
+        <div className={`home-field-wrap ${showServiceSelect ? "" : "is-single"}`}>
           <div className="field-row">
             <div className="field-label">
               <span>文档地址</span>
@@ -94,25 +110,26 @@ export default function DocumentTopbar(props: DocumentTopbarProps) {
               </div>
             </div>
           </div>
-          <div className="field-row">
-            <div className="field-label">
-              <span>服务</span>
-              <Tooltip title="当 swagger-config 返回多个服务时，在这里切换具体文档">
-                <QuestionCircleOutlined className="field-help-icon" />
-              </Tooltip>
+          {showServiceSelect ? (
+            <div className="field-row">
+              <div className="field-label">
+                <span>服务</span>
+                <Tooltip title="当 swagger-config 返回多个服务时，在这里切换具体文档">
+                  <QuestionCircleOutlined className="field-help-icon" />
+                </Tooltip>
+              </div>
+              <div className="field-control">
+                <Select
+                  value={serviceUrl}
+                  loading={configLoading}
+                  onChange={handleServiceChange}
+                  options={serviceOptions}
+                  placeholder="选择服务"
+                  style={{minWidth: "160px"}}
+                />
+              </div>
             </div>
-            <div className="field-control">
-              <Select
-                value={serviceUrl}
-                loading={configLoading}
-                onChange={handleServiceChange}
-                options={serviceOptions}
-                placeholder="选择服务"
-                allowClear
-                style={{minWidth: "160px"}}
-              />
-            </div>
-          </div>
+          ) : null}
         </div>
         <div className="home-topbar-tools">
           {extraActions}

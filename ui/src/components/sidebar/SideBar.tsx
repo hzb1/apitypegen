@@ -1,8 +1,10 @@
 import "./SideBar.css";
 import { Empty } from "antd";
 import ApiList, { type ApiListProps } from "../ApiList/ApiList.tsx";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import ApiSearchDialog from "@/components/sidebar/ApiSearchDialog.tsx";
+import SidebarFilter from "./SidebarFilter.tsx";
+import type { AllServiceSearchGroup, SearchResultSelectContext } from "./ApiSearchDialog.tsx";
 
 type ScrollRequest = {
   key: string;
@@ -11,7 +13,10 @@ type ScrollRequest = {
 
 export type SideBarProps = {
   scrollRequest?: ScrollRequest;
-  onSearchSelectResult?: (selectedKey: string) => void;
+  currentServiceLabel?: string;
+  allServiceGroups?: AllServiceSearchGroup[];
+  loadAllServiceGroups?: () => Promise<AllServiceSearchGroup[]>;
+  onSearchSelectResult?: (selectedKey: string, context?: SearchResultSelectContext) => void;
 } & ApiListProps;
 
 const SideBar: React.FC<SideBarProps> = (props) => {
@@ -21,6 +26,9 @@ const SideBar: React.FC<SideBarProps> = (props) => {
     onSelectKeyChange,
     onGroupTitleClick,
     onSearchSelectResult,
+    currentServiceLabel,
+    allServiceGroups,
+    loadAllServiceGroups,
   } = props;
 
   const handleGroupTitleClick = (groupItem: ApiListProps["apis"][number]) => {
@@ -29,6 +37,27 @@ const SideBar: React.FC<SideBarProps> = (props) => {
 
   const apiListScrollRef = useRef<HTMLDivElement>(null);
   const [pendingScrollKey, setPendingScrollKey] = useState<string | null>(null);
+  const [filterValue, setFilterValue] = useState("");
+  const filteredApis = useMemo(() => {
+    const query = filterValue.trim().toLowerCase();
+    if (!query) return apis;
+    return apis.flatMap((group) => {
+      const children = group.children.filter((item) => {
+        const summary = item.operation?.summary?.toLowerCase() ?? "";
+        const operationId = item.operation?.operationId?.toLowerCase() ?? "";
+        return item.path.toLowerCase().includes(query)
+          || item.method.toLowerCase().includes(query)
+          || summary.includes(query)
+          || operationId.includes(query);
+      });
+      if (!children.length) return [];
+      return [{
+        ...group,
+        isExpanded: true,
+        children,
+      }];
+    });
+  }, [apis, filterValue]);
 
   useEffect(() => {
     if (!scrollRequest?.key) return;
@@ -66,7 +95,7 @@ const SideBar: React.FC<SideBarProps> = (props) => {
     return () => {
       if (rafId) cancelAnimationFrame(rafId);
     };
-  }, [apis, pendingScrollKey]);
+  }, [filteredApis, pendingScrollKey]);
 
   return (
     <div className="sidebar">
@@ -78,20 +107,26 @@ const SideBar: React.FC<SideBarProps> = (props) => {
               apis={apis}
               onSelectResult={onSearchSelectResult}
               triggerClassName="sidebar-search-trigger"
+              currentServiceLabel={currentServiceLabel}
+              allServiceGroups={allServiceGroups}
+              loadAllServiceGroups={loadAllServiceGroups}
             />
+          </div>
+          <div className="sidebar-filter">
+            <SidebarFilter value={filterValue} onChange={setFilterValue} />
           </div>
         </div>
 
         <div className="sidebar-api-scroll" ref={apiListScrollRef}>
-          {apis?.length ? (
+          {filteredApis?.length ? (
             <ApiList
-              apis={apis}
+              apis={filteredApis}
               onSelectKeyChange={onSelectKeyChange}
               onGroupTitleClick={handleGroupTitleClick}
               scrollContainerRef={apiListScrollRef}
             />
           ) : (
-            <Empty description={"暂无 API 接口"} />
+            <Empty description={filterValue.trim() ? "暂无匹配接口" : "暂无 API 接口"} />
           )}
         </div>
       </div>

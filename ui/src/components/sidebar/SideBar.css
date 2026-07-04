@@ -31,6 +31,16 @@
   margin-top: 12px;
 }
 
+.sidebar-filter {
+  margin-top: 8px;
+}
+
+.sidebar-filter-input {
+  height: 32px;
+  border-radius: var(--ts-radius-xsm);
+  background: var(--ts-surface-soft);
+}
+
 .sidebar-search-trigger {
   border-radius: var(--ts-radius-xsm) !important;
   border-color: var(--ts-line-strong) !important;

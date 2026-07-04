@@ -106,8 +106,7 @@ export function useViewedApiTabs(params: UseViewedApiTabsParams) {
 
       if (selectedApiKey !== targetKey) return;
 
-      const fallbackIndex = Math.min(idx, remaining.length - 1);
-      const fallbackKey = fallbackIndex >= 0 ? remaining[fallbackIndex] : "";
+      const fallbackKey = viewedApiKeys[idx - 1] || viewedApiKeys[idx + 1] || "";
       onSelectApi(fallbackKey || undefined);
     },
     [onSelectApi, selectedApiKey, viewedApiKeys],

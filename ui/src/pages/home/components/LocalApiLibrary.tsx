@@ -8,6 +8,7 @@ import {
   UploadOutlined,
 } from "@ant-design/icons";
 import type { SavedApiExport } from "../export/export.types.ts";
+import { SHOW_JSON_IO } from "../home.constants.ts";
 
 type LocalApiLibraryProps = {
   savedExports: SavedApiExport[];
@@ -113,26 +114,28 @@ export default function LocalApiLibrary(props: LocalApiLibraryProps) {
         onCancel={() => setOpen(false)}
         footer={null}
       >
-        <div className="local-library-modal-toolbar">
-          <div>
-            <p>可以导入 ts-swagger 导出的 JSON，也可以导入普通 OpenAPI/Swagger JSON。</p>
+        {SHOW_JSON_IO ? (
+          <div className="local-library-modal-toolbar">
+            <div>
+              <p>可以导入 ts-swagger 导出的 JSON，也可以导入普通 OpenAPI/Swagger JSON。</p>
+            </div>
+            <Button
+              type="primary"
+              icon={<UploadOutlined />}
+              loading={importing}
+              onClick={handleChooseFile}
+            >
+              导入 JSON
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".json,application/json"
+              className="local-library-file-input"
+              onChange={handleFileChange}
+            />
           </div>
-          <Button
-            type="primary"
-            icon={<UploadOutlined />}
-            loading={importing}
-            onClick={handleChooseFile}
-          >
-            导入 JSON
-          </Button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".json,application/json"
-            className="local-library-file-input"
-            onChange={handleFileChange}
-          />
-        </div>
+        ) : null}
 
         {loading ? (
           <div className="local-library-loading">
@@ -183,15 +186,17 @@ export default function LocalApiLibrary(props: LocalApiLibraryProps) {
                         >
                           重命名
                         </Button>
-                        <Button
-                          className="local-library-muted-action"
-                          size="small"
-                          type="text"
-                          icon={<DownloadOutlined />}
-                          onClick={() => onDownload(item)}
-                        >
-                          导出 JSON
-                        </Button>
+                        {SHOW_JSON_IO ? (
+                          <Button
+                            className="local-library-muted-action"
+                            size="small"
+                            type="text"
+                            icon={<DownloadOutlined />}
+                            onClick={() => onDownload(item)}
+                          >
+                            导出 JSON
+                          </Button>
+                        ) : null}
                         <Popconfirm
                           title="删除本地接口文档？"
                           description="删除后只能通过重新保存或导入文件恢复。"
@@ -215,7 +220,7 @@ export default function LocalApiLibrary(props: LocalApiLibraryProps) {
                 })}
               </div>
             ) : (
-              <Empty description="还没有保存到本地的接口文档，可以先导入 JSON" />
+              <Empty description="还没有保存到本地的接口文档" />
             )}
           </>
         )}

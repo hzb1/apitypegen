@@ -205,7 +205,7 @@ export default function WelcomeView(props: WelcomeViewProps) {
               <ul>
                 <li>试用示例项目</li>
                 <li>加载同源或允许 CORS 的 OpenAPI 文档</li>
-                <li>打开本地接口库、保存到本地、导出 JSON</li>
+                <li>打开本地接口库、保存到本地</li>
               </ul>
             </div>
             <div className="extension-guide-panel">

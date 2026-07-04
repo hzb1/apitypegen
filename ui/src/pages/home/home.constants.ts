@@ -1,5 +1,7 @@
 export const APP_VERSION = "0.5.2";
 
+export const SHOW_JSON_IO = false;
+
 export const EXTENSION_URL =
   (import.meta.env.VITE_PROXY_EXTENSION_URL as string | undefined) ??
   "https://swagger.huzhibin.top/downloads/ts-swagger-extension-dist-latest.zip";

@@ -2,6 +2,7 @@ import { Drawer } from "antd";
 import SideBar, { type SideBarProps } from "@/components/sidebar/SideBar.tsx";
 import type { ApiGroup } from "../utils.ts";
 import type { ScrollRequest } from "../home.types.ts";
+import type { AllServiceSearchGroup, SearchResultSelectContext } from "@/components/sidebar/ApiSearchDialog.tsx";
 
 type MobileNavDrawerProps = {
   open: boolean;
@@ -10,7 +11,10 @@ type MobileNavDrawerProps = {
   apiGroups: ApiGroup[];
   onMenuSelect: (key: string) => void;
   handleGroupTitleClick: (groupItem: SideBarProps["apis"][number]) => void;
-  handleToolbarSearchSelect: (key: string) => void;
+  handleToolbarSearchSelect: (key: string, context?: SearchResultSelectContext) => void;
+  currentServiceLabel?: string;
+  allServiceGroups?: AllServiceSearchGroup[];
+  loadAllServiceGroups?: () => Promise<AllServiceSearchGroup[]>;
 };
 
 export default function MobileNavDrawer(props: MobileNavDrawerProps) {
@@ -22,6 +26,9 @@ export default function MobileNavDrawer(props: MobileNavDrawerProps) {
     onMenuSelect,
     handleGroupTitleClick,
     handleToolbarSearchSelect,
+    currentServiceLabel,
+    allServiceGroups,
+    loadAllServiceGroups,
   } = props;
 
   return (
@@ -39,6 +46,9 @@ export default function MobileNavDrawer(props: MobileNavDrawerProps) {
         onSelectKeyChange={onMenuSelect}
         onGroupTitleClick={handleGroupTitleClick}
         onSearchSelectResult={handleToolbarSearchSelect}
+        currentServiceLabel={currentServiceLabel}
+        allServiceGroups={allServiceGroups}
+        loadAllServiceGroups={loadAllServiceGroups}
       />
     </Drawer>
   );

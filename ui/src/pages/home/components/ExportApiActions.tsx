@@ -12,6 +12,7 @@ import { downloadTsSwaggerExport } from "../export/downloadJson.ts";
 import { saveApiExport } from "../export/localApiExportStore.ts";
 import { getApiBaseUrl } from "../hooks/useApiBaseUrl.ts";
 import type { SavedApiExport, TsSwaggerExport } from "../export/export.types.ts";
+import { SHOW_JSON_IO } from "../home.constants.ts";
 
 type ExportServiceOption = {
   label: string;
@@ -33,6 +34,11 @@ type ExportApiActionsProps = {
   generatorConfig: ConfigState;
   generatorOptions: GeneratorOptions;
   onSaved?: (record: SavedApiExport) => void;
+};
+
+type SaveProgress = {
+  current: number;
+  total: number;
 };
 
 function normalizeBaseUrl(rawInput: string) {
@@ -93,16 +99,25 @@ function buildSingleDocumentPayload(params: {
   return buildTsSwaggerExport(params);
 }
 
-async function buildServicePayloads(props: ExportApiActionsProps) {
+async function buildServicePayloads(
+  props: ExportApiActionsProps,
+  onProgress?: (progress: SaveProgress) => void,
+) {
   const baseUrl = normalizeBaseUrl(props.documentBaseUrl || props.docUrl);
   const services = props.serviceOptions || [];
   const servicePayloads = [];
 
-  for (const service of services) {
+  for (const [index, service] of services.entries()) {
     const serviceDocumentUrl = joinUrl(baseUrl, service.value);
-    const documentData = service.value === props.serviceUrl && props.documentData
-      ? props.documentData
-      : await fetchOpenApiDocument(serviceDocumentUrl, props.pluginEnabled);
+    let documentData: OpenAPI.Document;
+    try {
+      documentData = service.value === props.serviceUrl && props.documentData
+        ? props.documentData
+        : await fetchOpenApiDocument(serviceDocumentUrl, props.pluginEnabled);
+    } catch (error) {
+      const text = error instanceof Error ? error.message : String(error);
+      throw new Error(`${service.label} ${text}`);
+    }
     const groupedApis = buildGroupedApis(documentData);
     const apiGroups = buildApiGroups({
       groupedApis,
@@ -135,6 +150,10 @@ async function buildServicePayloads(props: ExportApiActionsProps) {
         apis: payload.apis,
       },
     });
+    onProgress?.({
+      current: index + 1,
+      total: services.length,
+    });
   }
 
   return servicePayloads;
@@ -142,6 +161,7 @@ async function buildServicePayloads(props: ExportApiActionsProps) {
 
 export async function buildCurrentExportPayload(
   props: ExportApiActionsProps,
+  onProgress?: (progress: SaveProgress) => void,
 ): Promise<TsSwaggerExport | null> {
   if (props.existingPayload) {
     return props.existingPayload;
@@ -152,7 +172,7 @@ export async function buildCurrentExportPayload(
   }
 
   if (props.serviceOptions?.length) {
-    const servicePayloads = await buildServicePayloads(props);
+    const servicePayloads = await buildServicePayloads(props, onProgress);
     if (!servicePayloads.length) return null;
     const primary = servicePayloads.find((item) => item.service.value === props.serviceUrl)
       ?? servicePayloads[0];
@@ -177,6 +197,7 @@ export async function buildCurrentExportPayload(
 export default function ExportApiActions(props: ExportApiActionsProps) {
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [saveProgress, setSaveProgress] = useState<SaveProgress | null>(null);
   const disabled = !props.existingPayload
     && (!props.documentData || props.apiGroups.every((group) => group.children.length === 0));
 
@@ -200,8 +221,9 @@ export default function ExportApiActions(props: ExportApiActionsProps) {
 
   const handleSaveLocal = async () => {
     setSaving(true);
+    setSaveProgress(null);
     try {
-      const payload = await buildCurrentExportPayload(props);
+      const payload = await buildCurrentExportPayload(props, setSaveProgress);
       if (!payload) {
         message.warning("当前没有可保存的接口数据");
         return;
@@ -213,9 +235,15 @@ export default function ExportApiActions(props: ExportApiActionsProps) {
       const text = error instanceof Error ? error.message : String(error);
       message.error(`保存失败：${text}`);
     } finally {
+      setSaveProgress(null);
       setSaving(false);
     }
   };
+  const saveButtonText = saving && saveProgress && saveProgress.total > 1
+    ? `保存中 ${saveProgress.current}/${saveProgress.total}`
+    : saving
+      ? "保存中..."
+    : props.hasSavedCurrentDoc ? "更新到本地" : "保存到本地";
 
   return (
     <>
@@ -226,17 +254,19 @@ export default function ExportApiActions(props: ExportApiActionsProps) {
         loading={saving}
         disabled={disabled}
       >
-        {props.hasSavedCurrentDoc ? "更新到本地" : "保存到本地"}
+        {saveButtonText}
       </Button>
-      <Button
-        type="default"
-        icon={<DownloadOutlined />}
-        onClick={() => void handleDownload()}
-        loading={exporting}
-        disabled={disabled}
-      >
-        导出 JSON
-      </Button>
+      {SHOW_JSON_IO ? (
+        <Button
+          type="default"
+          icon={<DownloadOutlined />}
+          onClick={() => void handleDownload()}
+          loading={exporting}
+          disabled={disabled}
+        >
+          导出 JSON
+        </Button>
+      ) : null}
     </>
   );
 }

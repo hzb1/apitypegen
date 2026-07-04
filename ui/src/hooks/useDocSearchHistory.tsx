@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
-import { Modal } from "antd";
+import { Modal, Tag } from "antd";
 import type { AutoCompleteProps } from "antd";
 import { DeleteOutlined, EditOutlined } from "@ant-design/icons";
 
@@ -15,10 +15,25 @@ type SearchRecord = {
 
 type UseDocSearchHistoryOptions = {
   onRename?: (record: SearchRecord, nextLabel: string) => void;
+  savedDocUrls?: string[];
 };
 
+function normalizeDocUrl(value?: string) {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed) return "";
+  try {
+    const url = trimmed.startsWith("/")
+      ? new URL(trimmed, window.location.origin)
+      : new URL(/^https?:\/\//.test(trimmed) ? trimmed : `http://${trimmed}`);
+    url.hash = "";
+    return url.toString().replace(/\/$/, "");
+  } catch {
+    return trimmed.replace(/\/$/, "");
+  }
+}
+
 export function useDocSearchHistory(options: UseDocSearchHistoryOptions = {}) {
-  const { onRename } = options;
+  const { onRename, savedDocUrls = [] } = options;
   const [searchHistory, setSearchHistory] = useState<SearchRecord[]>(() => {
     try {
       const raw = localStorage.getItem(SEARCH_HISTORY_KEY);
@@ -160,47 +175,53 @@ export function useDocSearchHistory(options: UseDocSearchHistoryOptions = {}) {
 
   const historyOptions = useMemo(
     () =>
-      searchHistory.map((record) => ({
-        key: `history-${record.id}`,
-        value: record.value,
-        label: (
-          <div className="search-history-option">
-            <div className="search-history-text">
-              <span className="search-history-label" title={record.label}>
-                {record.label}
-              </span>
-              {record.label !== record.value && (
-                <span className="search-history-value" title={record.value}>
-                  {record.value}
+      searchHistory.map((record) => {
+        const isSaved = savedDocUrls.some((url) => normalizeDocUrl(url) === normalizeDocUrl(record.value));
+        return {
+          key: `history-${record.id}`,
+          value: record.value,
+          label: (
+            <div className="search-history-option">
+              <div className="search-history-text">
+                <span className="search-history-label-row">
+                  <span className="search-history-label" title={record.label}>
+                    {record.label}
+                  </span>
+                  {isSaved ? <Tag className="search-history-saved-tag" color="success">已保存</Tag> : null}
                 </span>
-              )}
+                {record.label !== record.value && (
+                  <span className="search-history-value" title={record.value}>
+                    {record.value}
+                  </span>
+                )}
+              </div>
+              <div className="search-history-actions">
+                <span
+                  className="search-history-action"
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                  }}
+                  onClick={(event) => handleRename(record, event)}
+                >
+                  <EditOutlined />
+                </span>
+                <span
+                  className="search-history-action"
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                  }}
+                  onClick={(event) => handleDelete(record, event)}
+                >
+                  <DeleteOutlined />
+                </span>
+              </div>
             </div>
-            <div className="search-history-actions">
-              <span
-                className="search-history-action"
-                onMouseDown={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                }}
-                onClick={(event) => handleRename(record, event)}
-              >
-                <EditOutlined />
-              </span>
-              <span
-                className="search-history-action"
-                onMouseDown={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                }}
-                onClick={(event) => handleDelete(record, event)}
-              >
-                <DeleteOutlined />
-              </span>
-            </div>
-          </div>
-        ),
-      })),
-    [handleDelete, handleRename, searchHistory],
+          ),
+        };
+      }),
+    [handleDelete, handleRename, savedDocUrls, searchHistory],
   );
 
   const autoCompleteOptions = useMemo(() => {

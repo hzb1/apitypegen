@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from "react";
-import { Empty, Modal } from "antd";
+import React, { useEffect, useMemo, useState } from "react";
+import { Alert, Empty, Modal, Segmented, Spin } from "antd";
 import { SearchOutlined } from "@ant-design/icons";
 import { useSearchParams } from "react-router";
 import SearchBar from "../ui/SearchBar/SearchBar.tsx";
@@ -13,18 +13,40 @@ import SearchHistoryList from "./SearchHistoryList.tsx";
 
 type ApiSearchDialogProps = {
   apis: ApiListProps["apis"];
-  onSelectResult?: (selectedKey: string) => void;
+  currentServiceLabel?: string;
+  allServiceGroups?: AllServiceSearchGroup[];
+  loadAllServiceGroups?: () => Promise<AllServiceSearchGroup[]>;
+  onSelectResult?: (selectedKey: string, context?: SearchResultSelectContext) => void;
   triggerClassName?: string;
 };
+
+export type AllServiceSearchGroup = {
+  serviceName: string;
+  serviceValue?: string;
+  groups: ApiListProps["apis"];
+};
+
+export type SearchResultSelectContext = {
+  serviceValue?: string;
+};
+
+type SearchScope = "current" | "all";
 
 const ApiSearchDialog: React.FC<ApiSearchDialogProps> = ({
   apis,
   onSelectResult,
   triggerClassName,
+  currentServiceLabel,
+  allServiceGroups,
+  loadAllServiceGroups,
 }) => {
   const [searchParams] = useSearchParams();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [scope, setScope] = useState<SearchScope>("current");
+  const [loadedAllServiceGroups, setLoadedAllServiceGroups] = useState<AllServiceSearchGroup[]>([]);
+  const [loadingAllServices, setLoadingAllServices] = useState(false);
+  const [allServiceError, setAllServiceError] = useState<string | null>(null);
   const serviceScope = useMemo(() => {
     const rawService = searchParams.get("service")?.trim();
     return rawService && rawService.length > 0 ? rawService : "__default__";
@@ -38,6 +60,64 @@ const ApiSearchDialog: React.FC<ApiSearchDialogProps> = ({
     limit: 20,
     minLength: 2,
   });
+  const canSearchAllServices = Boolean(allServiceGroups?.length || loadAllServiceGroups);
+
+  useEffect(() => {
+    if (!allServiceGroups) return;
+    setLoadedAllServiceGroups(allServiceGroups);
+  }, [allServiceGroups]);
+
+  useEffect(() => {
+    if (!open || scope !== "all" || !canSearchAllServices) return;
+    if (allServiceGroups?.length || loadedAllServiceGroups.length || !loadAllServiceGroups) return;
+
+    let cancelled = false;
+    setLoadingAllServices(true);
+    setAllServiceError(null);
+    void loadAllServiceGroups()
+      .then((groups) => {
+        if (cancelled) return;
+        setLoadedAllServiceGroups(groups);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        const text = error instanceof Error ? error.message : String(error);
+        setAllServiceError(text);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoadingAllServices(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    allServiceGroups?.length,
+    canSearchAllServices,
+    loadAllServiceGroups,
+    loadedAllServiceGroups.length,
+    open,
+    scope,
+  ]);
+
+  const searchGroups = useMemo(() => {
+    if (scope === "all" && canSearchAllServices) {
+      return loadedAllServiceGroups.flatMap((service) =>
+        service.groups.map((group) => ({
+          ...group,
+          serviceName: service.serviceName,
+          serviceValue: service.serviceValue,
+        })),
+      );
+    }
+    return apis.map((group) => ({
+      ...group,
+      serviceName: currentServiceLabel,
+      serviceValue: searchParams.get("service") ?? undefined,
+    }));
+  }, [apis, canSearchAllServices, currentServiceLabel, loadedAllServiceGroups, scope, searchParams]);
 
   const results = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -45,13 +125,15 @@ const ApiSearchDialog: React.FC<ApiSearchDialogProps> = ({
 
     const matched: Array<SearchResultItemData & { score: number }> = [];
 
-    apis.forEach((group) => {
+    searchGroups.forEach((group) => {
       group.children.forEach((item) => {
         const matchInfo = getMatchInfo(item, normalized);
         if (!matchInfo) return;
         matched.push({
           matchType: matchInfo.matchType,
           groupName: group.name,
+          serviceName: group.serviceName,
+          serviceValue: group.serviceValue,
           item,
           score: matchInfo.score + (item.isSelected ? 1 : 0),
         });
@@ -66,15 +148,17 @@ const ApiSearchDialog: React.FC<ApiSearchDialogProps> = ({
     return matched.map((result) => ({
       matchType: result.matchType,
       groupName: result.groupName,
+      serviceName: result.serviceName,
+      serviceValue: result.serviceValue,
       item: result.item,
     }));
-  }, [apis, query]);
+  }, [query, searchGroups]);
 
   const hasResults = results.length > 0;
 
-  const handleSelect = (key: string) => {
+  const handleSelect = (key: string, context?: SearchResultSelectContext) => {
     addQuery(query);
-    onSelectResult?.(key);
+    onSelectResult?.(key, context);
     setOpen(false);
   };
 
@@ -103,6 +187,17 @@ const ApiSearchDialog: React.FC<ApiSearchDialogProps> = ({
         destroyOnHidden
         width={600}
       >
+        {canSearchAllServices ? (
+          <Segmented
+            className="mb-3"
+            value={scope}
+            onChange={(value) => setScope(value as SearchScope)}
+            options={[
+              { label: "当前服务", value: "current" },
+              { label: "全部服务", value: "all" },
+            ]}
+          />
+        ) : null}
         <SearchBar
           value={query}
           onChange={setQuery}
@@ -111,6 +206,15 @@ const ApiSearchDialog: React.FC<ApiSearchDialogProps> = ({
 
         />
         <div className="mt-4 max-h-[420px] space-y-4 overflow-y-auto pr-1">
+          {scope === "all" && loadingAllServices ? (
+            <div className="flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white p-5 text-sm text-gray-500">
+              <Spin size="small" />
+              <span>正在加载全部服务接口...</span>
+            </div>
+          ) : null}
+          {scope === "all" && allServiceError ? (
+            <Alert type="warning" showIcon message={`全部服务搜索加载失败：${allServiceError}`} />
+          ) : null}
           {query.trim() && !hasResults ? (
             <Empty description="未找到匹配接口" />
           ) : null}
@@ -126,9 +230,9 @@ const ApiSearchDialog: React.FC<ApiSearchDialogProps> = ({
             <div className="space-y-2">
               {results.map((result) => (
                 <ApiSearchResultItem
-                  key={result.item.key}
+                  key={`${result.serviceValue ?? "current"}-${result.item.key}`}
                   data={result}
-                  onSelect={handleSelect}
+                  onSelect={(key) => handleSelect(key, { serviceValue: result.serviceValue })}
                 />
               ))}
             </div>

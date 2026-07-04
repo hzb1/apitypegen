@@ -1,5 +1,6 @@
 import { Alert, Button, Empty, Space, Spin } from "antd";
 import { ApiOutlined, CodeOutlined, DatabaseOutlined } from "@ant-design/icons";
+import type { ReactNode } from "react";
 import SideBar, { type SideBarProps } from "@/components/sidebar/SideBar.tsx";
 import ApiInfo from "@/components/api-info/ApiInfo.tsx";
 import CodeCard from "@/components/code-card/CodeCard.tsx";
@@ -9,6 +10,7 @@ import type { ApiGroup } from "../utils.ts";
 import type { LoadingFeedback, ScrollRequest, TsCodeParts } from "../home.types.ts";
 import { EXTENSION_URL } from "../home.constants.ts";
 import ViewedApiTabs from "./ViewedApiTabs.tsx";
+import type { AllServiceSearchGroup, SearchResultSelectContext } from "@/components/sidebar/ApiSearchDialog.tsx";
 
 type DocumentWorkspaceProps = {
   error: string | null;
@@ -19,7 +21,10 @@ type DocumentWorkspaceProps = {
   apiGroups: ApiGroup[];
   onMenuSelect: (key: string) => void;
   handleGroupTitleClick: (groupItem: SideBarProps["apis"][number]) => void;
-  handleToolbarSearchSelect: (key: string) => void;
+  handleToolbarSearchSelect: (key: string, context?: SearchResultSelectContext) => void;
+  currentServiceLabel?: string;
+  allServiceGroups?: AllServiceSearchGroup[];
+  loadAllServiceGroups?: () => Promise<AllServiceSearchGroup[]>;
   orderedViewedApiKeys: string[];
   selectedApiKey: string | null;
   apiMap: Map<string, ApiDetail>;
@@ -31,6 +36,7 @@ type DocumentWorkspaceProps = {
   selectedApi: ApiDetail | null;
   tsCodeParts?: TsCodeParts;
   apiBaseUrl: string;
+  dashboard?: ReactNode;
   extensionChecking?: boolean;
   onRecheckExtension?: () => void;
   onTryDemo?: () => void;
@@ -48,6 +54,9 @@ export default function DocumentWorkspace(props: DocumentWorkspaceProps) {
     onMenuSelect,
     handleGroupTitleClick,
     handleToolbarSearchSelect,
+    currentServiceLabel,
+    allServiceGroups,
+    loadAllServiceGroups,
     orderedViewedApiKeys,
     selectedApiKey,
     apiMap,
@@ -59,6 +68,7 @@ export default function DocumentWorkspace(props: DocumentWorkspaceProps) {
     selectedApi,
     tsCodeParts,
     apiBaseUrl,
+    dashboard,
     extensionChecking,
     onRecheckExtension,
     onTryDemo,
@@ -84,6 +94,9 @@ export default function DocumentWorkspace(props: DocumentWorkspaceProps) {
           onSelectKeyChange={onMenuSelect}
           onGroupTitleClick={handleGroupTitleClick}
           onSearchSelectResult={handleToolbarSearchSelect}
+          currentServiceLabel={currentServiceLabel}
+          allServiceGroups={allServiceGroups}
+          loadAllServiceGroups={loadAllServiceGroups}
         />
       </aside>
 
@@ -153,7 +166,8 @@ export default function DocumentWorkspace(props: DocumentWorkspaceProps) {
               </div>
             </div>
           )}
-          {!error && !contentLoading && !selectedApi && (
+          {!error && !contentLoading && !selectedApi && dashboard}
+          {!error && !contentLoading && !selectedApi && !dashboard && (
             <div className="content-center-status workspace-empty-state">
               <div className="workspace-empty-visual">
                 <div className="workspace-empty-column">
