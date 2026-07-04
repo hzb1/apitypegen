@@ -13,6 +13,7 @@ import { saveApiExport } from "../export/localApiExportStore.ts";
 import { getApiBaseUrl } from "../hooks/useApiBaseUrl.ts";
 import type { SavedApiExport, TsSwaggerExport } from "../export/export.types.ts";
 import { SHOW_JSON_IO } from "../home.constants.ts";
+import type { AllServiceDocumentEntry, AllServiceDocumentProgress } from "../hooks/useAllServiceDocuments.ts";
 
 type ExportServiceOption = {
   label: string;
@@ -27,6 +28,8 @@ type ExportApiActionsProps = {
   documentBaseUrl?: string;
   serviceUrl?: string;
   serviceOptions?: ExportServiceOption[];
+  serviceDocuments?: AllServiceDocumentEntry[];
+  serviceDocumentsProgress?: AllServiceDocumentProgress;
   pluginEnabled?: boolean;
   existingPayload?: TsSwaggerExport;
   saveName?: string;
@@ -53,9 +56,7 @@ function normalizeBaseUrl(rawInput: string) {
 
 function joinUrl(baseUrl: string, path: string) {
   if (/^https?:\/\//.test(path)) return path;
-  const normalizedBase = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
-  const normalizedPath = path.startsWith("/") ? path.slice(1) : path;
-  return new URL(normalizedPath, normalizedBase).toString();
+  return new URL(path, baseUrl).toString();
 }
 
 function isOpenApiLike(doc: unknown): doc is OpenAPI.Document {
@@ -103,6 +104,46 @@ async function buildServicePayloads(
   props: ExportApiActionsProps,
   onProgress?: (progress: SaveProgress) => void,
 ) {
+  if (props.serviceDocuments?.length) {
+    const failedService = props.serviceDocuments.find((service) => service.error);
+    if (failedService) {
+      throw new Error(`${failedService.label} ${failedService.error}`);
+    }
+    const loadingService = props.serviceDocuments.find((service) => service.loading || !service.document);
+    if (loadingService) {
+      throw new Error(`全部服务仍在加载，请稍后再试：${loadingService.label}`);
+    }
+
+    return props.serviceDocuments.map((service, index) => {
+      const documentData = service.document as OpenAPI.Document;
+      const payload = buildSingleDocumentPayload({
+        documentData,
+        apiGroups: service.apiGroups,
+        apiBaseUrl: service.apiBaseUrl,
+        docUrl: props.docUrl,
+        serviceUrl: service.value,
+        generatorConfig: props.generatorConfig,
+        generatorOptions: props.generatorOptions,
+      });
+      onProgress?.({
+        current: index + 1,
+        total: props.serviceDocuments?.length ?? 0,
+      });
+      return {
+        service,
+        payload,
+        serviceExport: {
+          name: service.label,
+          url: service.value,
+          apiBaseUrl: service.apiBaseUrl,
+          openapi: payload.openapi,
+          groups: payload.groups,
+          apis: payload.apis,
+        },
+      };
+    });
+  }
+
   const baseUrl = normalizeBaseUrl(props.documentBaseUrl || props.docUrl);
   const services = props.serviceOptions || [];
   const servicePayloads = [];
@@ -200,6 +241,11 @@ export default function ExportApiActions(props: ExportApiActionsProps) {
   const [saveProgress, setSaveProgress] = useState<SaveProgress | null>(null);
   const disabled = !props.existingPayload
     && (!props.documentData || props.apiGroups.every((group) => group.children.length === 0));
+  const servicePreparing = Boolean(
+    props.serviceDocumentsProgress
+      && props.serviceDocumentsProgress.total > 1
+      && props.serviceDocumentsProgress.loading > 0,
+  );
 
   const handleDownload = async () => {
     setExporting(true);
@@ -243,6 +289,8 @@ export default function ExportApiActions(props: ExportApiActionsProps) {
     ? `保存中 ${saveProgress.current}/${saveProgress.total}`
     : saving
       ? "保存中..."
+    : servicePreparing && props.serviceDocumentsProgress
+      ? `准备全部服务 ${props.serviceDocumentsProgress.loaded}/${props.serviceDocumentsProgress.total}`
     : props.hasSavedCurrentDoc ? "更新到本地" : "保存到本地";
 
   return (
@@ -252,7 +300,7 @@ export default function ExportApiActions(props: ExportApiActionsProps) {
         icon={<SaveOutlined />}
         onClick={() => void handleSaveLocal()}
         loading={saving}
-        disabled={disabled}
+        disabled={disabled || servicePreparing}
       >
         {saveButtonText}
       </Button>

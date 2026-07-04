@@ -15,6 +15,9 @@ type MobileNavDrawerProps = {
   currentServiceLabel?: string;
   allServiceGroups?: AllServiceSearchGroup[];
   loadAllServiceGroups?: () => Promise<AllServiceSearchGroup[]>;
+  allServiceSearchEnabled?: boolean;
+  allServiceLoadingText?: string;
+  allServiceError?: string;
 };
 
 export default function MobileNavDrawer(props: MobileNavDrawerProps) {
@@ -29,6 +32,9 @@ export default function MobileNavDrawer(props: MobileNavDrawerProps) {
     currentServiceLabel,
     allServiceGroups,
     loadAllServiceGroups,
+    allServiceSearchEnabled,
+    allServiceLoadingText,
+    allServiceError,
   } = props;
 
   return (
@@ -49,6 +55,9 @@ export default function MobileNavDrawer(props: MobileNavDrawerProps) {
         currentServiceLabel={currentServiceLabel}
         allServiceGroups={allServiceGroups}
         loadAllServiceGroups={loadAllServiceGroups}
+        allServiceSearchEnabled={allServiceSearchEnabled}
+        allServiceLoadingText={allServiceLoadingText}
+        allServiceError={allServiceError}
       />
     </Drawer>
   );

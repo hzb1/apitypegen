@@ -1,0 +1,16 @@
+{
+  "urls": [
+    {
+      "name": "用户服务",
+      "url": "/demo/services/user-openapi.json"
+    },
+    {
+      "name": "订单服务",
+      "url": "/demo/services/order-openapi.json"
+    },
+    {
+      "name": "库存服务",
+      "url": "/demo/services/inventory-openapi.json"
+    }
+  ]
+}

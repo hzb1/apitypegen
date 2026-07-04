@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { message } from "antd";
 import type { OpenAPI } from "openapi-types";
 import "./Home.css";
@@ -38,11 +38,7 @@ import { useHomeDocumentState } from "./hooks/useHomeDocumentState.ts";
 import { useHomeLoadingFeedback } from "./hooks/useHomeLoadingFeedback.ts";
 import { useHomeTsCodeParts } from "./hooks/useHomeTsCodeParts.ts";
 import { useLocalApiExports } from "./hooks/useLocalApiExports.ts";
-import {
-  buildServiceDocumentUrl,
-  fetchOpenApiDocument,
-  normalizeDocumentBaseUrl,
-} from "./serviceDocumentLoader.ts";
+import { useAllServiceDocuments } from "./hooks/useAllServiceDocuments.ts";
 
 function getDocumentInfo(documentData: OpenAPI.Document | null) {
   const record = documentData as Record<string, unknown> | null;
@@ -86,6 +82,7 @@ const Home: React.FC = () => {
     reloadKey,
     handleCommitIp,
     handleTryDemo,
+    handleTryMultiServiceDemo,
     handleOpenLocalExport,
     handleServiceChange,
   } = useHomeDocumentState();
@@ -95,11 +92,6 @@ const Home: React.FC = () => {
    */
   const [configDrawerOpen, setConfigDrawerOpen] = useState(false);
   const [localLibraryImporting, setLocalLibraryImporting] = useState(false);
-  const allServiceSearchCacheRef = useRef<{
-    key: string;
-    data?: AllServiceSearchGroup[];
-    promise?: Promise<AllServiceSearchGroup[]>;
-  } | null>(null);
 
   /**
    * 扩展状态：影响跨域/内网文档加载方式，也用于给用户展示安装和重检入口。
@@ -115,7 +107,7 @@ const Home: React.FC = () => {
    * Swagger/OpenAPI 文档加载：Demo 使用原生 fetch，其它地址保持自动代理策略。
    */
   const {
-    documentData: remoteDocumentData,
+    documentData: swaggerDocumentData,
     documentServiceUrl,
     configData,
     stage,
@@ -139,6 +131,7 @@ const Home: React.FC = () => {
       onDocumentLoaded: () => {
         // 保留扩展点：后续可在这里接入加载成功后的埋点或提示。
       },
+      loadServiceDocument: false,
     },
   });
 
@@ -196,34 +189,85 @@ const Home: React.FC = () => {
     if (!localServices?.length) return undefined;
     return localServices.find((item) => item.url === serviceUrl) ?? localServices[0];
   }, [localServices, serviceUrl]);
+  const serviceOptions = useMemo(() => {
+    if (isLocalMode) {
+      return localServices?.map((item) => ({
+        label: item.name,
+        value: item.url,
+      })) || [];
+    }
+    return configData?.urls.map((item) => ({
+      label: item.name,
+      value: item.url,
+    })) || [];
+  }, [configData?.urls, isLocalMode, localServices]);
+  const localSourceDocUrl = activeLocalExport?.payload.source.docUrl || "";
+  const sourceDocUrl = isLocalMode ? localSourceDocUrl : ipFromUrl;
+  const allServiceDocuments = useAllServiceDocuments({
+    enabled: !isLocalMode && serviceOptions.length > 0,
+    documentBaseUrl: normalizedDocInput || sourceDocUrl,
+    serviceOptions,
+    pluginEnabled,
+  });
+  const effectiveServiceUrl = isLocalMode
+    ? activeLocalService?.url
+    : serviceUrl ?? serviceOptions[0]?.value;
+  const activeRemoteService = useMemo(() => {
+    if (!allServiceDocuments.enabled) return undefined;
+    return allServiceDocuments.entries.find((entry) => entry.value === effectiveServiceUrl)
+      ?? allServiceDocuments.entries.find((entry) => entry.document)
+      ?? allServiceDocuments.entries[0];
+  }, [allServiceDocuments.enabled, allServiceDocuments.entries, effectiveServiceUrl]);
   const localDocumentData = (activeLocalService?.openapi ?? activeLocalExport?.payload.openapi) as
     | OpenAPI.Document
     | undefined;
+  const remoteDocumentData = allServiceDocuments.enabled
+    ? (activeRemoteService?.document ?? null)
+    : swaggerDocumentData;
   const documentData = isLocalMode ? (localDocumentData ?? null) : remoteDocumentData;
-  const activeError = isLocalMode ? localActiveError : error;
+  const activeRemoteError = allServiceDocuments.enabled ? activeRemoteService?.error ?? null : error;
+  const activeError = isLocalMode ? localActiveError : activeRemoteError;
   const activeErrorDetail = isLocalMode
     ? (localActiveError ? { message: localActiveError } : null)
-    : errorDetail;
+    : allServiceDocuments.enabled && activeRemoteService?.error
+      ? { message: `${activeRemoteService.label} 加载失败`, reason: activeRemoteService.error }
+      : errorDetail;
 
   /**
    * 加载态与生成配置：配置会直接影响右侧 TypeScript 输出。
    */
   const remoteLoading = stage === "probe" || stage === "config" || stage === "document";
-  const loading = isLocalMode ? activeLoading : remoteLoading;
+  const allServiceActiveLoading = allServiceDocuments.enabled
+    && !documentData
+    && (allServiceDocuments.progress.loading > 0 || allServiceDocuments.entries.length === 0);
+  const loading = isLocalMode ? activeLoading : remoteLoading || allServiceActiveLoading;
   const configLoading = !isLocalMode && stage === "config";
   // service 切换时旧文档还在内存，新 api key 可能在旧文档里找不到，
   // 在 effect 触发 LOAD_DOCUMENT 之前会闪一帧 dashboard。这里同步判定
   // "URL 的 serviceUrl 与当前文档归属的 service 不一致"，强制 loading。
   // local 模式文档来自内存且同步派生，不参与此判定。
-  const serviceStale = !isLocalMode && (serviceUrl ?? null) !== (documentServiceUrl ?? null);
-  const contentLoading = hasDocumentSource && !activeError && (loading || !documentData || serviceStale);
+  const serviceStale = !isLocalMode
+    && !allServiceDocuments.enabled
+    && (serviceUrl ?? null) !== (documentServiceUrl ?? null);
+  const contentLoading = hasDocumentSource
+    && !activeError
+    && (remoteLoading || activeLoading || allServiceActiveLoading || !documentData || serviceStale);
   const remoteLoadingFeedback = useHomeLoadingFeedback(stage);
+  const allServiceLoadingFeedback = allServiceDocuments.enabled && allServiceDocuments.progress.total > 0
+    ? {
+      title: "正在加载全部服务",
+      button: `加载中 ${allServiceDocuments.progress.loaded}/${allServiceDocuments.progress.total}`,
+      text: `已完成 ${allServiceDocuments.progress.loaded}/${allServiceDocuments.progress.total} 个服务，后续切换、搜索和本地保存都会复用这份数据`,
+    }
+    : null;
   const loadingFeedback = isLocalMode && activeLoading
     ? {
       title: "正在打开本地文档",
       button: "读取本地...",
       text: "正在从浏览器本地库读取接口数据",
     }
+    : allServiceActiveLoading && allServiceLoadingFeedback
+      ? allServiceLoadingFeedback
     : remoteLoadingFeedback;
   const { configState, setConfigState, generatorOptions } = useOptions();
 
@@ -253,8 +297,8 @@ const Home: React.FC = () => {
   const viewedContextKey = useMemo(
     () => (localId
       ? `local:${localId}__${activeLocalService?.url ?? ""}`
-      : `${ipFromUrl}__${serviceUrl ?? ""}`),
-    [activeLocalService?.url, ipFromUrl, localId, serviceUrl],
+      : `${ipFromUrl}__${effectiveServiceUrl ?? ""}`),
+    [activeLocalService?.url, effectiveServiceUrl, ipFromUrl, localId],
   );
   const handleSelectApi = useCallback((nextApiKey?: string) => {
     // tab 选择 / 关闭当前 tab 回退都属于接口间切换，用 replace 不污染历史栈。
@@ -296,25 +340,12 @@ const Home: React.FC = () => {
   /**
    * 派生展示数据：服务下拉、接口完整 URL、当前 API 的 TypeScript 类型片段。
    */
-  const serviceOptions = useMemo(() => {
-    if (isLocalMode) {
-      return localServices?.map((item) => ({
-        label: item.name,
-        value: item.url,
-      })) || [];
-    }
-    return configData?.urls.map((item) => ({
-      label: item.name,
-      value: item.url,
-    })) || [];
-  }, [configData?.urls, isLocalMode, localServices]);
-  const localSourceDocUrl = activeLocalExport?.payload.source.docUrl || "";
-  const sourceDocUrl = isLocalMode ? localSourceDocUrl : ipFromUrl;
   const derivedApiBaseUrl = useApiBaseUrl({
     documentData,
     normalizedDocInput: isLocalMode ? localSourceDocUrl : normalizedDocInput,
   });
   const apiBaseUrl = activeLocalService?.apiBaseUrl
+    || (!isLocalMode ? activeRemoteService?.apiBaseUrl : "")
     || (localServices?.length ? "" : activeLocalExport?.payload.source.apiBaseUrl)
     || derivedApiBaseUrl;
   const hasSavedCurrentDoc = useMemo(() => (
@@ -332,10 +363,27 @@ const Home: React.FC = () => {
   const documentSubtitle = isLocalMode
     ? activeLocalExport?.sourceDocUrl || activeLocalExport?.payload.source.importedFileName || "本地接口库"
     : sourceDocUrl || "TypeScript 类型生成";
+  const dashboardApiGroups = useMemo(() => {
+    if (localServices?.length) {
+      return localServices.flatMap((service) => {
+        const groupedApis = buildGroupedApis(service.openapi as OpenAPI.Document);
+        return buildApiGroups({
+          groupedApis,
+          selectedApiKey: null,
+          expandedGroupList: [],
+        });
+      });
+    }
+    if (allServiceDocuments.enabled) {
+      return allServiceDocuments.entries.flatMap((entry) => entry.apiGroups);
+    }
+    return apiGroups;
+  }, [allServiceDocuments.enabled, allServiceDocuments.entries, apiGroups, localServices]);
   const apiCount = apiGroups.reduce((total, group) => total + group.children.length, 0);
+  const dashboardApiCount = dashboardApiGroups.reduce((total, group) => total + group.children.length, 0);
   const methodStats = useMemo(() => {
     const stats = new Map<string, number>();
-    apiGroups.forEach((group) => {
+    dashboardApiGroups.forEach((group) => {
       group.children.forEach((api) => {
         const method = api.method.toUpperCase();
         stats.set(method, (stats.get(method) ?? 0) + 1);
@@ -352,14 +400,14 @@ const Home: React.FC = () => {
         return b[1] - a[1];
       })
       .map(([method, count]) => ({ method, count }));
-  }, [apiGroups]);
+  }, [dashboardApiGroups]);
   const topGroups = useMemo(() => (
-    apiGroups
+    dashboardApiGroups
       .map((group) => ({ name: group.name, count: group.children.length }))
       .filter((group) => group.count > 0)
       .sort((a, b) => b.count - a.count)
       .slice(0, 5)
-  ), [apiGroups]);
+  ), [dashboardApiGroups]);
   const dashboardServices: DashboardServiceItem[] = useMemo(() => {
     if (localServices?.length) {
       return localServices.map((service) => ({
@@ -369,12 +417,14 @@ const Home: React.FC = () => {
         isActive: service.url === activeLocalService?.url,
       }));
     }
-    if (serviceOptions.length) {
-      return serviceOptions.map((service) => ({
+    if (allServiceDocuments.enabled) {
+      return allServiceDocuments.entries.map((service) => ({
         name: service.label,
         value: service.value,
-        apiCount: service.value === serviceUrl ? apiCount : undefined,
-        isActive: service.value === serviceUrl,
+        apiCount: service.document ? service.apiGroups.reduce((total, group) => total + group.children.length, 0) : undefined,
+        isActive: service.value === effectiveServiceUrl,
+        loading: service.loading,
+        error: service.error,
       }));
     }
     return documentData
@@ -387,12 +437,13 @@ const Home: React.FC = () => {
       : [];
   }, [
     activeLocalService?.url,
+    allServiceDocuments.enabled,
+    allServiceDocuments.entries,
     apiCount,
     documentData,
     documentTitle,
+    effectiveServiceUrl,
     localServices,
-    serviceOptions,
-    serviceUrl,
     sourceDocUrl,
   ]);
   const recentApis = useMemo(() => (
@@ -415,63 +466,45 @@ const Home: React.FC = () => {
       }),
     }));
   }, [activeLocalService?.url, localServices, selectedApiKey]);
-  const allServiceSearchCacheKey = useMemo(
-    () => `${normalizedDocInput}__${serviceOptions.map((item) => `${item.label}:${item.value}`).join("|")}`,
-    [normalizedDocInput, serviceOptions],
-  );
-  const loadAllServiceGroups = useCallback(async (): Promise<AllServiceSearchGroup[]> => {
-    if (!serviceOptions.length) return [];
-    const cached = allServiceSearchCacheRef.current;
-    if (cached?.key === allServiceSearchCacheKey) {
-      if (cached.data) return cached.data;
-      if (cached.promise) return cached.promise;
+  const remoteAllServiceGroups = useMemo<AllServiceSearchGroup[]>(() => {
+    if (!allServiceDocuments.enabled) return [];
+    return allServiceDocuments.entries.flatMap((service) => {
+      if (!service.document) return [];
+      return [{
+        serviceName: service.label,
+        serviceValue: service.value,
+        groups: buildSearchGroupsFromDocument({
+          documentData: service.document,
+          selectedApiKey: service.value === effectiveServiceUrl ? selectedApiKey : null,
+        }),
+      }];
+    });
+  }, [allServiceDocuments.enabled, allServiceDocuments.entries, effectiveServiceUrl, selectedApiKey]);
+  const allServiceSearchLoadingText = allServiceDocuments.enabled
+    && allServiceDocuments.progress.total > 1
+    && allServiceDocuments.progress.loading > 0
+    ? `正在加载全部服务 ${allServiceDocuments.progress.loaded}/${allServiceDocuments.progress.total}`
+    : undefined;
+  const allServiceSearchError = allServiceDocuments.errors.length
+    ? allServiceDocuments.errors.map((entry) => `${entry.label}: ${entry.error}`).join("；")
+    : undefined;
+  const allServiceStatusText = useMemo(() => {
+    if (!allServiceDocuments.enabled || allServiceDocuments.progress.total <= 1) return undefined;
+    if (allServiceDocuments.progress.failed > 0) {
+      return `多服务失败 ${allServiceDocuments.progress.failed}/${allServiceDocuments.progress.total}`;
     }
-
-    const baseUrl = normalizeDocumentBaseUrl(normalizedDocInput || sourceDocUrl);
-    const promise = Promise.all(serviceOptions.map(async (service) => {
-      try {
-        const doc = service.value === serviceUrl && documentData
-          ? documentData
-          : await fetchOpenApiDocument(
-            buildServiceDocumentUrl(baseUrl, service.value),
-            pluginEnabled,
-          );
-        return {
-          serviceName: service.label,
-          serviceValue: service.value,
-          groups: buildSearchGroupsFromDocument({
-            documentData: doc,
-            selectedApiKey: service.value === serviceUrl ? selectedApiKey : null,
-          }),
-        };
-      } catch (error) {
-        const text = error instanceof Error ? error.message : String(error);
-        throw new Error(`${service.label} ${text}`);
-      }
-    }));
-
-    allServiceSearchCacheRef.current = {
-      key: allServiceSearchCacheKey,
-      promise,
-    };
-    const data = await promise;
-    allServiceSearchCacheRef.current = {
-      key: allServiceSearchCacheKey,
-      data,
-    };
-    return data;
-  }, [
-    allServiceSearchCacheKey,
-    documentData,
-    normalizedDocInput,
-    pluginEnabled,
-    selectedApiKey,
-    serviceOptions,
-    serviceUrl,
-    sourceDocUrl,
-  ]);
+    if (allServiceDocuments.progress.loading > 0) {
+      return `多服务 ${allServiceDocuments.progress.loaded}/${allServiceDocuments.progress.total}`;
+    }
+    return "全部服务已就绪";
+  }, [allServiceDocuments.enabled, allServiceDocuments.progress]);
+  const allServiceStatusKind = allServiceDocuments.progress.failed > 0
+    ? "error" as const
+    : allServiceDocuments.progress.loading > 0
+      ? "loading" as const
+      : "ready" as const;
   const handleSearchSelect = useCallback((key: string, context?: SearchResultSelectContext) => {
-    if (context?.serviceValue && context.serviceValue !== serviceUrl) {
+    if (context?.serviceValue && context.serviceValue !== effectiveServiceUrl) {
       setSearchParams((prev) => {
         const next = new URLSearchParams(prev);
         next.set("service", context.serviceValue || "");
@@ -482,12 +515,12 @@ const Home: React.FC = () => {
       return;
     }
     handleToolbarSearchSelect(key);
-  }, [handleToolbarSearchSelect, serviceUrl, setMobileNavOpen, setSearchParams]);
+  }, [effectiveServiceUrl, handleToolbarSearchSelect, setMobileNavOpen, setSearchParams]);
 
   useEffect(() => {
-    if (!remoteDocumentData || isLocalMode) return;
+    if (!documentData || isLocalMode) return;
     recordSearchOnce(ipFromUrl);
-  }, [isLocalMode, ipFromUrl, recordSearchOnce, remoteDocumentData]);
+  }, [documentData, isLocalMode, ipFromUrl, recordSearchOnce]);
 
   const handleDownloadLocalExport = useCallback((record: SavedApiExport) => {
     downloadTsSwaggerExport(record.payload);
@@ -558,6 +591,8 @@ const Home: React.FC = () => {
               subtitle: documentSubtitle,
               mode: documentMode,
               saved: hasSavedCurrentDoc,
+              serviceStatusText: allServiceStatusText,
+              serviceStatusKind: allServiceStatusKind,
             }}
             inputIp={inputIp}
             setInputIp={setInputIp}
@@ -565,7 +600,7 @@ const Home: React.FC = () => {
             handleCommitIp={handleCommitIp}
             loading={loading}
             loadingFeedback={loadingFeedback}
-            serviceUrl={isLocalMode ? activeLocalService?.url : serviceUrl}
+            serviceUrl={isLocalMode ? activeLocalService?.url : effectiveServiceUrl}
             configLoading={configLoading}
             serviceOptions={serviceOptions}
             handleServiceChange={handleServiceChange}
@@ -578,8 +613,10 @@ const Home: React.FC = () => {
                 apiBaseUrl={apiBaseUrl}
                 docUrl={sourceDocUrl}
                 documentBaseUrl={normalizedDocInput}
-                serviceUrl={isLocalMode ? activeLocalService?.url : serviceUrl}
+                serviceUrl={isLocalMode ? activeLocalService?.url : effectiveServiceUrl}
                 serviceOptions={!isLocalMode ? serviceOptions : undefined}
+                serviceDocuments={!isLocalMode && allServiceDocuments.enabled ? allServiceDocuments.entries : undefined}
+                serviceDocumentsProgress={!isLocalMode && allServiceDocuments.enabled ? allServiceDocuments.progress : undefined}
                 pluginEnabled={pluginEnabled}
                 existingPayload={isLocalMode ? activeLocalExport?.payload : undefined}
                 saveName={saveName}
@@ -602,9 +639,11 @@ const Home: React.FC = () => {
             onMenuSelect={onMenuSelect}
             handleGroupTitleClick={handleGroupTitleClick}
             handleToolbarSearchSelect={handleSearchSelect}
-            currentServiceLabel={activeLocalService?.name || serviceOptions.find((item) => item.value === serviceUrl)?.label}
-            allServiceGroups={isLocalMode ? localAllServiceGroups : undefined}
-            loadAllServiceGroups={!isLocalMode && serviceOptions.length > 1 ? loadAllServiceGroups : undefined}
+            currentServiceLabel={activeLocalService?.name || serviceOptions.find((item) => item.value === effectiveServiceUrl)?.label}
+            allServiceGroups={isLocalMode ? localAllServiceGroups : remoteAllServiceGroups}
+            allServiceSearchEnabled={isLocalMode ? localAllServiceGroups.length > 1 : serviceOptions.length > 1}
+            allServiceLoadingText={!isLocalMode ? allServiceSearchLoadingText : undefined}
+            allServiceError={!isLocalMode ? allServiceSearchError : undefined}
             orderedViewedApiKeys={orderedViewedApiKeys}
             selectedApiKey={selectedApiKey}
             apiMap={apiMap}
@@ -623,8 +662,8 @@ const Home: React.FC = () => {
                 sourceText={documentSubtitle}
                 mode={documentMode}
                 saved={hasSavedCurrentDoc}
-                apiCount={apiCount}
-                groupCount={apiGroups.length}
+                apiCount={dashboardApiCount}
+                groupCount={dashboardApiGroups.length}
                 serviceCount={dashboardServices.length}
                 localLibraryCount={savedExports.length}
                 methodStats={methodStats}
@@ -650,9 +689,11 @@ const Home: React.FC = () => {
             onMenuSelect={onMenuSelect}
             handleGroupTitleClick={handleGroupTitleClick}
             handleToolbarSearchSelect={handleSearchSelect}
-            currentServiceLabel={activeLocalService?.name || serviceOptions.find((item) => item.value === serviceUrl)?.label}
-            allServiceGroups={isLocalMode ? localAllServiceGroups : undefined}
-            loadAllServiceGroups={!isLocalMode && serviceOptions.length > 1 ? loadAllServiceGroups : undefined}
+            currentServiceLabel={activeLocalService?.name || serviceOptions.find((item) => item.value === effectiveServiceUrl)?.label}
+            allServiceGroups={isLocalMode ? localAllServiceGroups : remoteAllServiceGroups}
+            allServiceSearchEnabled={isLocalMode ? localAllServiceGroups.length > 1 : serviceOptions.length > 1}
+            allServiceLoadingText={!isLocalMode ? allServiceSearchLoadingText : undefined}
+            allServiceError={!isLocalMode ? allServiceSearchError : undefined}
           />
 
           {/* 项目配置抽屉：控制 TypeScript 生成偏好。 */}
@@ -669,6 +710,7 @@ const Home: React.FC = () => {
           autoCompleteOptions={autoCompleteOptions}
           handleCommitIp={handleCommitIp}
           handleTryDemo={handleTryDemo}
+          handleTryMultiServiceDemo={handleTryMultiServiceDemo}
           loading={loading}
           loadingFeedback={loadingFeedback}
           checking={checking}

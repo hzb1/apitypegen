@@ -117,6 +117,24 @@
   color: var(--ts-tag-warning-text);
 }
 
+.document-status-chip.is-service-loading {
+  border-color: var(--ts-warning-border);
+  background: var(--ts-warning-bg);
+  color: var(--ts-tag-warning-text);
+}
+
+.document-status-chip.is-service-ready {
+  border-color: var(--ts-tag-brand-border);
+  background: var(--ts-tag-brand-bg);
+  color: var(--ts-tag-brand-text);
+}
+
+.document-status-chip.is-service-error {
+  border-color: rgb(220 38 38 / 0.24);
+  background: rgb(220 38 38 / 0.08);
+  color: #b91c1c;
+}
+
 .home-topbar-subtitle {
   font-size: 12px;
   line-height: 1.2;
@@ -823,6 +841,19 @@
 .document-dashboard-service.is-active {
   border-color: var(--ts-brand-border-medium);
   background: var(--ts-brand-surface-soft);
+}
+
+.document-dashboard-service.is-loading {
+  border-style: dashed;
+}
+
+.document-dashboard-service.is-error {
+  border-color: rgb(220 38 38 / 0.24);
+  background: rgb(220 38 38 / 0.08);
+}
+
+.document-dashboard-service.is-error em {
+  color: #b91c1c;
 }
 
 .document-dashboard-recent-item span,

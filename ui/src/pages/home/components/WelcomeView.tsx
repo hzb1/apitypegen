@@ -19,6 +19,7 @@ type WelcomeViewProps = {
   autoCompleteOptions: AutoCompleteProps["options"];
   handleCommitIp: (value: string) => void;
   handleTryDemo: () => void;
+  handleTryMultiServiceDemo: () => void;
   loading: boolean;
   loadingFeedback: LoadingFeedback;
   checking: boolean;
@@ -33,6 +34,7 @@ export default function WelcomeView(props: WelcomeViewProps) {
     autoCompleteOptions,
     handleCommitIp,
     handleTryDemo,
+    handleTryMultiServiceDemo,
     loading,
     loadingFeedback,
     checking,
@@ -68,6 +70,10 @@ export default function WelcomeView(props: WelcomeViewProps) {
                 <ThunderboltOutlined />
                 <span>示例项目</span>
               </button>
+              <button type="button" className="home-welcome-inline-action" onClick={handleTryMultiServiceDemo}>
+                <ApiOutlined />
+                <span>多服务示例</span>
+              </button>
             </div>
             <div className="home-welcome-composer">
               <AutoComplete
@@ -102,6 +108,14 @@ export default function WelcomeView(props: WelcomeViewProps) {
             >
               <ThunderboltOutlined />
               <span>试用示例项目</span>
+            </button>
+            <button
+              type="button"
+              className="home-welcome-demo-button"
+              onClick={handleTryMultiServiceDemo}
+            >
+              <ApiOutlined />
+              <span>多服务示例</span>
             </button>
             <Button
               className="home-welcome-download"

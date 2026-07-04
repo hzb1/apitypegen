@@ -16,6 +16,8 @@ export type DashboardServiceItem = {
   value: string;
   apiCount?: number;
   isActive: boolean;
+  loading?: boolean;
+  error?: string | null;
 };
 
 export type DashboardGroupStat = {
@@ -174,14 +176,20 @@ export default function DocumentDashboard(props: DocumentDashboardProps) {
                 <button
                   key={service.value}
                   type="button"
-                  className={`document-dashboard-service ${service.isActive ? "is-active" : ""}`}
+                  className={`document-dashboard-service ${service.isActive ? "is-active" : ""} ${service.loading ? "is-loading" : ""} ${service.error ? "is-error" : ""}`}
                   onClick={() => onServiceSelect(service.value)}
                 >
                   <span>
                     <strong title={service.name}>{service.name}</strong>
                     <small title={service.value}>{service.value}</small>
                   </span>
-                  <em>{typeof service.apiCount === "number" ? `${service.apiCount} APIs` : "未加载"}</em>
+                  <em>
+                    {service.error
+                      ? "加载失败"
+                      : service.loading
+                        ? "加载中"
+                        : typeof service.apiCount === "number" ? `${service.apiCount} APIs` : "未加载"}
+                  </em>
                 </button>
               ))}
             </div>

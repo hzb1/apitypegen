@@ -16,6 +16,9 @@ type ApiSearchDialogProps = {
   currentServiceLabel?: string;
   allServiceGroups?: AllServiceSearchGroup[];
   loadAllServiceGroups?: () => Promise<AllServiceSearchGroup[]>;
+  allServiceSearchEnabled?: boolean;
+  allServiceLoadingText?: string;
+  allServiceError?: string;
   onSelectResult?: (selectedKey: string, context?: SearchResultSelectContext) => void;
   triggerClassName?: string;
 };
@@ -39,6 +42,9 @@ const ApiSearchDialog: React.FC<ApiSearchDialogProps> = ({
   currentServiceLabel,
   allServiceGroups,
   loadAllServiceGroups,
+  allServiceSearchEnabled,
+  allServiceLoadingText,
+  allServiceError: allServiceExternalError,
 }) => {
   const [searchParams] = useSearchParams();
   const [open, setOpen] = useState(false);
@@ -46,7 +52,7 @@ const ApiSearchDialog: React.FC<ApiSearchDialogProps> = ({
   const [scope, setScope] = useState<SearchScope>("current");
   const [loadedAllServiceGroups, setLoadedAllServiceGroups] = useState<AllServiceSearchGroup[]>([]);
   const [loadingAllServices, setLoadingAllServices] = useState(false);
-  const [allServiceError, setAllServiceError] = useState<string | null>(null);
+  const [allServiceLoadError, setAllServiceLoadError] = useState<string | null>(null);
   const serviceScope = useMemo(() => {
     const rawService = searchParams.get("service")?.trim();
     return rawService && rawService.length > 0 ? rawService : "__default__";
@@ -60,7 +66,7 @@ const ApiSearchDialog: React.FC<ApiSearchDialogProps> = ({
     limit: 20,
     minLength: 2,
   });
-  const canSearchAllServices = Boolean(allServiceGroups?.length || loadAllServiceGroups);
+  const canSearchAllServices = Boolean(allServiceSearchEnabled || allServiceGroups?.length || loadAllServiceGroups);
 
   useEffect(() => {
     if (!allServiceGroups) return;
@@ -73,7 +79,7 @@ const ApiSearchDialog: React.FC<ApiSearchDialogProps> = ({
 
     let cancelled = false;
     setLoadingAllServices(true);
-    setAllServiceError(null);
+    setAllServiceLoadError(null);
     void loadAllServiceGroups()
       .then((groups) => {
         if (cancelled) return;
@@ -82,7 +88,7 @@ const ApiSearchDialog: React.FC<ApiSearchDialogProps> = ({
       .catch((error) => {
         if (cancelled) return;
         const text = error instanceof Error ? error.message : String(error);
-        setAllServiceError(text);
+        setAllServiceLoadError(text);
       })
       .finally(() => {
         if (!cancelled) {
@@ -206,14 +212,14 @@ const ApiSearchDialog: React.FC<ApiSearchDialogProps> = ({
 
         />
         <div className="mt-4 max-h-[420px] space-y-4 overflow-y-auto pr-1">
-          {scope === "all" && loadingAllServices ? (
+          {scope === "all" && (loadingAllServices || allServiceLoadingText) ? (
             <div className="flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white p-5 text-sm text-gray-500">
               <Spin size="small" />
-              <span>正在加载全部服务接口...</span>
+              <span>{allServiceLoadingText || "正在加载全部服务接口..."}</span>
             </div>
           ) : null}
-          {scope === "all" && allServiceError ? (
-            <Alert type="warning" showIcon message={`全部服务搜索加载失败：${allServiceError}`} />
+          {scope === "all" && (allServiceExternalError || allServiceLoadError) ? (
+            <Alert type="warning" showIcon message={`全部服务搜索加载失败：${allServiceExternalError || allServiceLoadError}`} />
           ) : null}
           {query.trim() && !hasResults ? (
             <Empty description="未找到匹配接口" />

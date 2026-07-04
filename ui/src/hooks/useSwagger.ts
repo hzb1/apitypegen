@@ -27,6 +27,7 @@ type SwaggerConfig = {
 type State = {
   config: SwaggerConfig | null;
   document: OpenAPI.Document | null;
+  directConfigUrl: string | null;
   // 当前 document 是用哪个 serviceUrl 加载的，用于在 service 切换时同步判定"文档已过期"。
   documentServiceUrl: string | undefined;
   stage: SwaggerLoadingStage;
@@ -38,7 +39,7 @@ type Action =
   | { type: "LOAD_CONFIG" }
   | { type: "LOAD_DOCUMENT" }
   | { type: "LOAD_DIRECT_DOCUMENT" }
-  | { type: "CONFIG_SUCCESS"; payload: SwaggerConfig }
+  | { type: "CONFIG_SUCCESS"; payload: SwaggerConfig; directConfigUrl?: string }
   | { type: "DOCUMENT_SUCCESS"; payload: OpenAPI.Document; serviceUrl?: string }
   | { type: "ERROR"; payload: SwaggerErrorDetail }
   | { type: "CLEAR_ERROR" };
@@ -55,6 +56,8 @@ export type UseSwaggerOptions = {
   onAutoSelectService?: (defaultServiceUrl: string) => void;
   // 新增回调：当文档加载成功时触发
   onDocumentLoaded?: (doc: OpenAPI.Document) => void;
+  // swagger-config 模式下是否由 useSwagger 自动加载当前 service 文档。
+  loadServiceDocument?: boolean;
 };
 
 export type SwaggerFetchMode = "auto" | "native" | "proxy";
@@ -66,15 +69,15 @@ export type SwaggerFetchMode = "auto" | "native" | "proxy";
 function reducer(state: State, action: Action): State {
   switch (action.type) {
     case "PROBE":
-      return { ...state, config: null, document: null, stage: "probe", error: null };
+      return { ...state, config: null, document: null, directConfigUrl: null, stage: "probe", error: null };
     case "LOAD_CONFIG":
-      return { ...state, config: null, document: null, stage: "config", error: null }; //
+      return { ...state, config: null, document: null, directConfigUrl: null, stage: "config", error: null }; //
     case "LOAD_DOCUMENT":
       return { ...state, document: null, stage: "document", error: null }; //
     case "LOAD_DIRECT_DOCUMENT":
-      return { ...state, config: null, document: null, stage: "document", error: null };
+      return { ...state, config: null, document: null, directConfigUrl: null, stage: "document", error: null };
     case "CONFIG_SUCCESS":
-      return { ...state, config: action.payload, stage: "idle", error: null }; //
+      return { ...state, config: action.payload, directConfigUrl: action.directConfigUrl ?? null, stage: "idle", error: null }; //
     case "DOCUMENT_SUCCESS":
       return { ...state, document: action.payload, documentServiceUrl: action.serviceUrl, stage: "idle", error: null }; //
     case "ERROR":
@@ -102,9 +105,7 @@ function normalizeBaseUrl(rawInput: string) {
 
 function joinUrl(baseUrl: string, path: string) {
   if (/^https?:\/\//.test(path)) return path;
-  const normalizedBase = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
-  const normalizedPath = path.startsWith("/") ? path.slice(1) : path;
-  return new URL(normalizedPath, normalizedBase).toString();
+  return new URL(path, baseUrl).toString();
 }
 
 function isLikelyDocumentUrl(value: string) {
@@ -126,6 +127,17 @@ function isOpenApiLike(doc: unknown): doc is OpenAPI.Document {
   if (!doc || typeof doc !== "object") return false;
   const typed = doc as Record<string, unknown>;
   return Boolean(typed.openapi || typed.swagger || typed.paths);
+}
+
+function isSwaggerConfigLike(doc: unknown): doc is SwaggerConfig {
+  if (!doc || typeof doc !== "object") return false;
+  const typed = doc as Record<string, unknown>;
+  return Array.isArray(typed.urls)
+    && typed.urls.some((item) => {
+      if (!item || typeof item !== "object") return false;
+      const record = item as Record<string, unknown>;
+      return typeof record.url === "string" && record.url.trim().length > 0;
+    });
 }
 
 function createRequestKey(parts: Array<string | number | boolean | undefined>) {
@@ -172,6 +184,7 @@ export function useSwagger(params: {
   const [state, dispatch] = useReducer(reducer, {
     config: null,
     document: null,
+    directConfigUrl: null,
     documentServiceUrl: undefined,
     stage: "idle",
     error: null,
@@ -182,11 +195,17 @@ export function useSwagger(params: {
   const docRequestIdRef = useRef(0);
   const hasResolvedDocumentRef = useRef(false);
   const optionsRef = useRef(options);
+  const serviceUrlRef = useRef(serviceUrl);
   const activeAbortRef = useRef<AbortController | null>(null);
+  const shouldLoadServiceDocument = options?.loadServiceDocument ?? true;
 
   useEffect(() => {
     optionsRef.current = options;
   }, [options]);
+
+  useEffect(() => {
+    serviceUrlRef.current = serviceUrl;
+  }, [serviceUrl]);
 
   const cancelActiveRequest = useCallback((reason: string) => {
     const controller = activeAbortRef.current;
@@ -373,6 +392,35 @@ export function useSwagger(params: {
       }, signal)) as unknown;
       if (rid !== docRequestIdRef.current) return;
       if (signal.aborted) return;
+      if (isSwaggerConfigLike(doc)) {
+        const config: SwaggerConfig = {
+          urls: doc.urls
+            .filter((item) => typeof item?.url === "string" && item.url.trim())
+            .map((item) => ({
+              name: typeof item.name === "string" && item.name.trim() ? item.name : item.url,
+              url: item.url,
+            })),
+        };
+        dispatch({ type: "CONFIG_SUCCESS", payload: config, directConfigUrl: baseUrl });
+
+        if (!serviceUrlRef.current && config.urls.length > 0) {
+          const defaultService = config.urls[0];
+          requestDebugStore.recordEvent({
+            source: "auto-select-service",
+            reason: "auto selected first service from direct swagger-config",
+            requestKey: createRequestKey([
+              "auto-select-service",
+              baseUrl,
+              defaultService.url,
+              reloadKey,
+            ]),
+            url: joinUrl(baseUrl, defaultService.url),
+            detail: defaultService.name,
+          });
+          optionsRef.current?.onAutoSelectService?.(defaultService.url);
+        }
+        return;
+      }
       if (!isOpenApiLike(doc)) {
         throw new Error("文档格式不是 OpenAPI/Swagger");
       }
@@ -437,7 +485,7 @@ export function useSwagger(params: {
       if (signal.aborted) return;
       dispatch({ type: "CONFIG_SUCCESS", payload: config });
 
-      if (!serviceUrl && config.urls.length > 0) {
+      if (!serviceUrlRef.current && config.urls.length > 0) {
         const defaultService = config.urls[0];
         requestDebugStore.recordEvent({
           source: "auto-select-service",
@@ -465,7 +513,6 @@ export function useSwagger(params: {
     handleError,
     isSameOriginInput,
     reloadKey,
-    serviceUrl,
     shouldUseNativeFetch,
     version,
   ]);
@@ -515,7 +562,7 @@ export function useSwagger(params: {
   useEffect(() => {
     const baseUrl = normalizedInput;
     if (!baseUrl) return;
-    if (serviceUrl && !directDocumentMode) return;
+    if (directDocumentMode && state.directConfigUrl === baseUrl) return;
     hasResolvedDocumentRef.current = false;
     const controller = createRequestController("new request started");
 
@@ -538,15 +585,16 @@ export function useSwagger(params: {
     loadDirectDocument,
     loadSwaggerConfig,
     normalizedInput,
-    serviceUrl,
+    state.directConfigUrl,
   ]);
 
   /* --------------------- Effect 2: 监听 Service 变化 -> 加载文档 -------------------- */
 
   useEffect(() => {
-    const baseUrl = normalizedInput;
+    const baseUrl = state.directConfigUrl || normalizedInput;
     if (!baseUrl || !serviceUrl) return;
-    if (directDocumentMode) return;
+    if (!shouldLoadServiceDocument) return;
+    if (directDocumentMode && !state.directConfigUrl) return;
 
     hasResolvedDocumentRef.current = false;
     const controller = createRequestController("new request started");
@@ -561,6 +609,8 @@ export function useSwagger(params: {
     loadServiceDocument,
     normalizedInput,
     serviceUrl,
+    shouldLoadServiceDocument,
+    state.directConfigUrl,
   ]); // 当 Host + Service 变化时，加载文档
 
   return {

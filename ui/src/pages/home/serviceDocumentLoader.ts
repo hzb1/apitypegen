@@ -13,9 +13,7 @@ export function normalizeDocumentBaseUrl(rawInput: string) {
 
 export function buildServiceDocumentUrl(baseUrl: string, path: string) {
   if (/^https?:\/\//.test(path)) return path;
-  const normalizedBase = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
-  const normalizedPath = path.startsWith("/") ? path.slice(1) : path;
-  return new URL(normalizedPath, normalizedBase).toString();
+  return new URL(path, baseUrl).toString();
 }
 
 function isOpenApiLike(doc: unknown): doc is OpenAPI.Document {

@@ -1,0 +1,177 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Demo Inventory Service",
+    "description": "Catalog, stock, and warehouse APIs.",
+    "version": "1.5.0"
+  },
+  "servers": [
+    {
+      "url": "https://demo.ts-swagger.local/inventory-api"
+    }
+  ],
+  "tags": [
+    { "name": "Catalog" },
+    { "name": "Stock" }
+  ],
+  "paths": {
+    "/products": {
+      "get": {
+        "tags": ["Catalog"],
+        "summary": "List products",
+        "operationId": "listProducts",
+        "parameters": [
+          {
+            "name": "keyword",
+            "in": "query",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Product list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Product" }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Catalog"],
+        "summary": "Create product",
+        "operationId": "createProduct",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateProductRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created product",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Product" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/stock/{sku}": {
+      "get": {
+        "tags": ["Stock"],
+        "summary": "Get stock balance",
+        "operationId": "getStockBalance",
+        "parameters": [
+          {
+            "name": "sku",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "warehouseId",
+            "in": "query",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stock balance",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StockBalance" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/stock/{sku}/adjust": {
+      "post": {
+        "tags": ["Stock"],
+        "summary": "Adjust stock",
+        "operationId": "adjustStock",
+        "parameters": [
+          {
+            "name": "sku",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/AdjustStockRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated balance",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StockBalance" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Product": {
+        "type": "object",
+        "properties": {
+          "sku": { "type": "string" },
+          "name": { "type": "string" },
+          "category": { "type": "string" },
+          "price": { "type": "number" }
+        }
+      },
+      "CreateProductRequest": {
+        "type": "object",
+        "required": ["sku", "name"],
+        "properties": {
+          "sku": { "type": "string" },
+          "name": { "type": "string" },
+          "category": { "type": "string" },
+          "price": { "type": "number" }
+        }
+      },
+      "StockBalance": {
+        "type": "object",
+        "properties": {
+          "sku": { "type": "string" },
+          "available": { "type": "integer", "format": "int32" },
+          "reserved": { "type": "integer", "format": "int32" },
+          "warehouseId": { "type": "string" }
+        }
+      },
+      "AdjustStockRequest": {
+        "type": "object",
+        "required": ["delta", "reason"],
+        "properties": {
+          "delta": { "type": "integer", "format": "int32" },
+          "reason": { "type": "string" }
+        }
+      }
+    }
+  }
+}

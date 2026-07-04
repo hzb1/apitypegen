@@ -25,6 +25,9 @@ type DocumentWorkspaceProps = {
   currentServiceLabel?: string;
   allServiceGroups?: AllServiceSearchGroup[];
   loadAllServiceGroups?: () => Promise<AllServiceSearchGroup[]>;
+  allServiceSearchEnabled?: boolean;
+  allServiceLoadingText?: string;
+  allServiceError?: string;
   orderedViewedApiKeys: string[];
   selectedApiKey: string | null;
   apiMap: Map<string, ApiDetail>;
@@ -57,6 +60,9 @@ export default function DocumentWorkspace(props: DocumentWorkspaceProps) {
     currentServiceLabel,
     allServiceGroups,
     loadAllServiceGroups,
+    allServiceSearchEnabled,
+    allServiceLoadingText,
+    allServiceError,
     orderedViewedApiKeys,
     selectedApiKey,
     apiMap,
@@ -97,6 +103,9 @@ export default function DocumentWorkspace(props: DocumentWorkspaceProps) {
           currentServiceLabel={currentServiceLabel}
           allServiceGroups={allServiceGroups}
           loadAllServiceGroups={loadAllServiceGroups}
+          allServiceSearchEnabled={allServiceSearchEnabled}
+          allServiceLoadingText={allServiceLoadingText}
+          allServiceError={allServiceError}
         />
       </aside>
 

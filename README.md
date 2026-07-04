@@ -27,6 +27,8 @@ npm run dev
 
 打开页面后点击“试用示例项目”，系统会加载内置的 `/demo/openapi.json`。这个示例文档不依赖后端服务，也不需要安装浏览器扩展。
 
+如果想体验 `swagger-config` 多服务切换，可以点击“多服务示例”，或手动输入 `/demo/swagger-config.json`。这个示例会加载用户服务、订单服务、库存服务 3 个本地 OpenAPI 文档，用来验证顶部服务下拉、全服务搜索和保存全部服务流程。
+
 你可以在示例项目中完成这些操作：
 
 - 浏览接口分组和接口详情
@@ -34,7 +36,6 @@ npm run dev
 - 查看 Query Params、Request Body、Response Data 和 Models
 - 一键复制生成的 TypeScript 类型
 - 点击“保存到本地”，下次从首页的“本地保存的接口文档”继续打开
-- 点击“导出 JSON”，把当前接口文档和生成结果保存为文件
 
 ## 4. 本地接口库与 JSON 导出
 

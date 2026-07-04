@@ -16,6 +16,9 @@ export type SideBarProps = {
   currentServiceLabel?: string;
   allServiceGroups?: AllServiceSearchGroup[];
   loadAllServiceGroups?: () => Promise<AllServiceSearchGroup[]>;
+  allServiceSearchEnabled?: boolean;
+  allServiceLoadingText?: string;
+  allServiceError?: string;
   onSearchSelectResult?: (selectedKey: string, context?: SearchResultSelectContext) => void;
 } & ApiListProps;
 
@@ -29,6 +32,9 @@ const SideBar: React.FC<SideBarProps> = (props) => {
     currentServiceLabel,
     allServiceGroups,
     loadAllServiceGroups,
+    allServiceSearchEnabled,
+    allServiceLoadingText,
+    allServiceError,
   } = props;
 
   const handleGroupTitleClick = (groupItem: ApiListProps["apis"][number]) => {
@@ -110,6 +116,9 @@ const SideBar: React.FC<SideBarProps> = (props) => {
               currentServiceLabel={currentServiceLabel}
               allServiceGroups={allServiceGroups}
               loadAllServiceGroups={loadAllServiceGroups}
+              allServiceSearchEnabled={allServiceSearchEnabled}
+              allServiceLoadingText={allServiceLoadingText}
+              allServiceError={allServiceError}
             />
           </div>
           <div className="sidebar-filter">

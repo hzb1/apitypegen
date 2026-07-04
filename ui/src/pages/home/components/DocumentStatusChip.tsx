@@ -6,6 +6,8 @@ export type DocumentMode = "remote" | "local" | "demo";
 type DocumentStatusChipProps = {
   mode: DocumentMode;
   saved?: boolean;
+  serviceStatusText?: string;
+  serviceStatusKind?: "loading" | "ready" | "error";
 };
 
 const modeConfig: Record<DocumentMode, { label: string; icon: ReactNode }> = {
@@ -36,6 +38,11 @@ export default function DocumentStatusChip(props: DocumentStatusChipProps) {
         <span className="document-status-chip is-saved">
           <CheckCircleOutlined />
           <span>已保存</span>
+        </span>
+      ) : null}
+      {props.serviceStatusText ? (
+        <span className={`document-status-chip is-service-${props.serviceStatusKind ?? "ready"}`}>
+          <span>{props.serviceStatusText}</span>
         </span>
       ) : null}
     </span>

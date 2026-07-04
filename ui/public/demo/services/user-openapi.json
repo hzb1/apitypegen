@@ -1,0 +1,171 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Demo User Service",
+    "description": "User identity, account, and role management APIs.",
+    "version": "1.2.0"
+  },
+  "servers": [
+    {
+      "url": "https://demo.ts-swagger.local/user-api"
+    }
+  ],
+  "tags": [
+    { "name": "Accounts" },
+    { "name": "Roles" }
+  ],
+  "paths": {
+    "/accounts": {
+      "get": {
+        "tags": ["Accounts"],
+        "summary": "List accounts",
+        "operationId": "listAccounts",
+        "parameters": [
+          {
+            "name": "keyword",
+            "in": "query",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": { "$ref": "#/components/schemas/AccountStatus" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paged account list",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AccountPage" }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Accounts"],
+        "summary": "Create account",
+        "operationId": "createAccount",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateAccountRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created account",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Account" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/accounts/{accountId}": {
+      "get": {
+        "tags": ["Accounts"],
+        "summary": "Get account detail",
+        "operationId": "getAccountDetail",
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Account detail",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Account" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/roles": {
+      "get": {
+        "tags": ["Roles"],
+        "summary": "List roles",
+        "operationId": "listRoles",
+        "responses": {
+          "200": {
+            "description": "Role list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Role" }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AccountStatus": {
+        "type": "string",
+        "enum": ["ACTIVE", "DISABLED", "LOCKED"]
+      },
+      "Account": {
+        "type": "object",
+        "required": ["id", "name", "email", "status"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "email": { "type": "string" },
+          "status": { "$ref": "#/components/schemas/AccountStatus" },
+          "roleIds": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      },
+      "AccountPage": {
+        "type": "object",
+        "properties": {
+          "total": { "type": "integer", "format": "int64" },
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Account" }
+          }
+        }
+      },
+      "CreateAccountRequest": {
+        "type": "object",
+        "required": ["name", "email"],
+        "properties": {
+          "name": { "type": "string" },
+          "email": { "type": "string" },
+          "roleIds": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      },
+      "Role": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "permissions": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

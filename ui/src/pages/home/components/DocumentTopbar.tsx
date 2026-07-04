@@ -18,6 +18,8 @@ type DocumentTopbarProps = {
     subtitle?: string;
     mode: DocumentMode;
     saved: boolean;
+    serviceStatusText?: string;
+    serviceStatusKind?: "loading" | "ready" | "error";
   };
   inputIp: string;
   setInputIp: (value: string) => void;
@@ -69,7 +71,12 @@ export default function DocumentTopbar(props: DocumentTopbarProps) {
             <div className="home-topbar-title" title={documentMeta.title}>
               {documentMeta.title}
             </div>
-            <DocumentStatusChip mode={documentMeta.mode} saved={documentMeta.saved} />
+            <DocumentStatusChip
+              mode={documentMeta.mode}
+              saved={documentMeta.saved}
+              serviceStatusText={documentMeta.serviceStatusText}
+              serviceStatusKind={documentMeta.serviceStatusKind}
+            />
           </div>
           <div className="home-topbar-subtitle" title={documentMeta.subtitle}>
             {documentMeta.subtitle || "TypeScript 类型生成"}

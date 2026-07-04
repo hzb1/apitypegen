@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
-import { DEMO_DOC_PATH, isDemoDocInput } from "../home.constants.ts";
+import { DEMO_DOC_PATH, DEMO_SWAGGER_CONFIG_PATH, isDemoDocInput } from "../home.constants.ts";
 
 // 首页 URL 参数名集中管理，避免散落的字符串字面量写错。
 // ip 是 doc 的历史别名，仅读取兼容（旧书签 ?ip=... 仍能打开），不再写入；
@@ -69,6 +69,17 @@ export function useHomeDocumentState() {
     });
   };
 
+  const handleTryMultiServiceDemo = () => {
+    setInputIp(DEMO_SWAGGER_CONFIG_PATH);
+    setReloadKey((current) => current + 1);
+    setSearchParams(() => {
+      const next = new URLSearchParams();
+      next.set(URL_PARAMS.doc, DEMO_SWAGGER_CONFIG_PATH);
+      next.set(URL_PARAMS.demo, "1");
+      return next;
+    });
+  };
+
   const handleOpenLocalExport = (id: string) => {
     setInputIp("");
     setReloadKey((current) => current + 1);
@@ -113,6 +124,7 @@ export function useHomeDocumentState() {
     reloadKey,
     handleCommitIp,
     handleTryDemo,
+    handleTryMultiServiceDemo,
     handleOpenLocalExport,
     handleServiceChange,
   };
