@@ -216,14 +216,13 @@ npm run ts-swagger -- gen --doc-url http://localhost:3000/docs/json --method pos
 
 ## 9. GlitchTip sourcemap
 
-UI 生产构建会在 `ui/dist` 中生成 sourcemap。首次使用前需安装 `glitchtip-cli`，并登录到 GlitchTip：
+UI 生产构建会在 `ui/dist` 中生成 sourcemap。首次使用前需安装 `@sentry/cli`，并准备好 GlitchTip API token：
 
 ```bash
-curl -fsSL https://glitchtip.com/install.sh | sh
-glitchtip-cli --url https://monitor.huzhibin.top login
+npm install --save-dev @sentry/cli
 ```
 
-进入 `ui` 目录后，可一次完成构建、debug ID 注入和 sourcemap 上传：
+在项目根目录配置 `.sentryclirc` 后，进入 `ui` 目录即可完成构建、debug ID 注入和 legacy sourcemap 上传：
 
 ```bash
 cd ui
@@ -233,12 +232,10 @@ npm run build:glitchtip
 也可在执行 `npm run build` 后分步运行。页面初始化 Sentry 和上传 sourcemap 都统一使用 `ui/package.json` 的 `version` 作为 `release`：
 
 ```bash
-npm run sourcemaps:inject
-glitchtip-cli sourcemaps upload ./dist \
-  --release "$(node -p \"require('./package.json').version\")" \
-  --org swaggerhuzhibintop \
-  --project swagger
+npm run sourcemaps:upload
 ```
+
+上传请求默认按每 4 个文件分批，以避免 GlitchTip/Nginx 的请求体大小限制；可通过 `SOURCEMAP_BATCH_FILE_COUNT` 调整批大小。上传完成后由 GlitchTip 异步处理，不在部署脚本中等待处理轮询。
 
 CI/CD 中不要提交认证信息，应通过密钥变量提供：
 
@@ -249,3 +246,16 @@ npm run build:glitchtip
 ```
 
 上传脚本默认使用 `https://monitor.huzhibin.top`；如果使用其他 GlitchTip 实例，可通过 `SENTRY_URL` 覆盖。
+静态资源 artifact 前缀默认是 `https://swagger.huzhibin.top/assets/`，需要与事件 frame 的 `abs_path` 保持一致；如果部署域名不同，请设置 `SOURCEMAP_URL_PREFIX`。
+
+## 10. UI 一键部署
+
+`deploy:ui` 会依次执行 UI 依赖安装、类型检查、生产构建、legacy sourcemap 上传和远程发布。项目根目录的 `.sentryclirc` 会自动提供 GlitchTip API token：
+
+```bash
+DEPLOY_HOST=your-server-host \
+DEPLOY_USER=root \
+npm run deploy:ui
+```
+
+也可以先导出 `DEPLOY_HOST` 和 `DEPLOY_USER`，之后直接运行 `npm run deploy:ui`。脚本默认将 UI 发布到服务器的 `/srv/projects/ts-swagger`，可通过 `DEPLOY_ROOT` 覆盖。

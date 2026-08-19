@@ -19,6 +19,7 @@ import {
 } from "@ant-design/icons";
 import * as Sentry from "@sentry/react";
 import { Link } from "react-router";
+import packageJson from "../../../package.json";
 import "./GlitchTipDebug.css";
 
 const { Title, Paragraph, Text } = Typography;
@@ -95,7 +96,7 @@ const GlitchTipDebug: React.FC = () => {
   }, [showEventResult]);
 
   return (
-    <main className="glitchtip-page">
+    <main className="glitchtip-page" data-release={packageJson.version}>
       <section className="glitchtip-hero">
         <div>
           <Space size={10} align="center">

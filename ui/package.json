@@ -1,14 +1,14 @@
 {
   "name": "ts-swagger",
   "private": true,
-  "version": "0.5.2",
+  "version": "0.5.6",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "build:glitchtip": "npm run build && npm run sourcemaps:upload",
-    "sourcemaps:inject": "glitchtip-cli sourcemaps inject ./dist",
-    "sourcemaps:upload": "npm run sourcemaps:inject && SENTRY_URL=\"${SENTRY_URL:-https://monitor.huzhibin.top}\" glitchtip-cli sourcemaps upload ./dist --release \"$npm_package_version\" --org swaggerhuzhibintop --project swagger",
+    "sourcemaps:inject": "sentry-cli sourcemaps inject ./dist",
+    "sourcemaps:upload": "npm run sourcemaps:inject && bash ../scripts/upload-ui-sourcemaps.sh",
     "typecheck": "tsc -b",
     "lint": "eslint .",
     "preview": "vite preview"
@@ -29,6 +29,7 @@
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
+    "@sentry/cli": "^2.58.6",
     "@vitejs/plugin-react": "^5.1.1",
     "eslint": "^9.39.1",
     "eslint-plugin-react-hooks": "^7.0.1",

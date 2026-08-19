@@ -47,7 +47,6 @@ require_env DEPLOY_HOST
 require_env DEPLOY_USER
 
 require_cmd npm
-require_cmd glitchtip-cli
 require_cmd rsync
 require_cmd ssh
 
@@ -75,10 +74,22 @@ else
   npm ci
 fi
 
+export PATH="${UI_DIR}/node_modules/.bin:${PATH}"
+require_cmd sentry-cli
+
+if [[ -z "${SENTRY_AUTH_TOKEN:-}" && -f "${ROOT_DIR}/.sentryclirc" ]]; then
+  SENTRY_AUTH_TOKEN="$(awk -F= '$1 == "token" {gsub(/\r/, "", $2); print $2; exit}' "${ROOT_DIR}/.sentryclirc")"
+  export SENTRY_AUTH_TOKEN
+fi
+
+require_env SENTRY_AUTH_TOKEN
+export SENTRY_URL="${SENTRY_URL:-https://monitor.huzhibin.top}"
+export SOURCEMAP_URL_PREFIX="${SOURCEMAP_URL_PREFIX:-https://swagger.huzhibin.top/assets/}"
+
 log "Typechecking UI"
 npm run typecheck
 
-log "Building UI and uploading GlitchTip sourcemaps"
+log "Building UI and uploading GlitchTip sourcemaps with legacy sentry-cli"
 VITE_PROXY_EXTENSION_URL="${VITE_PROXY_EXTENSION_URL}" npm run build:glitchtip
 
 [[ -f "${UI_DIR}/dist/index.html" ]] || fail "Build output missing: ui/dist/index.html"
