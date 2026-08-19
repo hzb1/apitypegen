@@ -222,7 +222,15 @@ UI 生产构建会在 `ui/dist` 中生成 sourcemap。首次使用前需安装 `
 npm install --save-dev @sentry/cli
 ```
 
-在项目根目录配置 `.sentryclirc` 后，进入 `ui` 目录即可完成构建、debug ID 注入和 legacy sourcemap 上传：
+复制根目录的配置模板，并填入新生成的 API Token：
+
+```bash
+cp .env.glitchtip.example .env.glitchtip.local
+```
+
+`.env.glitchtip.local` 只用于本地 sourcemap 上传和部署，已加入 `.gitignore`。前端 DSN 仍放在 `ui/.env.production`，因为 DSN 会被打包到浏览器端；API Token 不能放进 `ui/.env*`。
+
+配置完成后，进入 `ui` 目录即可完成构建、debug ID 注入和 legacy sourcemap 上传：
 
 ```bash
 cd ui
@@ -237,20 +245,24 @@ npm run sourcemaps:upload
 
 上传请求默认按每 4 个文件分批，以避免 GlitchTip/Nginx 的请求体大小限制；可通过 `SOURCEMAP_BATCH_FILE_COUNT` 调整批大小。上传完成后由 GlitchTip 异步处理，不在部署脚本中等待处理轮询。
 
-CI/CD 中不要提交认证信息，应通过密钥变量提供：
+CI/CD 中不要提交认证信息，应通过 Secret 变量提供：
 
 ```bash
 SENTRY_URL=https://monitor.huzhibin.top \
-SENTRY_AUTH_TOKEN=your-api-token \
+SENTRY_ORG=swaggerhuzhibintop \
+SENTRY_PROJECT=swagger \
+SOURCEMAP_URL_PREFIX=https://swagger.huzhibin.top/assets/ \
+SENTRY_AUTH_TOKEN=your-new-api-token \
 npm run build:glitchtip
 ```
 
-上传脚本默认使用 `https://monitor.huzhibin.top`；如果使用其他 GlitchTip 实例，可通过 `SENTRY_URL` 覆盖。
-静态资源 artifact 前缀默认是 `https://swagger.huzhibin.top/assets/`，需要与事件 frame 的 `abs_path` 保持一致；如果部署域名不同，请设置 `SOURCEMAP_URL_PREFIX`。
+上传脚本从 `.env.glitchtip.local` 或 CI 环境变量读取 GlitchTip 地址、组织、项目和静态资源前缀；静态资源 artifact 前缀需要与事件 frame 的 `abs_path` 保持一致。
+
+部署到生产服务器时，sourcemap 会先上传到 GlitchTip，随后只同步 JS/CSS 等运行文件，`.map` 文件不会部署到服务器，以避免暴露源代码。
 
 ## 10. UI 一键部署
 
-`deploy:ui` 会依次执行 UI 依赖安装、类型检查、生产构建、legacy sourcemap 上传和远程发布。项目根目录的 `.sentryclirc` 会自动提供 GlitchTip API token：
+`deploy:ui` 会依次执行 UI 依赖安装、类型检查、生产构建、legacy sourcemap 上传和远程发布。它会自动读取根目录的 `.env.glitchtip.local`：
 
 ```bash
 DEPLOY_HOST=your-server-host \

@@ -5,6 +5,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 UI_DIR="${ROOT_DIR}/ui"
 
+if [[ -f "${ROOT_DIR}/.env.glitchtip.local" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "${ROOT_DIR}/.env.glitchtip.local"
+  set +a
+fi
+
 DEPLOY_PORT="${DEPLOY_PORT:-22}"
 DEPLOY_ROOT="${DEPLOY_ROOT:-/srv/projects/ts-swagger}"
 RELEASE_KEEP="${RELEASE_KEEP:-5}"
@@ -77,14 +84,12 @@ fi
 export PATH="${UI_DIR}/node_modules/.bin:${PATH}"
 require_cmd sentry-cli
 
-if [[ -z "${SENTRY_AUTH_TOKEN:-}" && -f "${ROOT_DIR}/.sentryclirc" ]]; then
-  SENTRY_AUTH_TOKEN="$(awk -F= '$1 == "token" {gsub(/\r/, "", $2); print $2; exit}' "${ROOT_DIR}/.sentryclirc")"
-  export SENTRY_AUTH_TOKEN
-fi
-
 require_env SENTRY_AUTH_TOKEN
-export SENTRY_URL="${SENTRY_URL:-https://monitor.huzhibin.top}"
-export SOURCEMAP_URL_PREFIX="${SOURCEMAP_URL_PREFIX:-https://swagger.huzhibin.top/assets/}"
+require_env SENTRY_URL
+require_env SENTRY_ORG
+require_env SENTRY_PROJECT
+require_env SOURCEMAP_URL_PREFIX
+export SENTRY_URL SENTRY_ORG SENTRY_PROJECT SOURCEMAP_URL_PREFIX
 
 log "Typechecking UI"
 npm run typecheck
@@ -98,7 +103,7 @@ log "Preparing remote release directory: ${REMOTE_RELEASE_DIR}"
 ssh "${SSH_OPTS[@]}" "${SSH_TARGET}" "mkdir -p '${REMOTE_RELEASE_DIR}'"
 
 log "Uploading ui/dist to ${SSH_TARGET}:${REMOTE_RELEASE_DIR}/"
-rsync -avz --delete -e "${RSYNC_RSH}" \
+rsync -avz --delete --exclude='*.map' -e "${RSYNC_RSH}" \
   "${UI_DIR}/dist/" \
   "${SSH_TARGET}:${REMOTE_RELEASE_DIR}/"
 
@@ -133,7 +138,7 @@ elif [[ -d "${DIST_PATH}" ]]; then
 fi
 
 if [[ -n "${CURRENT_DIST_SOURCE}" && "${CURRENT_DIST_SOURCE}" != "${REMOTE_RELEASE_DIR}" ]]; then
-  rsync -a --ignore-existing "${CURRENT_DIST_SOURCE}/" "${REMOTE_RELEASE_DIR}/"
+  rsync -a --ignore-existing --exclude='*.map' "${CURRENT_DIST_SOURCE}/" "${REMOTE_RELEASE_DIR}/"
 fi
 
 if [[ -e "${DIST_PATH}" && ! -L "${DIST_PATH}" ]]; then

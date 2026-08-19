@@ -9,3 +9,5 @@
 /.VSCodeCounter/
 /ts-swagger.config.json
 /.claude/
+/.env.glitchtip.local
+/.sentryclirc
