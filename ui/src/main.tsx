@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
+import * as Sentry from "@sentry/react";
 
 import { createBrowserRouter, RouterProvider } from "react-router";
 
@@ -41,6 +42,13 @@ const router = createBrowserRouter(
     basename: import.meta.env.BASE_URL,
   },
 );
+
+Sentry.init({
+  dsn: "https://20a68c8cc61f48568e74830e4e292f99@monitor.huzhibin.top/1",
+  tracesSampleRate: 0.01, // 1% of transactions — adjust to your needs
+  autoSessionTracking: false, // GlitchTip does not support sessions
+});
+
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

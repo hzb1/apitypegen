@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@ant-design/icons": "^6.1.0",
+    "@sentry/react": "^10.70.0",
     "@tailwindcss/vite": "^4.1.18",
     "antd": "^6.1.4",
     "clsx": "^2.1.1",
