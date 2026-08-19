@@ -45,6 +45,7 @@ const router = createBrowserRouter(
 
 Sentry.init({
   dsn: "https://20a68c8cc61f48568e74830e4e292f99@monitor.huzhibin.top/1",
+  environment: 'production',
   tracesSampleRate: 0.01, // 1% of transactions — adjust to your needs
   autoSessionTracking: false, // GlitchTip does not support sessions
 });
