@@ -1,9 +1,19 @@
+import * as Sentry from '@sentry/browser'
 import {
   ProxyRequestMessage,
   ProxyResponseMessage,
   ProxySuccess,
   ProxyFailure
 } from './shared/types'
+import { GLITCHTIP_DSN, EXT_VERSION } from './config'
+
+Sentry.init({
+  dsn: GLITCHTIP_DSN,
+  release: EXT_VERSION,
+  environment: 'production',
+  autoSessionTracking: false,
+  tracesSampleRate: 0,
+})
 
 const PROXY_REQUEST_ID_HEADER = 'x-proxy-request-id'
 const CLEANUP_TTL_MS = 60_000
@@ -96,6 +106,12 @@ async function handleRequest(
         message: err.message || 'Unknown error'
       }
     }
+
+    Sentry.captureException(err, {
+      tags: { context: 'background-proxy', errorType: failure.error.type },
+      extra: { requestId, url: payload.url, method: payload.method }
+    })
+
     console.error(`[${requestId}] 失败响应`, err, err.name, err.message)
     console.log(`[${requestId}] 失败响应`, {
       type: 'PROXY_RESPONSE',

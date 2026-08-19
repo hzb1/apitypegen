@@ -3,6 +3,7 @@ import type { AutoCompleteProps } from "antd";
 import { AutoComplete, Button, Input, Tag } from "antd";
 import {
   ApiOutlined,
+  BugOutlined,
   CodeOutlined,
   DatabaseOutlined,
   DownloadOutlined,
@@ -123,6 +124,13 @@ export default function WelcomeView(props: WelcomeViewProps) {
               href={EXTENSION_URL}
             >
               浏览器扩展
+            </Button>
+            <Button
+              className="home-welcome-download"
+              icon={<BugOutlined />}
+              href="/glitchtip"
+            >
+              GlitchTip 调试
             </Button>
           </div>
 

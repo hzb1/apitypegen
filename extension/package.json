@@ -11,6 +11,7 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@sentry/browser": "^10.70.0",
     "@types/node": "^25.0.3",
     "typescript": "^5.9.3",
     "vite": "^7.3.0"

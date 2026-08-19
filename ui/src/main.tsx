@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import * as Sentry from "@sentry/react";
+import packageJson from "../package.json";
 
 import { createBrowserRouter, RouterProvider } from "react-router";
 
@@ -35,6 +36,13 @@ const router = createBrowserRouter(
             return { Component: module.default };
           },
         },
+        {
+          path: "glitchtip",
+          lazy: async () => {
+            const module = await import("./pages/glitchtip/GlitchTipDebug.tsx");
+            return { Component: module.default };
+          },
+        },
       ],
     },
   ],
@@ -43,11 +51,16 @@ const router = createBrowserRouter(
   },
 );
 
+const isProduction = import.meta.env.MODE === "production";
+
 Sentry.init({
-  dsn: "https://20a68c8cc61f48568e74830e4e292f99@monitor.huzhibin.top/1",
-  environment: 'production',
-  tracesSampleRate: 0.01, // 1% of transactions — adjust to your needs
-  autoSessionTracking: false, // GlitchTip does not support sessions
+  dsn: import.meta.env.VITE_GLITCHTIP_DSN,
+  environment: import.meta.env.MODE,
+  release: packageJson.version,
+  enabled: isProduction,
+  tracesSampleRate: 0,
+  // @ts-expect-error GlitchTip does not support sessions
+  autoSessionTracking: false,
 });
 
 

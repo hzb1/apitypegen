@@ -6,6 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:glitchtip": "npm run build && npm run sourcemaps:upload",
+    "sourcemaps:inject": "glitchtip-cli sourcemaps inject ./dist",
+    "sourcemaps:upload": "npm run sourcemaps:inject && SENTRY_URL=\"${SENTRY_URL:-https://monitor.huzhibin.top}\" glitchtip-cli sourcemaps upload ./dist --release \"$npm_package_version\" --org swaggerhuzhibintop --project swagger",
     "typecheck": "tsc -b",
     "lint": "eslint .",
     "preview": "vite preview"

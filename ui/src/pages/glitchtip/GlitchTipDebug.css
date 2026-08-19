@@ -1,0 +1,79 @@
+.glitchtip-page {
+  min-height: 100vh;
+  padding: 28px 32px 64px;
+  background: var(--ts-gradient-network-page);
+}
+
+.glitchtip-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 24px 28px;
+  border-radius: var(--ts-radius-modal);
+  background: var(--ts-surface);
+  box-shadow: var(--ts-shadow-hero-blue);
+}
+
+.glitchtip-hero-icon {
+  color: rgb(var(--primary) / 1);
+  font-size: 28px;
+}
+
+.glitchtip-title {
+  margin: 0 !important;
+}
+
+.glitchtip-subtitle {
+  max-width: 760px;
+  margin: 10px 0 0 !important;
+  color: var(--ts-text-dim-strong);
+}
+
+.glitchtip-status {
+  margin-top: 18px;
+  border-radius: var(--ts-radius-md);
+}
+
+.glitchtip-grid {
+  margin-top: 20px;
+}
+
+.glitchtip-card {
+  height: 100%;
+  border-radius: var(--ts-radius-md);
+  box-shadow: var(--ts-shadow-card-blue);
+}
+
+.glitchtip-card-danger {
+  border-color: rgb(239 68 68 / 0.45);
+}
+
+.glitchtip-result {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 16px 20px;
+  border-radius: var(--ts-radius-md);
+  background: var(--ts-surface);
+}
+
+.glitchtip-result-value {
+  flex: 1;
+  min-width: 260px;
+  color: var(--ts-text-primary);
+  font-weight: 600;
+}
+
+@media (max-width: 700px) {
+  .glitchtip-page {
+    padding: 20px 16px 40px;
+  }
+
+  .glitchtip-hero {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 20px;
+  }
+}

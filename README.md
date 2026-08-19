@@ -213,3 +213,39 @@ npm run ts-swagger -- gen --doc-url http://localhost:3000/docs/json --method pos
 - 若来源是 swagger-config 且服务多于一个，会提示选择服务。
 - 然后通过关键词筛选并选择接口。
 - 最后可选择输出格式（TypeScript / JSON）及是否复制到剪贴板。
+
+## 9. GlitchTip sourcemap
+
+UI 生产构建会在 `ui/dist` 中生成 sourcemap。首次使用前需安装 `glitchtip-cli`，并登录到 GlitchTip：
+
+```bash
+curl -fsSL https://glitchtip.com/install.sh | sh
+glitchtip-cli --url https://monitor.huzhibin.top login
+```
+
+进入 `ui` 目录后，可一次完成构建、debug ID 注入和 sourcemap 上传：
+
+```bash
+cd ui
+npm run build:glitchtip
+```
+
+也可在执行 `npm run build` 后分步运行。页面初始化 Sentry 和上传 sourcemap 都统一使用 `ui/package.json` 的 `version` 作为 `release`：
+
+```bash
+npm run sourcemaps:inject
+glitchtip-cli sourcemaps upload ./dist \
+  --release "$(node -p \"require('./package.json').version\")" \
+  --org swaggerhuzhibintop \
+  --project swagger
+```
+
+CI/CD 中不要提交认证信息，应通过密钥变量提供：
+
+```bash
+SENTRY_URL=https://monitor.huzhibin.top \
+SENTRY_AUTH_TOKEN=your-api-token \
+npm run build:glitchtip
+```
+
+上传脚本默认使用 `https://monitor.huzhibin.top`；如果使用其他 GlitchTip 实例，可通过 `SENTRY_URL` 覆盖。

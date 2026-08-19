@@ -47,6 +47,7 @@ require_env DEPLOY_HOST
 require_env DEPLOY_USER
 
 require_cmd npm
+require_cmd glitchtip-cli
 require_cmd rsync
 require_cmd ssh
 
@@ -77,8 +78,8 @@ fi
 log "Typechecking UI"
 npm run typecheck
 
-log "Building UI"
-VITE_PROXY_EXTENSION_URL="${VITE_PROXY_EXTENSION_URL}" npm run build
+log "Building UI and uploading GlitchTip sourcemaps"
+VITE_PROXY_EXTENSION_URL="${VITE_PROXY_EXTENSION_URL}" npm run build:glitchtip
 
 [[ -f "${UI_DIR}/dist/index.html" ]] || fail "Build output missing: ui/dist/index.html"
 
