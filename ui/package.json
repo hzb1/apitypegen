@@ -1,5 +1,5 @@
 {
-  "name": "ts-swagger",
+  "name": "@ts-swagger/ui",
   "private": true,
   "version": "0.7.0",
   "type": "module",

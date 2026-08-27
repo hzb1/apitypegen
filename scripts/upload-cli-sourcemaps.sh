@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
-DIST_DIR="${ROOT_DIR}/dist"
+DIST_DIR="${ROOT_DIR}/cli/dist"
 SENTRY_CLI="${ROOT_DIR}/node_modules/.bin/sentry-cli"
 
 if [[ -f "${ROOT_DIR}/.env.glitchtip.local" ]]; then
@@ -13,7 +13,8 @@ if [[ -f "${ROOT_DIR}/.env.glitchtip.local" ]]; then
   set +a
 fi
 
-RELEASE_NAME="ts-swagger@${npm_package_version:?npm_package_version is required}"
+CLI_VERSION="$(node -p "require('${ROOT_DIR}/cli/package.json').version")"
+RELEASE_NAME="ts-swagger@${CLI_VERSION}"
 ORGANIZATION="${CLI_SENTRY_ORG:-ts-swagger}"
 PROJECT="${CLI_SENTRY_PROJECT:-cli}"
 URL_PREFIX="${CLI_SOURCEMAP_URL_PREFIX:-app:///dist}"

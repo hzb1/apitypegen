@@ -1,0 +1,46 @@
+{
+  "name": "ts-swagger",
+  "version": "0.7.0",
+  "description": "从 Swagger UI 或 OpenAPI 文档检索接口并生成 TypeScript 类型的命令行工具",
+  "private": false,
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hzb1/ts-swagger.git",
+    "directory": "cli"
+  },
+  "homepage": "https://github.com/hzb1/ts-swagger#readme",
+  "bugs": {
+    "url": "https://github.com/hzb1/ts-swagger/issues"
+  },
+  "bin": {
+    "ts-swagger": "./bin/ts-swagger.mjs"
+  },
+  "scripts": {
+    "clean": "rm -rf dist",
+    "build": "npm run clean && tsc -p tsconfig.build.json",
+    "test": "npm run build && node --test tests/swagger-loader.test.mjs tests/openapi-cache.test.mjs tests/cli.test.mjs tests/cli-presenters.test.mjs tests/cli-telemetry.test.mjs",
+    "test:browser": "npm run build && node --test tests/browser-discovery.test.mjs",
+    "typecheck": "tsc -p tsconfig.build.json --noEmit",
+    "prepare": "npm run build",
+    "prepack": "npm run build",
+    "ts-swagger": "node ./dist/cli/ts-swagger.js"
+  },
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "README.md",
+    "ts-swagger.config.example.json"
+  ],
+  "devDependencies": {
+    "@types/node": "^22.15.30",
+    "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "@sentry/node": "^10.71.0",
+    "playwright-core": "^1.62.1"
+  }
+}

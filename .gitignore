@@ -2,12 +2,14 @@
 /extension/node_modules/
 /extension/release/
 /node_modules/
-/ts-swagger-ui/node_modules/
+/cli/node_modules/
+/cli/dist/
+/ui/node_modules/
 /extension/dist/
-/dist/
 /.idea/
 /.VSCodeCounter/
 /ts-swagger.config.json
+/cli/ts-swagger.config.json
 /.claude/
 /.env.glitchtip.local
 /.sentryclirc

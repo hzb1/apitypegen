@@ -59,7 +59,7 @@ if [[ "${SKIP_INSTALL:-}" == "1" ]]; then
   log "Skipping npm ci because SKIP_INSTALL=1"
 else
   log "Installing extension dependencies"
-  npm ci
+  (cd "${ROOT_DIR}" && npm ci --workspace=@ts-swagger/extension)
 fi
 
 log "Verifying extension version"

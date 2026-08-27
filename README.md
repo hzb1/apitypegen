@@ -17,10 +17,9 @@
 
 ## 3. 3 分钟快速开始
 
-Web UI 是最适合首次体验的入口。进入 `ui` 目录启动开发服务：
+Web UI 是最适合首次体验的入口。在仓库根目录安装 workspace 依赖并启动开发服务：
 
 ```bash
-cd ui
 npm install
 npm run dev
 ```
@@ -122,7 +121,7 @@ nvm use
 
 ## 8. CLI（给 AI/脚本调用）
 
-项目根目录提供了 `ts-swagger` 命令，支持跨服务检索接口和按接口生成 TypeScript。
+`cli` workspace 是可独立发布的 `ts-swagger` npm 包，支持跨服务检索接口和按接口生成 TypeScript。
 
 ### 8.1 安装 / 使用
 
@@ -138,6 +137,7 @@ npm run ts-swagger -- gen --type openapi --url http://localhost:9999/job/v3/api-
 本机日常使用可以通过 `npm link` 注册全局命令：
 
 ```bash
+cd cli
 npm link
 ts-swagger --help
 ts-swagger
@@ -154,7 +154,7 @@ ts-swagger gen --type ui --url http://localhost:9999/doc.html#/home
 
 `ts-swagger.config.json` 不是必需文件。它适合保存常用文档来源和生成偏好，已被 `.gitignore` 忽略。
 
-可以参考 `ts-swagger.config.example.json` 新建本地配置：
+可以参考 `cli/ts-swagger.config.example.json` 新建本地配置：
 
 ```json
 {
@@ -341,7 +341,7 @@ TS_SWAGGER_TELEMETRY=1 ts-swagger gen \
 
 GlitchTip SDK 仅在显式开启且发生未知异常时动态加载。事件发送失败或 750ms 内无法完成刷新时，不会改变 CLI 的 stdout、stderr 或退出码。DSN 只用于接收事件，不要把 `SENTRY_AUTH_TOKEN` 放入 CLI 环境或 npm 包；API Token 仍仅用于 CI/CD 上传 sourcemap。
 
-CLI release 使用根目录 `package.json` 的版本并标记为 `ts-swagger@<version>`。CLI 与 UI 应使用不同的 GlitchTip 项目和 sourcemap 发布任务，避免当前根包与 `ui/package.json` 的版本及事件类型互相混淆。
+CLI release 使用 `cli/package.json` 的版本并标记为 `ts-swagger@<version>`。CLI 与 UI 使用不同的 GlitchTip 项目和 sourcemap 发布任务，避免 `cli/package.json` 与 `ui/package.json` 的版本及事件类型互相混淆。
 
 需要验证真实函数名、cause 和源码上下文时，可以显式发送一条诊断测试事件。该命令会向真实 `cli` 项目写入一个 Issue，不属于普通本地测试：
 
@@ -353,7 +353,7 @@ npm run glitchtip:test:cli
 
 ### 9.2 CLI sourcemap
 
-CLI 构建会为 `dist/**/*.js` 生成带内嵌 TypeScript 源码的 `.js.map`，事件帧统一使用 `app:///dist/...`。在 `.env.glitchtip.local` 中准备 `SENTRY_URL` 和 `SENTRY_AUTH_TOKEN` 后，执行：
+CLI 构建会为 `cli/dist/**/*.js` 生成带内嵌 TypeScript 源码的 `.js.map`，事件帧统一使用 `app:///dist/...`。在 `.env.glitchtip.local` 中准备 `SENTRY_URL` 和 `SENTRY_AUTH_TOKEN` 后，执行：
 
 ```bash
 npm run build:glitchtip:cli

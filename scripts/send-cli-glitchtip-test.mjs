@@ -1,5 +1,5 @@
 import process from "node:process";
-import { sendCliTelemetryTestEvent } from "../dist/cli/telemetry.js";
+import { sendCliTelemetryTestEvent } from "../cli/dist/cli/telemetry.js";
 
 const sent = await sendCliTelemetryTestEvent();
 

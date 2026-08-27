@@ -1,42 +1,32 @@
 {
-  "name": "ts-swagger",
-  "version": "0.7.0",
-  "private": false,
-  "type": "module",
-  "bin": {
-    "ts-swagger": "./bin/ts-swagger.mjs"
-  },
+  "name": "ts-swagger-monorepo",
+  "private": true,
+  "workspaces": [
+    "cli",
+    "ui",
+    "extension"
+  ],
   "scripts": {
-    "clean": "rm -rf dist",
-    "build": "npm run clean && tsc -p tsconfig.build.json",
-    "build:glitchtip:cli": "npm run build && npm run sourcemaps:upload:cli",
+    "dev": "npm run dev --workspace=@ts-swagger/ui",
+    "build": "npm run build --workspaces --if-present",
+    "build:cli": "npm run build --workspace=ts-swagger",
+    "build:ui": "npm run build --workspace=@ts-swagger/ui",
+    "build:extension": "npm run build --workspace=@ts-swagger/extension",
+    "build:glitchtip:cli": "npm run build:cli && npm run sourcemaps:upload:cli",
     "deploy:extension": "bash scripts/deploy-extension.sh",
     "deploy:ui": "bash scripts/deploy-ui.sh",
-    "glitchtip:test:cli": "npm run build && node ./scripts/send-cli-glitchtip-test.mjs",
+    "glitchtip:test:cli": "npm run build:cli && node ./scripts/send-cli-glitchtip-test.mjs",
+    "lint": "npm run lint --workspace=@ts-swagger/ui",
     "sourcemaps:upload:cli": "bash scripts/upload-cli-sourcemaps.sh",
-    "test:core": "npm run build && node --test tests/swagger-loader.test.mjs tests/openapi-cache.test.mjs tests/cli.test.mjs tests/cli-presenters.test.mjs tests/cli-telemetry.test.mjs",
-    "test:browser": "npm run build && node --test tests/browser-discovery.test.mjs",
-    "typecheck:core": "tsc -p tsconfig.build.json --noEmit",
-    "prepare": "npm run build",
-    "prepack": "npm run build",
-    "ts-swagger": "node ./dist/cli/ts-swagger.js"
+    "test": "npm run test --workspace=ts-swagger",
+    "test:browser": "npm run test:browser --workspace=ts-swagger",
+    "typecheck": "npm run typecheck --workspace=ts-swagger && npm run typecheck --workspace=@ts-swagger/ui",
+    "ts-swagger": "node ./cli/dist/cli/ts-swagger.js"
   },
   "engines": {
     "node": "^20.19.0 || >=22.12.0"
   },
-  "files": [
-    "bin",
-    "dist",
-    "README.md",
-    "ts-swagger.config.example.json"
-  ],
   "devDependencies": {
-    "@sentry/cli": "^2.58.6",
-    "@types/node": "^22.15.30",
-    "typescript": "^5.8.3"
-  },
-  "dependencies": {
-    "@sentry/node": "^10.71.0",
-    "playwright-core": "^1.62.1"
+    "@sentry/cli": "^2.58.6"
   }
 }

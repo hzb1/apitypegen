@@ -1,6 +1,7 @@
 {
-  "name": "extension",
+  "name": "@ts-swagger/extension",
   "version": "0.5.2",
+  "private": true,
   "scripts": {
     "dev": "vite build --watch",
     "build": "vite build",

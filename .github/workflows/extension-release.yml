@@ -11,9 +11,6 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: extension
 
     steps:
       - name: Checkout
@@ -24,34 +21,34 @@ jobs:
         with:
           node-version: "20"
           cache: "npm"
-          cache-dependency-path: extension/package-lock.json
+          cache-dependency-path: package-lock.json
 
       - name: Install dependencies
         run: npm ci
 
       - name: Verify version
-        run: npm run verify:version
+        run: npm run verify:version --workspace=@ts-swagger/extension
         env:
           TAG_VERSION: ${{ github.ref_name }}
 
       - name: Build extension
-        run: npm run build
+        run: npm run build:extension
 
       - name: Check dist output
         run: |
-          if [ ! -d dist ]; then
+          if [ ! -d extension/dist ]; then
             echo "dist not found"
             exit 1
           fi
           echo "dist files:"
-          ls -la dist
+          ls -la extension/dist
 
       - name: Package dist
         run: |
-          VERSION=$(node -p "require('./package.json').version")
+          VERSION=$(node -p "require('./extension/package.json').version")
           ZIP_NAME="ts-swagger-extension-dist-${VERSION}.zip"
           LATEST_NAME="ts-swagger-extension-dist-latest.zip"
-          cd dist
+          cd extension/dist
           zip -r "../${ZIP_NAME}" .
           cd ..
           cp "${ZIP_NAME}" "${LATEST_NAME}"

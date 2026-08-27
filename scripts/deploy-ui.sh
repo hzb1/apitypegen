@@ -78,10 +78,10 @@ if [[ "${SKIP_INSTALL:-}" == "1" ]]; then
   log "Skipping npm ci because SKIP_INSTALL=1"
 else
   log "Installing UI dependencies"
-  npm ci
+  (cd "${ROOT_DIR}" && npm ci --workspace=@ts-swagger/ui)
 fi
 
-export PATH="${UI_DIR}/node_modules/.bin:${PATH}"
+export PATH="${ROOT_DIR}/node_modules/.bin:${PATH}"
 require_cmd sentry-cli
 
 require_env SENTRY_AUTH_TOKEN
