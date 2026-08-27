@@ -26,11 +26,10 @@ import { SwaggerToTS, type GeneratedTypes, type GeneratorOptions } from "../core
 /**
  * CLI 支持的命令。
  *
- * - `services`：列出来源中包含的服务或文档。
  * - `search`：按关键词检索 API。
  * - `gen`：为指定 API 生成 TypeScript 类型。
  */
-type CliCommand = "services" | "search" | "gen";
+type CliCommand = "search" | "gen";
 
 /** CLI 参数解析结果中的选项集合。 */
 type CliOptions = {
@@ -86,22 +85,34 @@ type Settings = {
   generator: Required<GeneratorOptions>;
 };
 
-/** 已选择服务或文档后的生成上下文。 */
+/** 已加载服务或文档的生成上下文。 */
 type ServiceDocumentContext = {
-  /** 当前使用的 OpenAPI 文档。 */
+  /** 当前上下文包含的 OpenAPI 文档。 */
   document: OpenApiDocument;
 
-  /** 当前文档的最终地址。 */
+  /** OpenAPI 文档的最终地址。 */
   documentUrl: string;
 
-  /** 当前服务；直接文档来源时为 null。 */
+  /** 文档所属服务；单个直接文档来源时为 null。 */
   service: SwaggerServiceConfig | null;
+};
+
+/** 一次命令加载的全部服务文档。 */
+type ServiceDocumentCollection = {
+  /** 已加载且可用于检索或生成的文档。 */
+  documents: ServiceDocumentContext[];
 
   /** 来源中包含的服务列表。 */
   services: SwaggerServiceConfig[];
+};
 
-  /** 当前上下文的解析方式。 */
-  source: "openapi" | "service";
+/** 跨服务汇总后的 API 候选项。 */
+type ServiceApiCandidate = {
+  /** API 所属的服务文档上下文。 */
+  context: ServiceDocumentContext;
+
+  /** OpenAPI 文档中的接口信息。 */
+  api: ApiItem;
 };
 
 /** 来源选择时可能只提供了一部分的 CLI 输入。 */
@@ -128,9 +139,9 @@ const CONFIG_FILENAME = "ts-swagger.config.json";
 const API_METHODS = ["get", "post", "put", "delete", "patch"] as const;
 const SOURCE_TYPES: SwaggerSourceType[] = ["ui", "openapi", "config"];
 const MAX_INTERACTIVE_API_CHOICES = 30;
+const SERVICE_LOAD_CONCURRENCY = 4;
 const COMMON_OPTIONS = ["type", "url", "timeout", "chrome-path", "no-interactive", "format"];
 const COMMAND_OPTIONS: Record<CliCommand, Set<string>> = {
-  services: new Set(COMMON_OPTIONS),
   search: new Set([...COMMON_OPTIONS, "keyword", "service"]),
   gen: new Set([...COMMON_OPTIONS, "method", "path", "service", "copy"]),
 };
@@ -146,9 +157,8 @@ function printHelp(): void {
   process.stdout.write(`ts-swagger 命令行工具
 
 用法:
-  ts-swagger services [--type <ui|openapi|config>] [--url <url>] [--format <text|json>]
+  ts-swagger [gen] [--type <ui|openapi|config>] [--url <url>] [--method <method>] [--path <api-path>] [--service <name>] [--copy] [--format <ts|json>]
   ts-swagger search --keyword <text> [--type <ui|openapi|config>] [--url <url>] [--service <name>] [--format <text|json>]
-  ts-swagger gen [--type <ui|openapi|config>] [--url <url>] [--method <method>] [--path <api-path>] [--service <name>] [--copy] [--format <ts|json>]
 
 来源类型:
   ui       加载 Swagger UI / Knife4j 页面，读取页面真实发出的 GET 响应
@@ -156,8 +166,10 @@ function printHelp(): void {
   config   直接读取 swagger-config JSON
 
 说明:
+  - 不写命令时默认执行 gen；交互终端会引导选择来源和 API
   - 来源优先级: --type/--url > TS_SWAGGER_TYPE/TS_SWAGGER_URL > ts-swagger.config.json
   - --type 和 --url 必须成对提供；交互终端会询问缺少的部分
+  - search/gen 默认加载全部服务；--service 仅用于过滤指定服务
   - --no-interactive 可在 AI/CI 脚本中禁用所有交互
   - ui 模式需要系统 Chrome，可用 --chrome-path 或 TS_SWAGGER_CHROME_PATH 指定路径
   - CLI 不会探测或猜测任何 OpenAPI / swagger-config 地址
@@ -207,7 +219,10 @@ function parseArgv(argv: string[]): ParsedArgs {
 }
 
 function ensureCommand(command: string): CliCommand {
-  if (command === "services" || command === "search" || command === "gen") return command;
+  if (command === "search" || command === "gen") return command;
+  if (command === "services") {
+    throw new Error("命令 services 已删除；search/gen 会默认加载全部服务");
+  }
   throw new Error(`未知命令 "${command}"`);
 }
 
@@ -403,17 +418,40 @@ async function resolveSwaggerSourceInput(
   throw new Error("缺少来源。请同时提供 --type 和 --url，或配置 TS_SWAGGER_TYPE/TS_SWAGGER_URL");
 }
 
-function formatApiChoice(api: ApiItem): string {
-  const summary = api.summary || api.description || "";
-  return `${api.method.toUpperCase()} ${api.path}${summary ? `  // ${summary}` : ""}`;
+function serviceDocumentLabel(context: ServiceDocumentContext): string {
+  return (
+    context.service?.name ||
+    String(context.document.info?.title || "").trim() ||
+    "default"
+  );
+}
+
+function formatApiChoice(candidate: ServiceApiCandidate): string {
+  const summary = candidate.api.summary || candidate.api.description || "";
+  return `[${serviceDocumentLabel(candidate.context)}] ${candidate.api.method.toUpperCase()} ${candidate.api.path}${summary ? `  // ${summary}` : ""}`;
+}
+
+function collectServiceApis(documents: ServiceDocumentContext[]): ServiceApiCandidate[] {
+  return documents.flatMap((context) =>
+    collectApis(context.document).map((api) => ({ context, api })),
+  );
+}
+
+function searchServiceApis(
+  documents: ServiceDocumentContext[],
+  keyword: string,
+): ServiceApiCandidate[] {
+  return documents.flatMap((context) =>
+    searchApis(context.document, keyword).map((api) => ({ context, api })),
+  );
 }
 
 async function pickApiInteractively(
   rl: readline.Interface,
-  document: OpenApiDocument,
-): Promise<ApiItem> {
-  const allApis = collectApis(document);
-  if (allApis.length === 0) throw new Error("当前文档未找到可用 API。");
+  documents: ServiceDocumentContext[],
+): Promise<ServiceApiCandidate> {
+  const allApis = collectServiceApis(documents);
+  if (allApis.length === 0) throw new Error("所有已加载文档中均未找到可用 API。");
 
   let keyword = "";
   while (true) {
@@ -422,7 +460,7 @@ async function pickApiInteractively(
       "输入 API 关键词（回车列出全部，输入 /关键词 可重新筛选）",
       keyword,
     );
-    const candidates = keyword ? searchApis(document, keyword) : allApis;
+    const candidates = keyword ? searchServiceApis(documents, keyword) : allApis;
     if (candidates.length === 0) {
       process.stderr.write(`关键词 "${keyword}" 未匹配到 API，请换一个关键词。\n`);
       keyword = "";
@@ -450,7 +488,15 @@ async function pickApiInteractively(
       process.stderr.write("选择无效，请重试。\n");
       continue;
     }
-    return displayList[selectedIndex - 1] as ApiItem;
+    return displayList[selectedIndex - 1] as ServiceApiCandidate;
+  }
+}
+
+function comparableUrl(url: string): string {
+  try {
+    return new URL(url).toString();
+  } catch {
+    return url;
   }
 }
 
@@ -458,88 +504,95 @@ function findCapturedDocument(
   documents: CapturedOpenApiDocument[],
   documentUrl: string,
 ): CapturedOpenApiDocument | undefined {
-  return documents.find((item) => item.documentUrl === documentUrl);
+  const expectedUrl = comparableUrl(documentUrl);
+  return documents.find((item) => comparableUrl(item.documentUrl) === expectedUrl);
 }
 
-async function selectCapturedDocument(
-  documents: CapturedOpenApiDocument[],
-  requestedService: string,
-  prompt: readline.Interface | null,
-): Promise<CapturedOpenApiDocument> {
-  if (requestedService) {
-    const matched = documents.find((item) => item.title === requestedService);
-    if (matched) return matched;
-    throw new Error(
-      `未找到文档 "${requestedService}"。可选文档: ${documents.map((item) => item.title).join(", ")}`,
-    );
+async function mapWithConcurrency<T, R>(
+  items: readonly T[],
+  concurrency: number,
+  mapper: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+
+  async function worker(): Promise<void> {
+    while (nextIndex < items.length) {
+      const currentIndex = nextIndex;
+      nextIndex += 1;
+      results[currentIndex] = await mapper(items[currentIndex] as T);
+    }
   }
-  if (documents.length === 1) return documents[0] as CapturedOpenApiDocument;
-  if (prompt) {
-    return selectByNumber(
-      prompt,
-      "检测到多个 OpenAPI 文档，请选择一个:",
-      documents,
-      (item) => `${item.title} -> ${item.documentUrl}`,
-    );
-  }
-  throw new Error(
-    `检测到多个 OpenAPI 文档，请传入 --service <文档标题>。可选文档: ${documents.map((item) => item.title).join(", ")}`,
-  );
+
+  const workerCount = Math.min(Math.max(1, concurrency), items.length);
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  return results;
 }
 
-async function resolveServiceDocument(
+async function resolveServiceDocuments(
   resolved: ResolvedSwaggerSource,
   options: CliOptions,
   timeoutMs: number,
-  prompt: readline.Interface | null,
-): Promise<ServiceDocumentContext> {
+): Promise<ServiceDocumentCollection> {
   const requestedService = getStringOption(options, "service");
   if (resolved.kind === "openapi") {
-    const selected = await selectCapturedDocument(resolved.documents, requestedService, prompt);
+    const selectedDocuments = requestedService
+      ? resolved.documents.filter((item) => item.title === requestedService)
+      : resolved.documents;
+    if (selectedDocuments.length === 0) {
+      throw new Error(
+        `未找到文档 "${requestedService}"。可选文档: ${resolved.documents.map((item) => item.title).join(", ")}`,
+      );
+    }
+    const services = resolved.documents.map((item) => ({
+      name: item.title,
+      url: item.documentUrl,
+    }));
     return {
-      document: selected.document,
-      documentUrl: selected.documentUrl,
-      service: resolved.documents.length > 1 ? { name: selected.title, url: selected.documentUrl } : null,
-      services: resolved.documents.map((item) => ({ name: item.title, url: item.documentUrl })),
-      source: "openapi",
+      documents: selectedDocuments.map((item) => ({
+        document: item.document,
+        documentUrl: item.documentUrl,
+        service:
+          resolved.documents.length > 1 ? { name: item.title, url: item.documentUrl } : null,
+      })),
+      services,
     };
   }
 
   const services = Array.isArray(resolved.config.urls) ? resolved.config.urls : [];
   if (services.length === 0) throw new Error(`${resolved.configUrl} 中没有可用服务`);
 
-  let selectedService: SwaggerServiceConfig | undefined;
-  if (requestedService) {
-    selectedService = services.find((item) => item.name === requestedService);
-    if (!selectedService) {
-      throw new Error(
-        `未找到服务 "${requestedService}"。可选服务: ${services.map((item) => item.name).join(", ")}`,
-      );
-    }
-  } else if (services.length === 1) {
-    selectedService = services[0];
-  } else if (prompt) {
-    selectedService = await selectByNumber(
-      prompt,
-      "检测到多个服务，请选择一个:",
-      services,
-      (item) => `${item.name} -> ${item.url}`,
-    );
-  } else {
+  const selectedServices = requestedService
+    ? services.filter((item) => item.name === requestedService)
+    : services;
+  if (selectedServices.length === 0) {
     throw new Error(
-      `检测到多个服务，请传入 --service <name>。可选服务: ${services.map((item) => item.name).join(", ")}`,
+      `未找到服务 "${requestedService}"。可选服务: ${services.map((item) => item.name).join(", ")}`,
     );
   }
 
-  const captured = findCapturedDocument(resolved.capturedDocuments, selectedService.url);
-  const document =
-    captured?.document || (await loadOpenApiDocumentFromUrl(selectedService.url, timeoutMs));
+  if (selectedServices.length > 1) {
+    process.stderr.write(`正在加载 ${selectedServices.length} 个服务的 OpenAPI 文档...\n`);
+  }
+  const documents = await mapWithConcurrency(
+    selectedServices,
+    SERVICE_LOAD_CONCURRENCY,
+    async (service): Promise<ServiceDocumentContext> => {
+      const captured = findCapturedDocument(resolved.capturedDocuments, service.url);
+      try {
+        const document =
+          captured?.document || (await loadOpenApiDocumentFromUrl(service.url, timeoutMs));
+        return { document, documentUrl: service.url, service };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(`加载服务 "${service.name}" 失败: ${message}`);
+      }
+    },
+  );
+
   return {
-    document,
-    documentUrl: selectedService.url,
-    service: selectedService,
+    documents,
     services,
-    source: "service",
   };
 }
 
@@ -589,55 +642,31 @@ function sourceOrigin(source: SwaggerSource): string {
   }
 }
 
-async function runServicesCommand(
-  source: SwaggerSource,
-  resolved: ResolvedSwaggerSource,
-  options: CliOptions,
-): Promise<void> {
-  const services =
-    resolved.kind === "swagger-config"
-      ? resolved.config.urls || []
-      : resolved.documents.map((item) => ({ name: item.title, url: item.documentUrl }));
-
-  if (getStringOption(options, "format") === "json") {
-    process.stdout.write(
-      `${JSON.stringify({ host: sourceOrigin(source), services, count: services.length }, null, 2)}\n`,
-    );
-    return;
-  }
-
-  process.stdout.write(`来源: ${source.url}\n`);
-  if (services.length === 0) {
-    process.stdout.write("未找到服务或文档。\n");
-    return;
-  }
-  services.forEach((service, index) => {
-    process.stdout.write(`${index + 1}. ${service.name} -> ${service.url}\n`);
-  });
-}
-
 async function runSearchCommand(
   source: SwaggerSource,
   resolved: ResolvedSwaggerSource,
   settings: Settings,
   options: CliOptions,
-  prompt: readline.Interface | null,
 ): Promise<void> {
   const keyword = getStringOption(options, "keyword").trim();
   if (!keyword) throw new Error("缺少必填参数: --keyword");
-  const context = await resolveServiceDocument(resolved, options, settings.timeoutMs, prompt);
-  const results = searchApis(context.document, keyword);
+  const collection = await resolveServiceDocuments(resolved, options, settings.timeoutMs);
+  const results = searchServiceApis(collection.documents, keyword);
 
   if (getStringOption(options, "format") === "json") {
     process.stdout.write(
       `${JSON.stringify(
         {
           host: sourceOrigin(source),
-          service: context.service?.name || null,
-          documentUrl: context.documentUrl,
+          service: getStringOption(options, "service") || null,
+          services: collection.services,
           keyword,
           count: results.length,
-          items: results,
+          items: results.map((item) => ({
+            service: serviceDocumentLabel(item.context),
+            documentUrl: item.context.documentUrl,
+            ...item.api,
+          })),
         },
         null,
         2,
@@ -647,15 +676,13 @@ async function runSearchCommand(
   }
 
   process.stdout.write(`关键词: ${keyword}\n`);
-  if (context.service) process.stdout.write(`服务: ${context.service.name}\n`);
-  process.stdout.write(`文档: ${context.documentUrl}\n`);
+  process.stdout.write(`已加载服务/文档: ${collection.documents.length}\n`);
   if (results.length === 0) {
     process.stdout.write("未匹配到 API。\n");
     return;
   }
   results.forEach((item) => {
-    const summary = item.summary || item.description || "";
-    process.stdout.write(`${item.method.toUpperCase()} ${item.path}${summary ? `  // ${summary}` : ""}\n`);
+    process.stdout.write(`${formatApiChoice(item)}\n`);
   });
 }
 
@@ -666,29 +693,53 @@ async function runGenCommand(
   options: CliOptions,
   prompt: readline.Interface | null,
 ): Promise<void> {
-  const context = await resolveServiceDocument(resolved, options, settings.timeoutMs, prompt);
+  const collection = await resolveServiceDocuments(resolved, options, settings.timeoutMs);
   let method = getStringOption(options, "method")
     ? ensureMethod(getStringOption(options, "method"))
     : "";
   let pathValue = getStringOption(options, "path").trim();
+  let selectedCandidate: ServiceApiCandidate | undefined;
 
   if ((!method || !pathValue) && prompt) {
-    const selectedApi = await pickApiInteractively(prompt, context.document);
-    method = selectedApi.method;
-    pathValue = selectedApi.path;
-    process.stderr.write(`已选择 API: ${method.toUpperCase()} ${pathValue}\n`);
+    selectedCandidate = await pickApiInteractively(prompt, collection.documents);
+    method = selectedCandidate.api.method;
+    pathValue = selectedCandidate.api.path;
+    process.stderr.write(`已选择 API: ${formatApiChoice(selectedCandidate)}\n`);
   }
   if (!method) throw new Error("缺少必填参数: --method");
   if (!pathValue) throw new Error("缺少必填参数: --path");
 
-  const matchedApi = findApiByPathAndMethod(context.document, pathValue, method);
-  if (!matchedApi) {
-    const candidates = collectApis(context.document).filter((item) => item.path === pathValue);
-    const methodTips = candidates.length
-      ? ` 该 path 可用方法: ${candidates.map((item) => item.method.toUpperCase()).join(", ")}`
-      : "";
-    throw new Error(`未找到 API: ${method.toUpperCase()} ${pathValue}.${methodTips}`);
+  if (!selectedCandidate) {
+    const matchedCandidates = collection.documents.flatMap((context) => {
+      const api = findApiByPathAndMethod(context.document, pathValue, method);
+      return api ? [{ context, api }] : [];
+    });
+    if (matchedCandidates.length === 0) {
+      const pathCandidates = collectServiceApis(collection.documents).filter(
+        (item) => item.api.path === pathValue,
+      );
+      const methodTips = pathCandidates.length
+        ? ` 该 path 可用方法: ${[...new Set(pathCandidates.map((item) => item.api.method.toUpperCase()))].join(", ")}`
+        : "";
+      throw new Error(`未找到 API: ${method.toUpperCase()} ${pathValue}.${methodTips}`);
+    }
+    if (matchedCandidates.length === 1) {
+      selectedCandidate = matchedCandidates[0];
+    } else if (prompt) {
+      selectedCandidate = await selectByNumber(
+        prompt,
+        "多个服务中存在相同的 API，请选择一个:",
+        matchedCandidates,
+        formatApiChoice,
+      );
+    } else {
+      throw new Error(
+        `多个服务中存在 API ${method.toUpperCase()} ${pathValue}，请使用 --service <name> 指定服务。可选服务: ${matchedCandidates.map((item) => serviceDocumentLabel(item.context)).join(", ")}`,
+      );
+    }
   }
+  const context = selectedCandidate.context;
+  const matchedApi = selectedCandidate.api;
 
   let outputFormat = getStringOption(options, "format").trim().toLowerCase();
   if (!outputFormat && prompt) {
@@ -739,12 +790,12 @@ async function runGenCommand(
 
 async function main(): Promise<void> {
   const { command: rawCommand, options } = parseArgv(process.argv.slice(2));
-  if (!rawCommand || options.help) {
+  if (options.help) {
     printHelp();
     return;
   }
 
-  const command = ensureCommand(rawCommand);
+  const command = rawCommand ? ensureCommand(rawCommand) : "gen";
   validateCommandOptions(command, options);
   const { config } = await loadUserConfig(process.cwd());
   const settings = resolveSettings(options, config);
@@ -760,10 +811,8 @@ async function main(): Promise<void> {
     }
     const resolved = await loadSwaggerSource(source, settings);
 
-    if (command === "services") {
-      await runServicesCommand(source, resolved, options);
-    } else if (command === "search") {
-      await runSearchCommand(source, resolved, settings, options, prompt);
+    if (command === "search") {
+      await runSearchCommand(source, resolved, settings, options);
     } else {
       await runGenCommand(source, resolved, settings, options, prompt);
     }

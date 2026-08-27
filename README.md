@@ -122,7 +122,7 @@ nvm use
 
 ## 8. CLI（给 AI/脚本调用）
 
-项目根目录提供了 `ts-swagger` 命令，支持列服务、检索接口、按接口生成 TypeScript。
+项目根目录提供了 `ts-swagger` 命令，支持跨服务检索接口和按接口生成 TypeScript。
 
 ### 8.1 安装 / 使用
 
@@ -130,8 +130,8 @@ nvm use
 
 ```bash
 npm run ts-swagger -- --help
-npm run ts-swagger -- services --type config --url http://localhost:9999/v3/api-docs/swagger-config
-npm run ts-swagger -- gen
+npm run ts-swagger
+npm run ts-swagger -- search --type config --url http://localhost:9999/v3/api-docs/swagger-config --keyword order
 npm run ts-swagger -- gen --type openapi --url http://localhost:9999/job/v3/api-docs --method post --path /api/order/create
 ```
 
@@ -140,7 +140,7 @@ npm run ts-swagger -- gen --type openapi --url http://localhost:9999/job/v3/api-
 ```bash
 npm link
 ts-swagger --help
-ts-swagger services --type config --url http://localhost:9999/v3/api-docs/swagger-config
+ts-swagger
 ```
 
 发布到 npm 后，可通过全局安装使用：
@@ -173,19 +173,22 @@ ts-swagger gen --type ui --url http://localhost:9999/doc.html#/home
 ```bash
 export TS_SWAGGER_TYPE=config
 export TS_SWAGGER_URL=http://localhost:9999/v3/api-docs/swagger-config
-ts-swagger services
+ts-swagger
 ```
 
 ### 8.3 常用命令
 
 ```bash
-# 交互式生成（逐步选择来源、服务和 API）
-npm run ts-swagger -- gen
+# 默认进入交互式生成（选择来源后，从全部服务中选择 API）
+npm run ts-swagger
 
-# 从 Knife4j / Swagger UI 页面真实网络响应中发现服务
-npm run ts-swagger -- services --type ui --url http://localhost:9999/doc.html#/home
+# 也可以显式使用 gen
+npm run ts-swagger -- gen --type ui --url http://localhost:9999/doc.html#/home
 
-# 从明确的 swagger-config 搜索接口
+# 从明确的 swagger-config 搜索全部服务
+npm run ts-swagger -- search --type config --url http://localhost:9999/v3/api-docs/swagger-config --keyword order
+
+# 仅搜索指定服务
 npm run ts-swagger -- search --type config --url http://localhost:9999/v3/api-docs/swagger-config --keyword order --service 用户服务
 
 # 从明确的 OpenAPI JSON 生成 TS
@@ -208,18 +211,19 @@ CLI 不会枚举、探测或猜测 OpenAPI 地址。`ui` 模式需要系统 Chro
 
 ### 8.4 服务参数行为
 
-- `--service` 非必填：
-- 如果只有一个服务，自动选择。
-- 如果有多个服务且当前终端是交互模式（TTY），CLI 会提示选择。
-- 如果有多个服务但在非交互模式（例如 AI/脚本）下运行，会报错并列出可选服务名。
+- `services` 命令已移除；服务列表仅作为内部加载信息，不再要求用户先查看或选择。
+- `search` 和 `gen` 默认并发加载全部服务的 OpenAPI 文档，不再先让用户选择服务。
+- API 搜索结果和交互式 API 列表会以 `[服务名]` 标注所属服务。
+- `--service <name>` 是可选过滤器；传入后只加载并处理指定服务，适合局部检索或明确存在同名接口时使用。
+- 多个服务存在相同的 `method + path` 时，交互终端会让用户从带服务名的 API 项中选择；非交互模式需要通过 `--service` 消除歧义。
+- 同时加载多个服务时最多并发请求 4 个 OpenAPI 文档。
 
 ### 8.5 gen 交互行为
 
-- 在交互终端中执行 `ts-swagger gen`，可不传 `--type` / `--url` / `--service` / `--method` / `--path`，CLI 会逐步提问。
+- 在交互终端中执行 `ts-swagger gen`，可不传 `--type` / `--url` / `--method` / `--path`，CLI 会逐步提问。
 - 先选择 `Swagger UI / Knife4j 页面`、`OpenAPI JSON` 或 `swagger-config JSON`，再输入对应地址。
 - UI 来源通过系统 Chrome 读取页面真实 GET 响应，不会检查页面源码或尝试候选路径。
-- 若来源是 swagger-config 且服务多于一个，会提示选择服务。
-- 然后通过关键词筛选并选择接口。
+- 若来源包含多个服务，CLI 会加载全部服务，然后通过关键词筛选并选择带服务名的接口。
 - 最后可选择输出格式（TypeScript / JSON）及是否复制到剪贴板。
 
 ## 9. GlitchTip sourcemap
