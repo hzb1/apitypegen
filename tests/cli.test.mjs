@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import http from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const cliPath = path.join(repositoryRoot, "dist/cli/ts-swagger.js");
+const binPath = path.join(repositoryRoot, "bin/ts-swagger.mjs");
 const emptyCwd = mkdtempSync(path.join(tmpdir(), "ts-swagger-cli-test-"));
 const cacheRoot = mkdtempSync(path.join(tmpdir(), "ts-swagger-cli-cache-test-"));
 
@@ -26,16 +27,17 @@ function runCli(args) {
   });
 }
 
-function runCliAsync(args) {
+function runCliAsync(args, overrides = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [cliPath, ...args], {
-      cwd: emptyCwd,
+      cwd: overrides.cwd || emptyCwd,
       env: {
         ...process.env,
         TS_SWAGGER_TYPE: "",
         TS_SWAGGER_URL: "",
         TS_SWAGGER_HOST: "",
         XDG_CACHE_HOME: cacheRoot,
+        ...(overrides.env || {}),
       },
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -77,6 +79,16 @@ test("帮助信息只展示 type/url 三种来源", () => {
   assert.doesNotMatch(result.stdout, /ts-swagger services/);
   assert.doesNotMatch(result.stdout, /--host/);
   assert.doesNotMatch(result.stdout, /--doc-url/);
+});
+
+test("npm bin 入口可以正常启动 CLI", () => {
+  const result = spawnSync(process.execPath, [binPath, "--help"], {
+    cwd: repositoryRoot,
+    encoding: "utf8",
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /ts-swagger 命令行工具/);
 });
 
 test("旧 host 参数返回迁移提示", () => {
@@ -339,6 +351,93 @@ test("多服务默认全部加载，--service 仅作为过滤器", async () => {
     assert.equal(invalidOpenApiResult.status, 1);
     const invalidOpenApiOutput = JSON.parse(invalidOpenApiResult.stdout);
     assert.equal(invalidOpenApiOutput.error.code, "OPENAPI_INVALID");
+
+    const directOpenApiSearchResult = await runCliAsync([
+      "search",
+      "--type",
+      "openapi",
+      "--url",
+      `${baseUrl}/service-a`,
+      "--keyword",
+      "users",
+      "--no-interactive",
+      "--format",
+      "text",
+    ]);
+    assert.equal(directOpenApiSearchResult.status, 0, directOpenApiSearchResult.stderr);
+    assert.match(directOpenApiSearchResult.stdout, /关键词: users/);
+    assert.match(directOpenApiSearchResult.stdout, /\[Service A\] GET \/users/);
+
+    const directOpenApiGenResult = await runCliAsync([
+      "gen",
+      "--type",
+      "openapi",
+      "--url",
+      `${baseUrl}/service-a`,
+      "--method",
+      "get",
+      "--path",
+      "/users",
+      "--no-interactive",
+      "--format",
+      "ts",
+    ]);
+    assert.equal(directOpenApiGenResult.status, 0, directOpenApiGenResult.stderr);
+    assert.match(directOpenApiGenResult.stdout, /\/\/ 模型定义/);
+    assert.doesNotMatch(directOpenApiGenResult.stdout, /"schemaVersion"/);
+
+    const configCwd = mkdtempSync(path.join(tmpdir(), "ts-swagger-config-source-test-"));
+    writeFileSync(
+      path.join(configCwd, "ts-swagger.config.json"),
+      JSON.stringify({ source: { type: "openapi", url: `${baseUrl}/service-a` } }),
+    );
+    const configSourceResult = await runCliAsync(
+      ["search", "--keyword", "users", "--no-interactive", "--format", "json"],
+      { cwd: configCwd },
+    );
+    assert.equal(configSourceResult.status, 0, configSourceResult.stderr);
+    assert.equal(JSON.parse(configSourceResult.stdout).data.items[0].service, "Service A");
+
+    const environmentSourceResult = await runCliAsync(
+      ["search", "--keyword", "orders", "--no-interactive", "--format", "json"],
+      {
+        env: {
+          TS_SWAGGER_TYPE: "openapi",
+          TS_SWAGGER_URL: `${baseUrl}/service-b`,
+        },
+      },
+    );
+    assert.equal(environmentSourceResult.status, 0, environmentSourceResult.stderr);
+    assert.equal(
+      JSON.parse(environmentSourceResult.stdout).data.items[0].service,
+      "Service B",
+    );
+
+    const cliSourcePriorityResult = await runCliAsync(
+      [
+        "search",
+        "--type",
+        "openapi",
+        "--url",
+        `${baseUrl}/service-a`,
+        "--keyword",
+        "users",
+        "--no-interactive",
+        "--format",
+        "json",
+      ],
+      {
+        env: {
+          TS_SWAGGER_TYPE: "openapi",
+          TS_SWAGGER_URL: `${baseUrl}/service-b`,
+        },
+      },
+    );
+    assert.equal(cliSourcePriorityResult.status, 0, cliSourcePriorityResult.stderr);
+    assert.equal(
+      JSON.parse(cliSourcePriorityResult.stdout).data.items[0].service,
+      "Service A",
+    );
 
     const partialArgs = [
       "--type",

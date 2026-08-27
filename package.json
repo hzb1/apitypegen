@@ -1,6 +1,6 @@
 {
   "name": "ts-swagger",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": false,
   "type": "module",
   "bin": {
@@ -14,7 +14,7 @@
     "deploy:ui": "bash scripts/deploy-ui.sh",
     "glitchtip:test:cli": "npm run build && node ./scripts/send-cli-glitchtip-test.mjs",
     "sourcemaps:upload:cli": "bash scripts/upload-cli-sourcemaps.sh",
-    "test:core": "npm run build && node --test tests/swagger-loader.test.mjs tests/openapi-cache.test.mjs tests/cli.test.mjs tests/cli-telemetry.test.mjs",
+    "test:core": "npm run build && node --test tests/swagger-loader.test.mjs tests/openapi-cache.test.mjs tests/cli.test.mjs tests/cli-presenters.test.mjs tests/cli-telemetry.test.mjs",
     "test:browser": "npm run build && node --test tests/browser-discovery.test.mjs",
     "typecheck:core": "tsc -p tsconfig.build.json --noEmit",
     "prepare": "npm run build",

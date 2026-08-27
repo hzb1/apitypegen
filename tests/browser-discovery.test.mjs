@@ -1,8 +1,15 @@
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
+import { spawn } from "node:child_process";
+import { existsSync, mkdtempSync } from "node:fs";
 import http from "node:http";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import { discoverOpenApiFromBrowser } from "../dist/core/browser-openapi-discovery.js";
+
+const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const cliPath = path.join(repositoryRoot, "dist/cli/ts-swagger.js");
 
 const chromeCandidates = [
   process.env.TS_SWAGGER_CHROME_PATH,
@@ -29,6 +36,33 @@ function listen(server) {
 function close(server) {
   return new Promise((resolve, reject) => {
     server.close((error) => (error ? reject(error) : resolve()));
+  });
+}
+
+function runCliAsync(args) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [cliPath, ...args], {
+      cwd: mkdtempSync(path.join(tmpdir(), "ts-swagger-ui-cli-test-")),
+      env: {
+        ...process.env,
+        TS_SWAGGER_TYPE: "",
+        TS_SWAGGER_URL: "",
+        XDG_CACHE_HOME: mkdtempSync(path.join(tmpdir(), "ts-swagger-ui-cache-test-")),
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk;
+    });
+    child.once("error", reject);
+    child.once("close", (status) => resolve({ status, stdout, stderr }));
   });
 }
 
@@ -97,6 +131,84 @@ test(
         /未捕获到有效的 OpenAPI 或 swagger-config GET 响应/,
       );
       assert.deepEqual(requestedPaths, ["/doc.html"]);
+    } finally {
+      await close(server);
+    }
+  },
+);
+
+test(
+  "CLI ui 来源通过 Presenter 输出稳定搜索 JSON",
+  { skip: chromePath ? false : "未检测到系统 Chrome" },
+  async () => {
+    const server = http.createServer((request, response) => {
+      if (request.url === "/doc.html") {
+        response.setHeader("content-type", "text/html; charset=utf-8");
+        response.end(`<!doctype html><script>
+          fetch('/runtime-config').then((response) => response.json());
+        </script>`);
+        return;
+      }
+      if (request.url === "/runtime-config") {
+        response.setHeader("content-type", "application/json");
+        response.end(
+          JSON.stringify({
+            urls: [{ name: "ui-service", url: "/openapi" }],
+          }),
+        );
+        return;
+      }
+      if (request.url === "/openapi") {
+        response.setHeader("content-type", "application/json");
+        response.end(
+          JSON.stringify({
+            openapi: "3.0.0",
+            info: { title: "UI Service" },
+            paths: {
+              "/ui/orders": {
+                get: {
+                  summary: "ui-search orders",
+                  responses: { 200: { description: "ok" } },
+                },
+              },
+            },
+          }),
+        );
+        return;
+      }
+      response.statusCode = 404;
+      response.end("not found");
+    });
+    const baseUrl = await listen(server);
+
+    try {
+      const result = await runCliAsync([
+        "search",
+        "--type",
+        "ui",
+        "--url",
+        `${baseUrl}/doc.html#/home`,
+        "--keyword",
+        "ui-search",
+        "--chrome-path",
+        chromePath,
+        "--no-interactive",
+        "--format",
+        "json",
+      ]);
+
+      assert.equal(result.status, 0, result.stderr);
+      assert.match(result.stderr, /正在通过系统 Chrome 读取页面网络响应/);
+      const output = JSON.parse(result.stdout);
+      assert.equal(output.schemaVersion, 1);
+      assert.equal(output.ok, true);
+      assert.equal(output.command, "search");
+      assert.equal(output.data.total, 1);
+      assert.deepEqual(output.data.items[0].selector, {
+        service: "ui-service",
+        method: "get",
+        path: "/ui/orders",
+      });
     } finally {
       await close(server);
     }

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import test from "node:test";
@@ -12,6 +13,9 @@ import {
 } from "../dist/cli/telemetry.js";
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const packageVersion = JSON.parse(
+  readFileSync(path.join(repositoryRoot, "package.json"), "utf8"),
+).version;
 
 function listen(server) {
   return new Promise((resolve, reject) => {
@@ -179,7 +183,7 @@ test("实际发送的 GlitchTip envelope 不包含敏感输入", async () => {
     assert.equal(sent, true);
     assert.equal(requests.length, 1);
     assert.match(requests[0].url, /^\/api\/1\/envelope\//);
-    assert.match(requests[0].body, /ts-swagger@0\.6\.0/);
+    assert.match(requests[0].body, new RegExp(`ts-swagger@${packageVersion.replaceAll(".", "\\.")}`));
     assert.match(requests[0].body, /UNKNOWN_ERROR/);
     assert.match(requests[0].body, /CLI GlitchTip 诊断测试/);
     assert.match(requests[0].body, /CLI GlitchTip 测试 cause/);

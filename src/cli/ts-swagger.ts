@@ -25,190 +25,30 @@ import {
   type SwaggerSourceType,
 } from "../core/swagger-source.js";
 import { SwaggerToTS, type GeneratedTypes, type GeneratorOptions } from "../core/swagger-to-ts.js";
+import {
+  type GenCommandResult,
+  type GenOutputFormat,
+  type SearchCommandResult,
+  type SearchOutputFormat,
+  type ServiceLoadFailure,
+} from "./command-results.js";
+import {
+  createProgressReporter,
+  presentFailure,
+  presentGenResult,
+  presentSearchResult,
+  type CliProgressReporter,
+} from "./presenters.js";
+import {
+  CliProtocolError,
+  type ApiSelector,
+  type CliCommand,
+  type CliProtocolWarning,
+  type CliRecoveryCandidate,
+  type CliRecoveryCommand,
+  type PartialApiSelector,
+} from "./protocol.js";
 import { reportUnknownCliError } from "./telemetry.js";
-
-/**
- * CLI 支持的命令。
- *
- * - `search`：按关键词检索 API。
- * - `gen`：为指定 API 生成 TypeScript 类型。
- */
-type CliCommand = "search" | "gen";
-
-/**
- * CLI JSON 协议使用的稳定错误码。
- *
- * - `INVALID_COMMAND`：命令不存在或已经删除。
- * - `INVALID_ARGUMENT`：命令参数缺失、冲突或取值无效。
- * - `SOURCE_LOAD_FAILED`：无法读取用户指定的文档来源。
- * - `SOURCE_TIMEOUT`：读取文档来源或浏览器发现超时。
- * - `OPENAPI_INVALID`：响应内容不是有效的 OpenAPI 文档。
- * - `SWAGGER_CONFIG_INVALID`：响应内容不是有效的 swagger-config。
- * - `CHROME_NOT_FOUND`：UI 模式无法找到可用的系统 Chrome。
- * - `SERVICE_NOT_FOUND`：未找到用户指定的服务或文档。
- * - `SERVICE_LOAD_FAILED`：指定服务的 OpenAPI 文档加载失败。
- * - `INCOMPLETE_SERVICE_LOAD`：部分服务加载失败，无法确定生成目标是否唯一。
- * - `API_NOT_FOUND`：已加载文档中不存在指定 API。
- * - `AMBIGUOUS_API`：多个服务中存在相同的 API 标识。
- * - `CLIPBOARD_FAILED`：生成结果无法写入系统剪贴板。
- * - `UNKNOWN_ERROR`：无法归类的内部错误。
- */
-type CliErrorCode =
-  | "INVALID_COMMAND"
-  | "INVALID_ARGUMENT"
-  | "SOURCE_LOAD_FAILED"
-  | "SOURCE_TIMEOUT"
-  | "OPENAPI_INVALID"
-  | "SWAGGER_CONFIG_INVALID"
-  | "CHROME_NOT_FOUND"
-  | "SERVICE_NOT_FOUND"
-  | "SERVICE_LOAD_FAILED"
-  | "INCOMPLETE_SERVICE_LOAD"
-  | "API_NOT_FOUND"
-  | "AMBIGUOUS_API"
-  | "CLIPBOARD_FAILED"
-  | "UNKNOWN_ERROR";
-
-/** CLI JSON 协议中的警告项。 */
-type CliProtocolWarning = {
-  /** 供调用方稳定判断警告类型的代码。 */
-  code: string;
-
-  /** 面向用户展示的警告说明。 */
-  message: string;
-
-  /** 与警告相关的可选结构化信息。 */
-  details?: unknown;
-};
-
-/** CLI JSON 协议的成功响应。 */
-type CliProtocolSuccess<T> = {
-  /** JSON 协议版本。 */
-  schemaVersion: 1;
-
-  /** 表示命令执行成功。 */
-  ok: true;
-
-  /** 实际执行的 CLI 命令。 */
-  command: CliCommand;
-
-  /** 命令返回的结构化数据。 */
-  data: T;
-
-  /** 未阻止命令成功的警告列表。 */
-  warnings: CliProtocolWarning[];
-};
-
-/**
- * CLI 错误恢复建议的处理方式。
- *
- * - `retry`：使用建议参数重新执行命令。
- * - `select`：从候选 API 中选择一个后重新执行命令。
- */
-type CliRecoveryAction = "retry" | "select";
-
-/** CLI 错误恢复建议中的可执行命令。 */
-type CliRecoveryCommand = {
-  /** 需要重新执行的 CLI 命令。 */
-  command: CliCommand;
-
-  /** 以数组形式提供的命令参数，避免调用方重新解析 Shell 字符串。 */
-  args: string[];
-};
-
-/** CLI 错误恢复建议中的 API 候选项。 */
-type CliRecoveryCandidate = {
-  /** 供用户或 AI 理解候选接口用途的摘要。 */
-  summary: string;
-
-  /** 可直接传递给 gen 命令的 API 选择器。 */
-  selector: ApiSelector;
-};
-
-/** CLI 错误中供用户或 AI 直接采取行动的恢复建议。 */
-type CliErrorRecovery = {
-  /** 调用方应执行的恢复动作。 */
-  action: CliRecoveryAction;
-
-  /** 面向用户解释下一步操作的简短说明。 */
-  message: string;
-
-  /** 可直接交给进程执行器的命令与参数列表。 */
-  commands?: CliRecoveryCommand[];
-
-  /** 需要调用方选择的相近 API 列表。 */
-  candidates?: CliRecoveryCandidate[];
-};
-
-/** CLI JSON 协议中的错误内容。 */
-type CliProtocolErrorDetail = {
-  /** 供 AI 或脚本稳定判断错误类型的代码。 */
-  code: CliErrorCode;
-
-  /** 面向用户展示的错误说明。 */
-  message: string;
-
-  /** 与错误相关的可选结构化信息。 */
-  details?: unknown;
-
-  /** 可供用户或 AI 直接执行的修复建议。 */
-  recovery?: CliErrorRecovery;
-};
-
-/** CLI JSON 协议的失败响应。 */
-type CliProtocolFailure = {
-  /** JSON 协议版本。 */
-  schemaVersion: 1;
-
-  /** 表示命令执行失败。 */
-  ok: false;
-
-  /** 用户请求执行的命令；省略命令时为 gen。 */
-  command: string;
-
-  /** 可供程序稳定处理的错误内容。 */
-  error: CliProtocolErrorDetail;
-};
-
-/** 搜索结果传递给 gen 命令时使用的 API 选择器。 */
-type ApiSelector = {
-  /** API 所属服务的名称。 */
-  service: string;
-
-  /** API 使用的 HTTP 方法。 */
-  method: ApiItem["method"];
-
-  /** API 在 OpenAPI 文档中的路径。 */
-  path: string;
-};
-
-/** 构造 gen 恢复命令时允许缺省的 API 选择条件。 */
-type PartialApiSelector = {
-  /** 需要隔离加载的服务名称。 */
-  service?: string;
-
-  /** 需要生成类型的 HTTP 方法。 */
-  method?: string;
-
-  /** 需要生成类型的 API 路径。 */
-  path?: string;
-};
-
-/**
- * search 命令支持的输出格式。
- *
- * - `text`：输出便于人工阅读的文本。
- * - `json`：输出版本化的 JSON 协议对象。
- */
-type SearchOutputFormat = "text" | "json";
-
-/**
- * gen 命令支持的输出格式。
- *
- * - `ts`：直接输出生成的 TypeScript 代码。
- * - `json`：输出包含代码与结构化分段的 JSON 协议对象。
- */
-type GenOutputFormat = "ts" | "json";
 
 /** CLI 参数解析结果中的选项集合。 */
 type CliOptions = {
@@ -285,18 +125,6 @@ type ServiceDocumentContext = {
   cacheStatus?: OpenApiCacheStatus;
 };
 
-/** 单个服务文档加载失败后的结构化信息。 */
-type ServiceLoadFailure = {
-  /** 加载失败的服务名称。 */
-  service: string;
-
-  /** 加载失败的 OpenAPI 文档地址。 */
-  documentUrl: string;
-
-  /** 服务加载失败的具体原因。 */
-  message: string;
-};
-
 /**
  * 单个服务文档的加载结果。
  *
@@ -349,31 +177,6 @@ type PartialSourceInput = {
   url?: string;
 };
 
-/** 携带稳定错误码和结构化详情的 CLI 错误。 */
-class CliProtocolError extends Error {
-  /** 供 AI 或脚本判断错误类型的稳定代码。 */
-  readonly code: CliErrorCode;
-
-  /** 与错误相关的可选结构化信息。 */
-  readonly details?: unknown;
-
-  /** 可供用户或 AI 直接执行的修复建议。 */
-  readonly recovery?: CliErrorRecovery;
-
-  constructor(
-    code: CliErrorCode,
-    message: string,
-    details?: unknown,
-    recovery?: CliErrorRecovery,
-  ) {
-    super(message);
-    this.name = "CliProtocolError";
-    this.code = code;
-    this.details = details;
-    this.recovery = recovery;
-  }
-}
-
 const DEFAULT_CONFIG = {
   generator: {
     indent: 2,
@@ -390,7 +193,6 @@ const API_METHODS = ["get", "post", "put", "delete", "patch"] as const;
 const SOURCE_TYPES: SwaggerSourceType[] = ["ui", "openapi", "config"];
 const MAX_INTERACTIVE_API_CHOICES = 30;
 const SERVICE_LOAD_CONCURRENCY = 4;
-const JSON_SCHEMA_VERSION = 1;
 const DEFAULT_SEARCH_LIMIT = 20;
 const MAX_SEARCH_LIMIT = 100;
 const MAX_RECOVERY_CANDIDATES = 5;
@@ -415,102 +217,6 @@ const REMOVED_OPTIONS: Record<string, string> = {
   host: "--type config --url <swagger-config-URL>",
   version: "直接提供准确的 OpenAPI 或 swagger-config URL",
 };
-
-function writeProtocolSuccess<T>(
-  command: CliCommand,
-  data: T,
-  warnings: CliProtocolWarning[] = [],
-): void {
-  const response: CliProtocolSuccess<T> = {
-    schemaVersion: JSON_SCHEMA_VERSION,
-    ok: true,
-    command,
-    data,
-    warnings,
-  };
-  process.stdout.write(`${JSON.stringify(response, null, 2)}\n`);
-}
-
-function normalizeProtocolError(error: unknown): CliProtocolError {
-  if (error instanceof CliProtocolError) return error;
-
-  const message = error instanceof Error ? error.message : String(error);
-  if (/命令 services 已删除|未知命令/.test(message)) {
-    return new CliProtocolError("INVALID_COMMAND", message);
-  }
-  if (/无法启动系统 Chrome/.test(message)) {
-    return new CliProtocolError("CHROME_NOT_FOUND", message);
-  }
-  if (/请求超时|超时/.test(message)) {
-    return new CliProtocolError("SOURCE_TIMEOUT", message);
-  }
-  if (/不是有效的 OpenAPI\/Swagger JSON/.test(message)) {
-    return new CliProtocolError("OPENAPI_INVALID", message);
-  }
-  if (/不是有效的 swagger-config JSON/.test(message)) {
-    return new CliProtocolError("SWAGGER_CONFIG_INVALID", message);
-  }
-  if (/未找到服务|未找到文档|没有可用服务/.test(message)) {
-    return new CliProtocolError("SERVICE_NOT_FOUND", message);
-  }
-  if (/加载服务/.test(message)) {
-    return new CliProtocolError("SERVICE_LOAD_FAILED", message);
-  }
-  if (/未找到 API|未找到可用 API/.test(message)) {
-    return new CliProtocolError("API_NOT_FOUND", message);
-  }
-  if (/多个服务中存在 API/.test(message)) {
-    return new CliProtocolError("AMBIGUOUS_API", message);
-  }
-  if (/复制到剪贴板失败/.test(message)) {
-    return new CliProtocolError("CLIPBOARD_FAILED", message);
-  }
-  if (
-    /参数|--type|--url|--method|--path|--keyword|--format|--limit|来源配置|缺少来源|配置已删除/.test(
-      message,
-    )
-  ) {
-    return new CliProtocolError("INVALID_ARGUMENT", message);
-  }
-  if (/HTTP \d+|页面已加载|读取 .*失败/.test(message)) {
-    return new CliProtocolError("SOURCE_LOAD_FAILED", message);
-  }
-  return new CliProtocolError("UNKNOWN_ERROR", message);
-}
-
-function createProtocolFailure(command: string, error: unknown): CliProtocolFailure {
-  const normalizedError = normalizeProtocolError(error);
-  return {
-    schemaVersion: JSON_SCHEMA_VERSION,
-    ok: false,
-    command,
-    error: {
-      code: normalizedError.code,
-      message: normalizedError.message,
-      ...(normalizedError.details === undefined ? {} : { details: normalizedError.details }),
-      ...(normalizedError.recovery === undefined
-        ? {}
-        : { recovery: normalizedError.recovery }),
-    },
-  };
-}
-
-function formatRecoveryArgument(argument: string): string {
-  return /^[a-zA-Z0-9_./:@=-]+$/.test(argument) ? argument : JSON.stringify(argument);
-}
-
-function writeTextProtocolFailure(error: CliProtocolError): void {
-  process.stderr.write(`[ts-swagger] ${error.message}\n`);
-  if (!error.recovery) return;
-
-  process.stderr.write(`[ts-swagger] 修复建议: ${error.recovery.message}\n`);
-  error.recovery.commands?.forEach((command) => {
-    const commandText = ["ts-swagger", command.command, ...command.args]
-      .map(formatRecoveryArgument)
-      .join(" ");
-    process.stderr.write(`  ${commandText}\n`);
-  });
-}
 
 function requestedCommand(argv: string[]): string {
   const firstArgument = argv[0];
@@ -1066,6 +772,7 @@ async function resolveServiceDocuments(
   resolved: ResolvedSwaggerSource,
   options: CliOptions,
   settings: Settings,
+  reporter: CliProgressReporter,
 ): Promise<ServiceDocumentCollection> {
   const requestedService = getStringOption(options, "service");
   if (resolved.kind === "openapi") {
@@ -1114,7 +821,7 @@ async function resolveServiceDocuments(
   }
 
   if (selectedServices.length > 1) {
-    process.stderr.write(`正在加载 ${selectedServices.length} 个服务的 OpenAPI 文档...\n`);
+    reporter.report(`正在加载 ${selectedServices.length} 个服务的 OpenAPI 文档...`);
   }
   let completedServices = 0;
   const showDetailedProgress = selectedServices.length > 1;
@@ -1133,8 +840,8 @@ async function resolveServiceDocuments(
             });
         completedServices += 1;
         if (showDetailedProgress) {
-          process.stderr.write(
-            `[${completedServices}/${selectedServices.length}] ${service.name}：${cacheStatusLabel(loaded.cacheStatus)}\n`,
+          reporter.report(
+            `[${completedServices}/${selectedServices.length}] ${service.name}：${cacheStatusLabel(loaded.cacheStatus)}`,
           );
         }
         return {
@@ -1150,8 +857,8 @@ async function resolveServiceDocuments(
         const message = error instanceof Error ? error.message : String(error);
         completedServices += 1;
         if (showDetailedProgress) {
-          process.stderr.write(
-            `[${completedServices}/${selectedServices.length}] ${service.name}：加载失败\n`,
+          reporter.report(
+            `[${completedServices}/${selectedServices.length}] ${service.name}：加载失败`,
           );
         }
         return {
@@ -1288,12 +995,13 @@ function sourceOrigin(source: SwaggerSource): string {
   }
 }
 
-async function runSearchCommand(
+async function executeSearchCommand(
   source: SwaggerSource,
   resolved: ResolvedSwaggerSource,
   settings: Settings,
   options: CliOptions,
-): Promise<void> {
+  reporter: CliProgressReporter,
+): Promise<SearchCommandResult> {
   const keyword = getStringOption(options, "keyword").trim();
   if (!keyword) {
     throw new CliProtocolError("INVALID_ARGUMENT", "缺少必填参数: --keyword", {
@@ -1302,14 +1010,14 @@ async function runSearchCommand(
   }
   const outputFormat = ensureSearchOutputFormat(options);
   const limit = ensureSearchLimit(options);
-  const collection = await resolveServiceDocuments(resolved, options, settings);
+  const collection = await resolveServiceDocuments(resolved, options, settings, reporter);
   const warnings = createServiceFailureWarnings(collection.failures);
-  warnings.forEach((warning) => process.stderr.write(`[ts-swagger] 警告: ${warning.message}\n`));
   const results = searchServiceApis(collection.documents, keyword);
   const returnedResults = results.slice(0, limit);
 
-  if (outputFormat === "json") {
-    writeProtocolSuccess("search", {
+  return {
+    outputFormat,
+    data: {
       host: sourceOrigin(source),
       service: getStringOption(options, "service") || null,
       services: collection.services,
@@ -1325,35 +1033,22 @@ async function runSearchCommand(
         ...item.api,
         selector: createApiSelector(item),
       })),
-    }, warnings);
-    return;
-  }
-
-  process.stdout.write(`关键词: ${keyword}\n`);
-  process.stdout.write(`已加载服务/文档: ${collection.documents.length}\n`);
-  if (collection.failures.length > 0) {
-    process.stdout.write(`加载失败服务: ${collection.failures.length}\n`);
-  }
-  process.stdout.write(`匹配结果: ${results.length}，显示: ${returnedResults.length}\n`);
-  if (results.length === 0) {
-    process.stdout.write("未匹配到 API。\n");
-    return;
-  }
-  returnedResults.forEach((item) => {
-    process.stdout.write(`${formatApiChoice(item)}\n`);
-  });
+    },
+    warnings,
+  };
 }
 
-async function runGenCommand(
+async function executeGenCommand(
   source: SwaggerSource,
   resolved: ResolvedSwaggerSource,
   settings: Settings,
   options: CliOptions,
   prompt: readline.Interface | null,
-): Promise<void> {
+  reporter: CliProgressReporter,
+): Promise<GenCommandResult> {
   let outputFormat: GenOutputFormat | undefined =
     options.format === undefined ? undefined : ensureGenOutputFormat(options.format);
-  const collection = await resolveServiceDocuments(resolved, options, settings);
+  const collection = await resolveServiceDocuments(resolved, options, settings, reporter);
   if (collection.failures.length > 0) {
     const requestedMethod = getStringOption(options, "method").trim().toLowerCase();
     const requestedPath = getStringOption(options, "path").trim();
@@ -1391,7 +1086,7 @@ async function runGenCommand(
     selectedCandidate = await pickApiInteractively(prompt, collection.documents);
     method = selectedCandidate.api.method;
     pathValue = selectedCandidate.api.path;
-    process.stderr.write(`已选择 API: ${formatApiChoice(selectedCandidate)}\n`);
+    reporter.report(`已选择 API: ${formatApiChoice(selectedCandidate)}`);
   }
   if (!method) {
     throw new CliProtocolError("INVALID_ARGUMENT", "缺少必填参数: --method", {
@@ -1502,8 +1197,9 @@ async function runGenCommand(
     );
   }
 
-  if (outputFormat === "json") {
-    writeProtocolSuccess("gen", {
+  return {
+    outputFormat,
+    data: {
       host: sourceOrigin(source),
       service: context.service?.name || null,
       documentUrl: context.documentUrl,
@@ -1511,14 +1207,9 @@ async function runGenCommand(
       matchedApi,
       code: tsOutput,
       parts: generated,
-    });
-  } else {
-    process.stdout.write(`${tsOutput}\n`);
-  }
-
-  if (shouldCopy) {
-    process.stderr.write("已复制生成的 TypeScript 到剪贴板。\n");
-  }
+    },
+    copied: shouldCopy,
+  };
 }
 
 async function main(argv: string[]): Promise<void> {
@@ -1533,6 +1224,7 @@ async function main(argv: string[]): Promise<void> {
   const { config } = await loadUserConfig(process.cwd());
   const settings = resolveSettings(options, config);
   const prompt = isInteractiveAllowed(options) ? createPrompt() : null;
+  const reporter = createProgressReporter();
 
   try {
     const source = await resolveSwaggerSourceInput(options, config, prompt);
@@ -1540,14 +1232,23 @@ async function main(argv: string[]): Promise<void> {
       throw new Error("--chrome-path 仅能与 --type ui 一起使用");
     }
     if (source.type === "ui") {
-      process.stderr.write(`正在通过系统 Chrome 读取页面网络响应: ${source.url}\n`);
+      reporter.report(`正在通过系统 Chrome 读取页面网络响应: ${source.url}`);
     }
     const resolved = await loadSwaggerSource(source, settings);
 
     if (command === "search") {
-      await runSearchCommand(source, resolved, settings, options);
+      const result = await executeSearchCommand(source, resolved, settings, options, reporter);
+      presentSearchResult(result);
     } else {
-      await runGenCommand(source, resolved, settings, options, prompt);
+      const result = await executeGenCommand(
+        source,
+        resolved,
+        settings,
+        options,
+        prompt,
+        reporter,
+      );
+      presentGenResult(result);
     }
   } finally {
     prompt?.close();
@@ -1556,14 +1257,11 @@ async function main(argv: string[]): Promise<void> {
 
 const cliArgv = process.argv.slice(2);
 void main(cliArgv).catch(async (error: unknown) => {
-  const normalizedError = normalizeProtocolError(error);
-  if (wantsJsonOutput(cliArgv)) {
-    process.stdout.write(
-      `${JSON.stringify(createProtocolFailure(requestedCommand(cliArgv), normalizedError), null, 2)}\n`,
-    );
-  } else {
-    writeTextProtocolFailure(normalizedError);
-  }
+  const normalizedError = presentFailure(
+    requestedCommand(cliArgv),
+    wantsJsonOutput(cliArgv),
+    error,
+  );
   process.exitCode = 1;
 
   if (normalizedError.code === "UNKNOWN_ERROR") {
