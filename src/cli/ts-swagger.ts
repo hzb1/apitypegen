@@ -98,6 +98,47 @@ type CliProtocolSuccess<T> = {
   warnings: CliProtocolWarning[];
 };
 
+/**
+ * CLI 错误恢复建议的处理方式。
+ *
+ * - `retry`：使用建议参数重新执行命令。
+ * - `select`：从候选 API 中选择一个后重新执行命令。
+ */
+type CliRecoveryAction = "retry" | "select";
+
+/** CLI 错误恢复建议中的可执行命令。 */
+type CliRecoveryCommand = {
+  /** 需要重新执行的 CLI 命令。 */
+  command: CliCommand;
+
+  /** 以数组形式提供的命令参数，避免调用方重新解析 Shell 字符串。 */
+  args: string[];
+};
+
+/** CLI 错误恢复建议中的 API 候选项。 */
+type CliRecoveryCandidate = {
+  /** 供用户或 AI 理解候选接口用途的摘要。 */
+  summary: string;
+
+  /** 可直接传递给 gen 命令的 API 选择器。 */
+  selector: ApiSelector;
+};
+
+/** CLI 错误中供用户或 AI 直接采取行动的恢复建议。 */
+type CliErrorRecovery = {
+  /** 调用方应执行的恢复动作。 */
+  action: CliRecoveryAction;
+
+  /** 面向用户解释下一步操作的简短说明。 */
+  message: string;
+
+  /** 可直接交给进程执行器的命令与参数列表。 */
+  commands?: CliRecoveryCommand[];
+
+  /** 需要调用方选择的相近 API 列表。 */
+  candidates?: CliRecoveryCandidate[];
+};
+
 /** CLI JSON 协议中的错误内容。 */
 type CliProtocolErrorDetail = {
   /** 供 AI 或脚本稳定判断错误类型的代码。 */
@@ -108,6 +149,9 @@ type CliProtocolErrorDetail = {
 
   /** 与错误相关的可选结构化信息。 */
   details?: unknown;
+
+  /** 可供用户或 AI 直接执行的修复建议。 */
+  recovery?: CliErrorRecovery;
 };
 
 /** CLI JSON 协议的失败响应。 */
@@ -135,6 +179,18 @@ type ApiSelector = {
 
   /** API 在 OpenAPI 文档中的路径。 */
   path: string;
+};
+
+/** 构造 gen 恢复命令时允许缺省的 API 选择条件。 */
+type PartialApiSelector = {
+  /** 需要隔离加载的服务名称。 */
+  service?: string;
+
+  /** 需要生成类型的 HTTP 方法。 */
+  method?: string;
+
+  /** 需要生成类型的 API 路径。 */
+  path?: string;
 };
 
 /**
@@ -300,11 +356,20 @@ class CliProtocolError extends Error {
   /** 与错误相关的可选结构化信息。 */
   readonly details?: unknown;
 
-  constructor(code: CliErrorCode, message: string, details?: unknown) {
+  /** 可供用户或 AI 直接执行的修复建议。 */
+  readonly recovery?: CliErrorRecovery;
+
+  constructor(
+    code: CliErrorCode,
+    message: string,
+    details?: unknown,
+    recovery?: CliErrorRecovery,
+  ) {
     super(message);
     this.name = "CliProtocolError";
     this.code = code;
     this.details = details;
+    this.recovery = recovery;
   }
 }
 
@@ -327,6 +392,7 @@ const SERVICE_LOAD_CONCURRENCY = 4;
 const JSON_SCHEMA_VERSION = 1;
 const DEFAULT_SEARCH_LIMIT = 20;
 const MAX_SEARCH_LIMIT = 100;
+const MAX_RECOVERY_CANDIDATES = 5;
 const OPENAPI_CACHE_TTL_MS = 5 * 60 * 1000;
 const COMMON_OPTIONS = [
   "type",
@@ -421,8 +487,28 @@ function createProtocolFailure(command: string, error: unknown): CliProtocolFail
       code: normalizedError.code,
       message: normalizedError.message,
       ...(normalizedError.details === undefined ? {} : { details: normalizedError.details }),
+      ...(normalizedError.recovery === undefined
+        ? {}
+        : { recovery: normalizedError.recovery }),
     },
   };
+}
+
+function formatRecoveryArgument(argument: string): string {
+  return /^[a-zA-Z0-9_./:@=-]+$/.test(argument) ? argument : JSON.stringify(argument);
+}
+
+function writeTextProtocolFailure(error: CliProtocolError): void {
+  process.stderr.write(`[ts-swagger] ${error.message}\n`);
+  if (!error.recovery) return;
+
+  process.stderr.write(`[ts-swagger] 修复建议: ${error.recovery.message}\n`);
+  error.recovery.commands?.forEach((command) => {
+    const commandText = ["ts-swagger", command.command, ...command.args]
+      .map(formatRecoveryArgument)
+      .join(" ");
+    process.stderr.write(`  ${commandText}\n`);
+  });
 }
 
 function requestedCommand(argv: string[]): string {
@@ -732,6 +818,88 @@ function createApiSelector(candidate: ServiceApiCandidate): ApiSelector {
     service: serviceDocumentLabel(candidate.context),
     method: candidate.api.method,
     path: candidate.api.path,
+  };
+}
+
+function recoverySourceUrl(sourceUrl: string): string {
+  try {
+    const parsedUrl = new URL(sourceUrl);
+    const containsCredentials = Boolean(parsedUrl.username || parsedUrl.password);
+    const containsSensitiveQuery = [...parsedUrl.searchParams.keys()].some((key) =>
+      /token|secret|password|passwd|authorization|api[-_]?key|signature/i.test(key),
+    );
+    return containsCredentials || containsSensitiveQuery ? "<source-url>" : sourceUrl;
+  } catch {
+    return "<source-url>";
+  }
+}
+
+function createGenRecoveryCommand(
+  source: SwaggerSource,
+  selector: PartialApiSelector,
+): CliRecoveryCommand {
+  const args = ["--type", source.type, "--url", recoverySourceUrl(source.url)];
+  if (selector.service) args.push("--service", selector.service);
+  if (selector.method) args.push("--method", selector.method);
+  if (selector.path) args.push("--path", selector.path);
+  args.push("--no-interactive", "--format", "json");
+  return { command: "gen", args };
+}
+
+function levenshteinDistance(left: string, right: string): number {
+  const previousRow = Array.from({ length: right.length + 1 }, (_, index) => index);
+  for (let leftIndex = 1; leftIndex <= left.length; leftIndex += 1) {
+    const currentRow = [leftIndex];
+    for (let rightIndex = 1; rightIndex <= right.length; rightIndex += 1) {
+      const substitutionCost = left[leftIndex - 1] === right[rightIndex - 1] ? 0 : 1;
+      currentRow[rightIndex] = Math.min(
+        (currentRow[rightIndex - 1] as number) + 1,
+        (previousRow[rightIndex] as number) + 1,
+        (previousRow[rightIndex - 1] as number) + substitutionCost,
+      );
+    }
+    previousRow.splice(0, previousRow.length, ...currentRow);
+  }
+  return previousRow[right.length] as number;
+}
+
+function createNearestApiCandidates(
+  documents: ServiceDocumentContext[],
+  method: string,
+  pathValue: string,
+): ServiceApiCandidate[] {
+  const normalizedPath = pathValue.toLowerCase();
+  return collectServiceApis(documents)
+    .map((candidate) => ({
+      candidate,
+      exactPath: candidate.api.path === pathValue ? 0 : 1,
+      methodMismatch: candidate.api.method === method ? 0 : 1,
+      distance: levenshteinDistance(normalizedPath, candidate.api.path.toLowerCase()),
+    }))
+    .sort((left, right) => {
+      return (
+        left.exactPath - right.exactPath ||
+        left.methodMismatch - right.methodMismatch ||
+        left.distance - right.distance ||
+        compareText(
+          serviceDocumentLabel(left.candidate.context),
+          serviceDocumentLabel(right.candidate.context),
+        ) ||
+        compareText(left.candidate.api.path, right.candidate.api.path) ||
+        compareText(left.candidate.api.method, right.candidate.api.method)
+      );
+    })
+    .slice(0, MAX_RECOVERY_CANDIDATES)
+    .map((item) => item.candidate);
+}
+
+function createApiRecoveryCandidate(candidate: ServiceApiCandidate): CliRecoveryCandidate {
+  return {
+    summary:
+      candidate.api.summary ||
+      candidate.api.description ||
+      `${candidate.api.method.toUpperCase()} ${candidate.api.path}`,
+    selector: createApiSelector(candidate),
   };
 }
 
@@ -1186,6 +1354,17 @@ async function runGenCommand(
     options.format === undefined ? undefined : ensureGenOutputFormat(options.format);
   const collection = await resolveServiceDocuments(resolved, options, settings);
   if (collection.failures.length > 0) {
+    const requestedMethod = getStringOption(options, "method").trim().toLowerCase();
+    const requestedPath = getStringOption(options, "path").trim();
+    const recoveryCommands = collection.documents
+      .slice(0, MAX_RECOVERY_CANDIDATES)
+      .map((item) =>
+        createGenRecoveryCommand(source, {
+          service: serviceDocumentLabel(item),
+          method: requestedMethod || undefined,
+          path: requestedPath || undefined,
+        }),
+      );
     throw new CliProtocolError(
       "INCOMPLETE_SERVICE_LOAD",
       "部分服务加载失败，无法确认目标 API 是否唯一。请使用 --service <name> 指定一个已知服务后重试。",
@@ -1193,6 +1372,11 @@ async function runGenCommand(
         failures: collection.failures,
         availableServices: collection.documents.map((item) => serviceDocumentLabel(item)),
         suggestion: "使用 --service <name> 指定服务",
+      },
+      {
+        action: "retry",
+        message: "选择一个已成功加载的服务进行隔离重试。",
+        commands: recoveryCommands,
       },
     );
   }
@@ -1228,6 +1412,11 @@ async function runGenCommand(
       const pathCandidates = collectServiceApis(collection.documents).filter(
         (item) => item.api.path === pathValue,
       );
+      const nearestCandidates = createNearestApiCandidates(
+        collection.documents,
+        method,
+        pathValue,
+      );
       const methodTips = pathCandidates.length
         ? ` 该 path 可用方法: ${[...new Set(pathCandidates.map((item) => item.api.method.toUpperCase()))].join(", ")}`
         : "";
@@ -1241,6 +1430,16 @@ async function runGenCommand(
             ...new Set(pathCandidates.map((item) => item.api.method)),
           ],
         },
+        {
+          action: "select",
+          message: pathCandidates.length
+            ? "该路径存在其他 HTTP 方法，请从候选 API 中选择。"
+            : "请选择最接近的 API 后重试。",
+          candidates: nearestCandidates.map(createApiRecoveryCandidate),
+          commands: nearestCandidates.map((item) =>
+            createGenRecoveryCommand(source, createApiSelector(item)),
+          ),
+        },
       );
     }
     if (matchedCandidates.length === 1) {
@@ -1253,11 +1452,20 @@ async function runGenCommand(
         formatApiChoice,
       );
     } else {
+      const recoveryCandidates = matchedCandidates.slice(0, MAX_RECOVERY_CANDIDATES);
       throw new CliProtocolError(
         "AMBIGUOUS_API",
         `多个服务中存在 API ${method.toUpperCase()} ${pathValue}，请使用 --service <name> 指定服务。可选服务: ${matchedCandidates.map((item) => serviceDocumentLabel(item.context)).join(", ")}`,
         {
           candidates: matchedCandidates.map((item) => createApiSelector(item)),
+        },
+        {
+          action: "retry",
+          message: "请选择目标服务，并使用对应参数重新执行 gen。",
+          candidates: recoveryCandidates.map(createApiRecoveryCandidate),
+          commands: recoveryCandidates.map((item) =>
+            createGenRecoveryCommand(source, createApiSelector(item)),
+          ),
         },
       );
     }
@@ -1353,7 +1561,7 @@ void main(cliArgv).catch((error: unknown) => {
       `${JSON.stringify(createProtocolFailure(requestedCommand(cliArgv), normalizedError), null, 2)}\n`,
     );
   } else {
-    process.stderr.write(`[ts-swagger] ${normalizedError.message}\n`);
+    writeTextProtocolFailure(normalizedError);
   }
   process.exitCode = 1;
 });

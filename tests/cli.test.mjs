@@ -206,7 +206,7 @@ test("多服务默认全部加载，--service 仅作为过滤器", async () => {
     const requestUrl = request.url || "";
     requests.push(requestUrl);
     response.setHeader("content-type", "application/json");
-    if (requestUrl === "/config") {
+    if (requestUrl === "/config" || requestUrl.startsWith("/config?")) {
       response.end(
         JSON.stringify({
           urls: [
@@ -378,6 +378,9 @@ test("多服务默认全部加载，--service 仅作为过滤器", async () => {
     const incompleteGenOutput = JSON.parse(incompleteGenResult.stdout);
     assert.equal(incompleteGenOutput.error.code, "INCOMPLETE_SERVICE_LOAD");
     assert.equal(incompleteGenOutput.error.details.failures.length, 1);
+    assert.equal(incompleteGenOutput.error.recovery.action, "retry");
+    assert.equal(incompleteGenOutput.error.recovery.commands.length, 1);
+    assert.ok(incompleteGenOutput.error.recovery.commands[0].args.includes("service-a"));
 
     requests.length = 0;
     const targetedGenResult = await runCliAsync([
@@ -451,7 +454,73 @@ test("多服务默认全部加载，--service 仅作为过滤器", async () => {
     assert.equal(ambiguousOutput.ok, false);
     assert.equal(ambiguousOutput.error.code, "AMBIGUOUS_API");
     assert.equal(ambiguousOutput.error.details.candidates.length, 2);
+    assert.equal(ambiguousOutput.error.recovery.action, "retry");
+    assert.equal(ambiguousOutput.error.recovery.commands.length, 2);
+    assert.deepEqual(
+      ambiguousOutput.error.recovery.candidates.map((item) => item.selector.service),
+      ["service-a", "service-b"],
+    );
+    assert.ok(ambiguousOutput.error.recovery.commands[0].args.includes("--service"));
     assert.match(ambiguousOutput.error.message, /--service <name>/);
+
+    const notFoundResult = await runCliAsync([
+      "gen",
+      ...commonArgs,
+      "--method",
+      "get",
+      "--path",
+      "/user",
+      "--format",
+      "json",
+    ]);
+    assert.equal(notFoundResult.status, 1);
+    const notFoundOutput = JSON.parse(notFoundResult.stdout);
+    assert.equal(notFoundOutput.error.code, "API_NOT_FOUND");
+    assert.equal(notFoundOutput.error.recovery.action, "select");
+    assert.deepEqual(notFoundOutput.error.recovery.candidates[0].selector, {
+      service: "service-a",
+      method: "get",
+      path: "/users",
+    });
+    assert.ok(notFoundOutput.error.recovery.candidates.length <= 5);
+
+    const redactedRecoveryResult = await runCliAsync([
+      "gen",
+      "--type",
+      "config",
+      "--url",
+      `${baseUrl}/config?access_token=secret-value`,
+      "--method",
+      "get",
+      "--path",
+      "/health",
+      "--no-interactive",
+      "--format",
+      "json",
+    ]);
+    assert.equal(redactedRecoveryResult.status, 1);
+    const redactedRecoveryOutput = JSON.parse(redactedRecoveryResult.stdout);
+    assert.equal(redactedRecoveryOutput.error.code, "AMBIGUOUS_API");
+    assert.ok(
+      redactedRecoveryOutput.error.recovery.commands.every((item) =>
+        item.args.includes("<source-url>"),
+      ),
+    );
+    assert.doesNotMatch(redactedRecoveryResult.stdout, /secret-value/);
+
+    const textRecoveryResult = await runCliAsync([
+      "gen",
+      ...commonArgs,
+      "--method",
+      "get",
+      "--path",
+      "/health",
+      "--no-interactive",
+    ]);
+    assert.equal(textRecoveryResult.status, 1);
+    assert.equal(textRecoveryResult.stdout, "");
+    assert.match(textRecoveryResult.stderr, /修复建议/);
+    assert.match(textRecoveryResult.stderr, /ts-swagger gen .*--service service-a/);
 
     requests.length = 0;
     const filteredResult = await runCliAsync([

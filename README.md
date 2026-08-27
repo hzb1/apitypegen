@@ -260,10 +260,36 @@ ts-swagger search --type config --url <url> --keyword order --limit 20 --format 
     "message": "多个服务中存在相同 API",
     "details": {
       "candidates": []
+    },
+    "recovery": {
+      "action": "retry",
+      "message": "请选择目标服务，并使用对应参数重新执行 gen。",
+      "commands": [
+        {
+          "command": "gen",
+          "args": [
+            "--type",
+            "config",
+            "--url",
+            "http://localhost:9999/v3/api-docs/swagger-config",
+            "--service",
+            "order-service",
+            "--method",
+            "get",
+            "--path",
+            "/health",
+            "--no-interactive",
+            "--format",
+            "json"
+          ]
+        }
+      ]
     }
   }
 }
 ```
+
+`AMBIGUOUS_API`、`API_NOT_FOUND` 和 `INCOMPLETE_SERVICE_LOAD` 会提供可选的 `error.recovery`。其中 `commands` 使用 `{ command, args[] }`，调用方应直接把参数数组交给进程执行器，不需要解析或执行 Shell 字符串；`API_NOT_FOUND` 还会返回最多 5 个相近 API 的 `selector`。包含凭据或 token 的来源 URL 会替换为 `<source-url>`，调用方重试前需要自行填回安全来源地址。
 
 搜索默认返回前 20 条结果，`--limit` 支持 `1` 到 `100`。结果按照 path、operationId、summary、tag、description 的匹配优先级排序，同分结果使用服务名、path、method 和 operationId 保持稳定顺序。AI 应直接读取搜索项中的 `selector` 调用 `gen`，不要从展示文本中重新提取参数。
 
