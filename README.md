@@ -264,10 +264,15 @@ ts-swagger search --type config --url <url> --keyword order --limit 20 --format 
 
 搜索默认返回前 20 条结果，`--limit` 支持 `1` 到 `100`。结果按照 path、operationId、summary、tag、description 的匹配优先级排序，同分结果使用服务名、path、method 和 operationId 保持稳定顺序。AI 应直接读取搜索项中的 `selector` 调用 `gen`，不要从展示文本中重新提取参数。
 
+多服务搜索允许部分成功。无法加载的服务会同时出现在 `data.failedServices` 和顶层 `warnings` 中；只要至少一个服务成功，`ok` 仍为 `true`。全部服务均失败时返回 `SERVICE_LOAD_FAILED`。
+
 ### 8.5 服务参数行为
 
 - `services` 命令已移除；服务列表仅作为内部加载信息，不再要求用户先查看或选择。
 - `search` 和 `gen` 默认并发加载全部服务的 OpenAPI 文档，不再先让用户选择服务。
+- `search` 会保留已成功加载服务的搜索结果，并报告失败服务，不会因为单个无关服务不可用而放弃全部结果。
+- 未传 `--service` 的 `gen` 如果遇到服务加载失败，会返回 `INCOMPLETE_SERVICE_LOAD`，因为此时无法确认目标 API 在全部服务中是否唯一。
+- `gen --service <name>` 只加载目标服务，不受其他服务故障影响；目标服务本身失败时返回 `SERVICE_LOAD_FAILED`。
 - API 搜索结果和交互式 API 列表会以 `[服务名]` 标注所属服务。
 - `--service <name>` 是可选过滤器；传入后只加载并处理指定服务，适合局部检索或明确存在同名接口时使用。
 - 多个服务存在相同的 `method + path` 时，交互终端会让用户从带服务名的 API 项中选择；非交互模式需要通过 `--service` 消除歧义。

@@ -43,6 +43,7 @@ type CliCommand = "search" | "gen";
  * - `CHROME_NOT_FOUND`：UI 模式无法找到可用的系统 Chrome。
  * - `SERVICE_NOT_FOUND`：未找到用户指定的服务或文档。
  * - `SERVICE_LOAD_FAILED`：指定服务的 OpenAPI 文档加载失败。
+ * - `INCOMPLETE_SERVICE_LOAD`：部分服务加载失败，无法确定生成目标是否唯一。
  * - `API_NOT_FOUND`：已加载文档中不存在指定 API。
  * - `AMBIGUOUS_API`：多个服务中存在相同的 API 标识。
  * - `CLIPBOARD_FAILED`：生成结果无法写入系统剪贴板。
@@ -58,6 +59,7 @@ type CliErrorCode =
   | "CHROME_NOT_FOUND"
   | "SERVICE_NOT_FOUND"
   | "SERVICE_LOAD_FAILED"
+  | "INCOMPLETE_SERVICE_LOAD"
   | "API_NOT_FOUND"
   | "AMBIGUOUS_API"
   | "CLIPBOARD_FAILED"
@@ -214,6 +216,40 @@ type ServiceDocumentContext = {
   service: SwaggerServiceConfig | null;
 };
 
+/** 单个服务文档加载失败后的结构化信息。 */
+type ServiceLoadFailure = {
+  /** 加载失败的服务名称。 */
+  service: string;
+
+  /** 加载失败的 OpenAPI 文档地址。 */
+  documentUrl: string;
+
+  /** 服务加载失败的具体原因。 */
+  message: string;
+};
+
+/**
+ * 单个服务文档的加载结果。
+ *
+ * - `success`：服务文档已成功加载。
+ * - `failure`：服务文档加载失败，错误已被结构化记录。
+ */
+type ServiceDocumentLoadResult =
+  | {
+      /** 表示服务文档加载成功。 */
+      kind: "success";
+
+      /** 成功加载的服务文档上下文。 */
+      context: ServiceDocumentContext;
+    }
+  | {
+      /** 表示服务文档加载失败。 */
+      kind: "failure";
+
+      /** 服务文档加载失败的结构化信息。 */
+      failure: ServiceLoadFailure;
+    };
+
 /** 一次命令加载的全部服务文档。 */
 type ServiceDocumentCollection = {
   /** 已加载且可用于检索或生成的文档。 */
@@ -221,6 +257,9 @@ type ServiceDocumentCollection = {
 
   /** 来源中包含的服务列表。 */
   services: SwaggerServiceConfig[];
+
+  /** 本次加载中失败的服务列表。 */
+  failures: ServiceLoadFailure[];
 };
 
 /** 跨服务汇总后的 API 候选项。 */
@@ -661,6 +700,16 @@ function createApiSelector(candidate: ServiceApiCandidate): ApiSelector {
   };
 }
 
+function createServiceFailureWarnings(
+  failures: ServiceLoadFailure[],
+): CliProtocolWarning[] {
+  return failures.map((failure) => ({
+    code: "SERVICE_LOAD_FAILED",
+    message: `服务 "${failure.service}" 加载失败: ${failure.message}`,
+    details: failure,
+  }));
+}
+
 function compareText(left: string, right: string): number {
   if (left === right) return 0;
   return left < right ? -1 : 1;
@@ -830,6 +879,7 @@ async function resolveServiceDocuments(
           resolved.documents.length > 1 ? { name: item.title, url: item.documentUrl } : null,
       })),
       services,
+      failures: [],
     };
   }
 
@@ -854,29 +904,58 @@ async function resolveServiceDocuments(
   if (selectedServices.length > 1) {
     process.stderr.write(`正在加载 ${selectedServices.length} 个服务的 OpenAPI 文档...\n`);
   }
-  const documents = await mapWithConcurrency(
+  const loadResults = await mapWithConcurrency(
     selectedServices,
     SERVICE_LOAD_CONCURRENCY,
-    async (service): Promise<ServiceDocumentContext> => {
+    async (service): Promise<ServiceDocumentLoadResult> => {
       const captured = findCapturedDocument(resolved.capturedDocuments, service.url);
       try {
         const document =
           captured?.document || (await loadOpenApiDocumentFromUrl(service.url, timeoutMs));
-        return { document, documentUrl: service.url, service };
+        return {
+          kind: "success",
+          context: { document, documentUrl: service.url, service },
+        };
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        throw new CliProtocolError(
-          "SERVICE_LOAD_FAILED",
-          `加载服务 "${service.name}" 失败: ${message}`,
-          { service: service.name, documentUrl: service.url },
-        );
+        return {
+          kind: "failure",
+          failure: {
+            service: service.name,
+            documentUrl: service.url,
+            message,
+          },
+        };
       }
     },
   );
+  const documents = loadResults.flatMap((result) =>
+    result.kind === "success" ? [result.context] : [],
+  );
+  const failures = loadResults.flatMap((result) =>
+    result.kind === "failure" ? [result.failure] : [],
+  );
+
+  if (requestedService && failures.length > 0) {
+    const failure = failures[0] as ServiceLoadFailure;
+    throw new CliProtocolError(
+      "SERVICE_LOAD_FAILED",
+      `加载服务 "${failure.service}" 失败: ${failure.message}`,
+      failure,
+    );
+  }
+  if (documents.length === 0) {
+    throw new CliProtocolError(
+      "SERVICE_LOAD_FAILED",
+      "所有服务的 OpenAPI 文档均加载失败",
+      { failures },
+    );
+  }
 
   return {
     documents,
     services,
+    failures,
   };
 }
 
@@ -988,6 +1067,8 @@ async function runSearchCommand(
   const outputFormat = ensureSearchOutputFormat(options);
   const limit = ensureSearchLimit(options);
   const collection = await resolveServiceDocuments(resolved, options, settings.timeoutMs);
+  const warnings = createServiceFailureWarnings(collection.failures);
+  warnings.forEach((warning) => process.stderr.write(`[ts-swagger] 警告: ${warning.message}\n`));
   const results = searchServiceApis(collection.documents, keyword);
   const returnedResults = results.slice(0, limit);
 
@@ -996,6 +1077,8 @@ async function runSearchCommand(
       host: sourceOrigin(source),
       service: getStringOption(options, "service") || null,
       services: collection.services,
+      loadedServices: collection.documents.length,
+      failedServices: collection.failures,
       keyword,
       total: results.length,
       returned: returnedResults.length,
@@ -1006,12 +1089,15 @@ async function runSearchCommand(
         ...item.api,
         selector: createApiSelector(item),
       })),
-    });
+    }, warnings);
     return;
   }
 
   process.stdout.write(`关键词: ${keyword}\n`);
   process.stdout.write(`已加载服务/文档: ${collection.documents.length}\n`);
+  if (collection.failures.length > 0) {
+    process.stdout.write(`加载失败服务: ${collection.failures.length}\n`);
+  }
   process.stdout.write(`匹配结果: ${results.length}，显示: ${returnedResults.length}\n`);
   if (results.length === 0) {
     process.stdout.write("未匹配到 API。\n");
@@ -1032,6 +1118,17 @@ async function runGenCommand(
   let outputFormat: GenOutputFormat | undefined =
     options.format === undefined ? undefined : ensureGenOutputFormat(options.format);
   const collection = await resolveServiceDocuments(resolved, options, settings.timeoutMs);
+  if (collection.failures.length > 0) {
+    throw new CliProtocolError(
+      "INCOMPLETE_SERVICE_LOAD",
+      "部分服务加载失败，无法确认目标 API 是否唯一。请使用 --service <name> 指定一个已知服务后重试。",
+      {
+        failures: collection.failures,
+        availableServices: collection.documents.map((item) => serviceDocumentLabel(item)),
+        suggestion: "使用 --service <name> 指定服务",
+      },
+    );
+  }
   let method = getStringOption(options, "method")
     ? ensureMethod(getStringOption(options, "method"))
     : "";

@@ -214,8 +214,32 @@ test("多服务默认全部加载，--service 仅作为过滤器", async () => {
       );
       return;
     }
+    if (requestUrl === "/partial-config") {
+      response.end(
+        JSON.stringify({
+          urls: [
+            { name: "service-a", url: `${baseUrl}/service-a` },
+            { name: "unavailable-service", url: `${baseUrl}/unavailable` },
+          ],
+        }),
+      );
+      return;
+    }
+    if (requestUrl === "/failed-config") {
+      response.end(
+        JSON.stringify({
+          urls: [{ name: "unavailable-service", url: `${baseUrl}/unavailable` }],
+        }),
+      );
+      return;
+    }
     if (requestUrl === "/invalid-openapi") {
       response.end(JSON.stringify({ paths: {} }));
+      return;
+    }
+    if (requestUrl === "/unavailable") {
+      response.statusCode = 503;
+      response.end(JSON.stringify({ message: "temporarily unavailable" }));
       return;
     }
     const document = documents[requestUrl];
@@ -308,6 +332,80 @@ test("多服务默认全部加载，--service 仅作为过滤器", async () => {
     assert.equal(invalidOpenApiResult.status, 1);
     const invalidOpenApiOutput = JSON.parse(invalidOpenApiResult.stdout);
     assert.equal(invalidOpenApiOutput.error.code, "OPENAPI_INVALID");
+
+    const partialArgs = [
+      "--type",
+      "config",
+      "--url",
+      `${baseUrl}/partial-config`,
+      "--no-interactive",
+    ];
+    const partialSearchResult = await runCliAsync([
+      "search",
+      ...partialArgs,
+      "--keyword",
+      "shared-search",
+      "--format",
+      "json",
+    ]);
+    assert.equal(partialSearchResult.status, 0, partialSearchResult.stderr);
+    const partialSearchOutput = JSON.parse(partialSearchResult.stdout);
+    assert.equal(partialSearchOutput.ok, true);
+    assert.equal(partialSearchOutput.data.total, 1);
+    assert.equal(partialSearchOutput.data.loadedServices, 1);
+    assert.equal(partialSearchOutput.data.failedServices.length, 1);
+    assert.equal(partialSearchOutput.data.failedServices[0].service, "unavailable-service");
+    assert.equal(partialSearchOutput.warnings[0].code, "SERVICE_LOAD_FAILED");
+
+    const incompleteGenResult = await runCliAsync([
+      "gen",
+      ...partialArgs,
+      "--method",
+      "get",
+      "--path",
+      "/users",
+      "--format",
+      "json",
+    ]);
+    assert.equal(incompleteGenResult.status, 1);
+    const incompleteGenOutput = JSON.parse(incompleteGenResult.stdout);
+    assert.equal(incompleteGenOutput.error.code, "INCOMPLETE_SERVICE_LOAD");
+    assert.equal(incompleteGenOutput.error.details.failures.length, 1);
+
+    requests.length = 0;
+    const targetedGenResult = await runCliAsync([
+      "gen",
+      ...partialArgs,
+      "--service",
+      "service-a",
+      "--method",
+      "get",
+      "--path",
+      "/users",
+      "--format",
+      "json",
+    ]);
+    assert.equal(targetedGenResult.status, 0, targetedGenResult.stderr);
+    assert.equal(JSON.parse(targetedGenResult.stdout).data.service, "service-a");
+    assert.ok(requests.includes("/service-a"));
+    assert.ok(!requests.includes("/unavailable"));
+
+    const allFailedSearchResult = await runCliAsync([
+      "search",
+      "--type",
+      "config",
+      "--url",
+      `${baseUrl}/failed-config`,
+      "--keyword",
+      "order",
+      "--no-interactive",
+      "--format",
+      "json",
+    ]);
+    assert.equal(allFailedSearchResult.status, 1);
+    const allFailedSearchOutput = JSON.parse(allFailedSearchResult.stdout);
+    assert.equal(allFailedSearchOutput.error.code, "SERVICE_LOAD_FAILED");
+    assert.equal(allFailedSearchOutput.error.details.failures.length, 1);
 
     const genResult = await runCliAsync([
       ...commonArgs,
