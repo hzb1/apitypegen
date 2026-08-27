@@ -25,6 +25,7 @@ import {
   type SwaggerSourceType,
 } from "../core/swagger-source.js";
 import { SwaggerToTS, type GeneratedTypes, type GeneratorOptions } from "../core/swagger-to-ts.js";
+import { reportUnknownCliError } from "./telemetry.js";
 
 /**
  * CLI 支持的命令。
@@ -1554,7 +1555,7 @@ async function main(argv: string[]): Promise<void> {
 }
 
 const cliArgv = process.argv.slice(2);
-void main(cliArgv).catch((error: unknown) => {
+void main(cliArgv).catch(async (error: unknown) => {
   const normalizedError = normalizeProtocolError(error);
   if (wantsJsonOutput(cliArgv)) {
     process.stdout.write(
@@ -1564,4 +1565,11 @@ void main(cliArgv).catch((error: unknown) => {
     writeTextProtocolFailure(normalizedError);
   }
   process.exitCode = 1;
+
+  if (normalizedError.code === "UNKNOWN_ERROR") {
+    await reportUnknownCliError(error, {
+      command: requestedCommand(cliArgv),
+      errorCode: normalizedError.code,
+    });
+  }
 });

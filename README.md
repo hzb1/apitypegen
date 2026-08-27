@@ -327,6 +327,24 @@ ts-swagger search --type config --url <url> --keyword order --limit 20 --format 
 
 ## 9. GlitchTip sourcemap
 
+### 9.1 CLI 匿名错误上报
+
+CLI 的匿名错误上报默认关闭，显式开启后会发送至内置的独立 `ts-swagger-cli` 项目：
+
+```bash
+TS_SWAGGER_TELEMETRY=1 ts-swagger gen \
+  --type openapi \
+  --url https://example.com/openapi.json
+```
+
+设置 `DO_NOT_TRACK=1` 会覆盖上述配置并禁止上报。私有部署或本地接收测试可以通过 `TS_SWAGGER_GLITCHTIP_DSN` 覆盖内置 DSN。CLI 只上报无法归类的 `UNKNOWN_ERROR`，不会上报参数错误、API 未找到、来源超时等预期失败；上报事件仅保留 CLI release、已知命令名、错误码、Node 主版本、操作系统、架构和脱敏堆栈。Swagger URL、认证信息、OpenAPI 内容、生成结果、搜索关键词、用户目录、请求、用户上下文、面包屑及额外数据不会发送。
+
+GlitchTip SDK 仅在显式开启且发生未知异常时动态加载。事件发送失败或 750ms 内无法完成刷新时，不会改变 CLI 的 stdout、stderr 或退出码。DSN 只用于接收事件，不要把 `SENTRY_AUTH_TOKEN` 放入 CLI 环境或 npm 包；API Token 仍仅用于 CI/CD 上传 sourcemap。
+
+CLI release 使用根目录 `package.json` 的版本并标记为 `ts-swagger@<version>`。CLI 与 UI 应使用不同的 GlitchTip 项目和 sourcemap 发布任务，避免当前根包与 `ui/package.json` 的版本及事件类型互相混淆。
+
+### 9.2 UI sourcemap
+
 UI 生产构建会在 `ui/dist` 中生成 sourcemap。首次使用前需安装 `@sentry/cli`，并准备好 GlitchTip API token：
 
 ```bash
