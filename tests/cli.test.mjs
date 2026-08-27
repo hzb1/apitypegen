@@ -127,6 +127,31 @@ test("省略命令时默认执行 gen", () => {
   assert.doesNotMatch(result.stdout, /ts-swagger 命令行工具/);
 });
 
+test("JSON 模式使用版本化失败协议", () => {
+  const result = runCli(["--no-interactive", "--format", "json"]);
+
+  assert.equal(result.status, 1);
+  assert.equal(result.stderr, "");
+  const output = JSON.parse(result.stdout);
+  assert.equal(output.schemaVersion, 1);
+  assert.equal(output.ok, false);
+  assert.equal(output.command, "gen");
+  assert.equal(output.error.code, "INVALID_ARGUMENT");
+  assert.match(output.error.message, /缺少来源/);
+});
+
+test("JSON 模式为已删除命令返回稳定错误码", () => {
+  const result = runCli(["services", "--format", "json"]);
+
+  assert.equal(result.status, 1);
+  assert.equal(result.stderr, "");
+  const output = JSON.parse(result.stdout);
+  assert.equal(output.schemaVersion, 1);
+  assert.equal(output.ok, false);
+  assert.equal(output.command, "services");
+  assert.equal(output.error.code, "INVALID_COMMAND");
+});
+
 test("多服务默认全部加载，--service 仅作为过滤器", async () => {
   const requests = [];
   let baseUrl = "";
@@ -189,6 +214,10 @@ test("多服务默认全部加载，--service 仅作为过滤器", async () => {
       );
       return;
     }
+    if (requestUrl === "/invalid-openapi") {
+      response.end(JSON.stringify({ paths: {} }));
+      return;
+    }
     const document = documents[requestUrl];
     if (document) {
       response.end(JSON.stringify(document));
@@ -214,11 +243,71 @@ test("多服务默认全部加载，--service 仅作为过滤器", async () => {
     assert.equal(searchResult.status, 0, searchResult.stderr);
     assert.match(searchResult.stderr, /正在加载 2 个服务/);
     const searchOutput = JSON.parse(searchResult.stdout);
-    assert.equal(searchOutput.count, 2);
+    assert.equal(searchOutput.schemaVersion, 1);
+    assert.equal(searchOutput.ok, true);
+    assert.equal(searchOutput.command, "search");
+    assert.deepEqual(searchOutput.warnings, []);
+    assert.equal(searchOutput.data.total, 2);
+    assert.equal(searchOutput.data.returned, 2);
+    assert.equal(searchOutput.data.limit, 20);
     assert.deepEqual(
-      searchOutput.items.map((item) => item.service),
+      searchOutput.data.items.map((item) => item.service),
       ["service-a", "service-b"],
     );
+    assert.deepEqual(searchOutput.data.items[0].selector, {
+      service: "service-a",
+      method: "get",
+      path: "/users",
+    });
+
+    const limitedSearchResult = await runCliAsync([
+      "search",
+      ...commonArgs,
+      "--keyword",
+      "shared-search",
+      "--limit",
+      "1",
+      "--format",
+      "json",
+    ]);
+    assert.equal(limitedSearchResult.status, 0, limitedSearchResult.stderr);
+    const limitedSearchOutput = JSON.parse(limitedSearchResult.stdout);
+    assert.equal(limitedSearchOutput.data.total, 2);
+    assert.equal(limitedSearchOutput.data.returned, 1);
+    assert.equal(limitedSearchOutput.data.items.length, 1);
+
+    const invalidLimitResult = await runCliAsync([
+      "search",
+      ...commonArgs,
+      "--keyword",
+      "shared-search",
+      "--limit",
+      "0",
+      "--format",
+      "json",
+    ]);
+    assert.equal(invalidLimitResult.status, 1);
+    const invalidLimitOutput = JSON.parse(invalidLimitResult.stdout);
+    assert.equal(invalidLimitOutput.error.code, "INVALID_ARGUMENT");
+    assert.equal(invalidLimitOutput.error.details.option, "limit");
+
+    const invalidOpenApiResult = await runCliAsync([
+      "gen",
+      "--type",
+      "openapi",
+      "--url",
+      `${baseUrl}/invalid-openapi`,
+      "--method",
+      "get",
+      "--path",
+      "/health",
+      "--no-interactive",
+      "--format",
+      "json",
+    ]);
+    assert.equal(invalidOpenApiResult.status, 1);
+    const invalidOpenApiOutput = JSON.parse(invalidOpenApiResult.stdout);
+    assert.equal(invalidOpenApiOutput.error.code, "OPENAPI_INVALID");
 
     const genResult = await runCliAsync([
       ...commonArgs,
@@ -230,7 +319,16 @@ test("多服务默认全部加载，--service 仅作为过滤器", async () => {
       "json",
     ]);
     assert.equal(genResult.status, 0, genResult.stderr);
-    assert.equal(JSON.parse(genResult.stdout).service, "service-b");
+    const genOutput = JSON.parse(genResult.stdout);
+    assert.equal(genOutput.schemaVersion, 1);
+    assert.equal(genOutput.ok, true);
+    assert.equal(genOutput.command, "gen");
+    assert.equal(genOutput.data.service, "service-b");
+    assert.deepEqual(genOutput.data.selector, {
+      service: "service-b",
+      method: "post",
+      path: "/orders",
+    });
 
     const ambiguousResult = await runCliAsync([
       "gen",
@@ -243,8 +341,11 @@ test("多服务默认全部加载，--service 仅作为过滤器", async () => {
       "json",
     ]);
     assert.equal(ambiguousResult.status, 1);
-    assert.match(ambiguousResult.stderr, /多个服务中存在 API GET \/health/);
-    assert.match(ambiguousResult.stderr, /--service <name>/);
+    const ambiguousOutput = JSON.parse(ambiguousResult.stdout);
+    assert.equal(ambiguousOutput.ok, false);
+    assert.equal(ambiguousOutput.error.code, "AMBIGUOUS_API");
+    assert.equal(ambiguousOutput.error.details.candidates.length, 2);
+    assert.match(ambiguousOutput.error.message, /--service <name>/);
 
     requests.length = 0;
     const filteredResult = await runCliAsync([
@@ -258,7 +359,7 @@ test("多服务默认全部加载，--service 仅作为过滤器", async () => {
       "json",
     ]);
     assert.equal(filteredResult.status, 0, filteredResult.stderr);
-    assert.equal(JSON.parse(filteredResult.stdout).count, 1);
+    assert.equal(JSON.parse(filteredResult.stdout).data.total, 1);
     assert.ok(requests.includes("/service-a"));
     assert.ok(!requests.includes("/service-b"));
   } finally {

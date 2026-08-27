@@ -209,7 +209,62 @@ CLI 只支持三种明确来源：
 
 CLI 不会枚举、探测或猜测 OpenAPI 地址。`ui` 模式需要系统 Chrome；非标准安装位置可使用 `--chrome-path` 或 `TS_SWAGGER_CHROME_PATH` 指定。
 
-### 8.4 服务参数行为
+### 8.4 面向 AI 的 JSON 协议
+
+`search` 和 `gen` 使用 `--format json` 时统一输出 `schemaVersion: 1` 的协议对象。成功和失败都写入 `stdout`，运行日志只写入 `stderr`；失败时进程退出码仍为 `1`。
+
+```bash
+ts-swagger search --type config --url <url> --keyword order --limit 20 --format json
+```
+
+成功响应：
+
+```json
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "search",
+  "data": {
+    "total": 1,
+    "returned": 1,
+    "limit": 20,
+    "items": [
+      {
+        "service": "order-service",
+        "method": "post",
+        "path": "/order/create",
+        "selector": {
+          "service": "order-service",
+          "method": "post",
+          "path": "/order/create"
+        }
+      }
+    ]
+  },
+  "warnings": []
+}
+```
+
+失败响应：
+
+```json
+{
+  "schemaVersion": 1,
+  "ok": false,
+  "command": "gen",
+  "error": {
+    "code": "AMBIGUOUS_API",
+    "message": "多个服务中存在相同 API",
+    "details": {
+      "candidates": []
+    }
+  }
+}
+```
+
+搜索默认返回前 20 条结果，`--limit` 支持 `1` 到 `100`。结果按照 path、operationId、summary、tag、description 的匹配优先级排序，同分结果使用服务名、path、method 和 operationId 保持稳定顺序。AI 应直接读取搜索项中的 `selector` 调用 `gen`，不要从展示文本中重新提取参数。
+
+### 8.5 服务参数行为
 
 - `services` 命令已移除；服务列表仅作为内部加载信息，不再要求用户先查看或选择。
 - `search` 和 `gen` 默认并发加载全部服务的 OpenAPI 文档，不再先让用户选择服务。
@@ -218,7 +273,7 @@ CLI 不会枚举、探测或猜测 OpenAPI 地址。`ui` 模式需要系统 Chro
 - 多个服务存在相同的 `method + path` 时，交互终端会让用户从带服务名的 API 项中选择；非交互模式需要通过 `--service` 消除歧义。
 - 同时加载多个服务时最多并发请求 4 个 OpenAPI 文档。
 
-### 8.5 gen 交互行为
+### 8.6 gen 交互行为
 
 - 在交互终端中执行 `ts-swagger gen`，可不传 `--type` / `--url` / `--method` / `--path`，CLI 会逐步提问。
 - 先选择 `Swagger UI / Knife4j 页面`、`OpenAPI JSON` 或 `swagger-config JSON`，再输入对应地址。

@@ -31,6 +31,123 @@ import { SwaggerToTS, type GeneratedTypes, type GeneratorOptions } from "../core
  */
 type CliCommand = "search" | "gen";
 
+/**
+ * CLI JSON 协议使用的稳定错误码。
+ *
+ * - `INVALID_COMMAND`：命令不存在或已经删除。
+ * - `INVALID_ARGUMENT`：命令参数缺失、冲突或取值无效。
+ * - `SOURCE_LOAD_FAILED`：无法读取用户指定的文档来源。
+ * - `SOURCE_TIMEOUT`：读取文档来源或浏览器发现超时。
+ * - `OPENAPI_INVALID`：响应内容不是有效的 OpenAPI 文档。
+ * - `SWAGGER_CONFIG_INVALID`：响应内容不是有效的 swagger-config。
+ * - `CHROME_NOT_FOUND`：UI 模式无法找到可用的系统 Chrome。
+ * - `SERVICE_NOT_FOUND`：未找到用户指定的服务或文档。
+ * - `SERVICE_LOAD_FAILED`：指定服务的 OpenAPI 文档加载失败。
+ * - `API_NOT_FOUND`：已加载文档中不存在指定 API。
+ * - `AMBIGUOUS_API`：多个服务中存在相同的 API 标识。
+ * - `CLIPBOARD_FAILED`：生成结果无法写入系统剪贴板。
+ * - `UNKNOWN_ERROR`：无法归类的内部错误。
+ */
+type CliErrorCode =
+  | "INVALID_COMMAND"
+  | "INVALID_ARGUMENT"
+  | "SOURCE_LOAD_FAILED"
+  | "SOURCE_TIMEOUT"
+  | "OPENAPI_INVALID"
+  | "SWAGGER_CONFIG_INVALID"
+  | "CHROME_NOT_FOUND"
+  | "SERVICE_NOT_FOUND"
+  | "SERVICE_LOAD_FAILED"
+  | "API_NOT_FOUND"
+  | "AMBIGUOUS_API"
+  | "CLIPBOARD_FAILED"
+  | "UNKNOWN_ERROR";
+
+/** CLI JSON 协议中的警告项。 */
+type CliProtocolWarning = {
+  /** 供调用方稳定判断警告类型的代码。 */
+  code: string;
+
+  /** 面向用户展示的警告说明。 */
+  message: string;
+
+  /** 与警告相关的可选结构化信息。 */
+  details?: unknown;
+};
+
+/** CLI JSON 协议的成功响应。 */
+type CliProtocolSuccess<T> = {
+  /** JSON 协议版本。 */
+  schemaVersion: 1;
+
+  /** 表示命令执行成功。 */
+  ok: true;
+
+  /** 实际执行的 CLI 命令。 */
+  command: CliCommand;
+
+  /** 命令返回的结构化数据。 */
+  data: T;
+
+  /** 未阻止命令成功的警告列表。 */
+  warnings: CliProtocolWarning[];
+};
+
+/** CLI JSON 协议中的错误内容。 */
+type CliProtocolErrorDetail = {
+  /** 供 AI 或脚本稳定判断错误类型的代码。 */
+  code: CliErrorCode;
+
+  /** 面向用户展示的错误说明。 */
+  message: string;
+
+  /** 与错误相关的可选结构化信息。 */
+  details?: unknown;
+};
+
+/** CLI JSON 协议的失败响应。 */
+type CliProtocolFailure = {
+  /** JSON 协议版本。 */
+  schemaVersion: 1;
+
+  /** 表示命令执行失败。 */
+  ok: false;
+
+  /** 用户请求执行的命令；省略命令时为 gen。 */
+  command: string;
+
+  /** 可供程序稳定处理的错误内容。 */
+  error: CliProtocolErrorDetail;
+};
+
+/** 搜索结果传递给 gen 命令时使用的 API 选择器。 */
+type ApiSelector = {
+  /** API 所属服务的名称。 */
+  service: string;
+
+  /** API 使用的 HTTP 方法。 */
+  method: ApiItem["method"];
+
+  /** API 在 OpenAPI 文档中的路径。 */
+  path: string;
+};
+
+/**
+ * search 命令支持的输出格式。
+ *
+ * - `text`：输出便于人工阅读的文本。
+ * - `json`：输出版本化的 JSON 协议对象。
+ */
+type SearchOutputFormat = "text" | "json";
+
+/**
+ * gen 命令支持的输出格式。
+ *
+ * - `ts`：直接输出生成的 TypeScript 代码。
+ * - `json`：输出包含代码与结构化分段的 JSON 协议对象。
+ */
+type GenOutputFormat = "ts" | "json";
+
 /** CLI 参数解析结果中的选项集合。 */
 type CliOptions = {
   /** 未归属到选项的普通参数。 */
@@ -124,6 +241,22 @@ type PartialSourceInput = {
   url?: string;
 };
 
+/** 携带稳定错误码和结构化详情的 CLI 错误。 */
+class CliProtocolError extends Error {
+  /** 供 AI 或脚本判断错误类型的稳定代码。 */
+  readonly code: CliErrorCode;
+
+  /** 与错误相关的可选结构化信息。 */
+  readonly details?: unknown;
+
+  constructor(code: CliErrorCode, message: string, details?: unknown) {
+    super(message);
+    this.name = "CliProtocolError";
+    this.code = code;
+    this.details = details;
+  }
+}
+
 const DEFAULT_CONFIG = {
   generator: {
     indent: 2,
@@ -140,9 +273,12 @@ const API_METHODS = ["get", "post", "put", "delete", "patch"] as const;
 const SOURCE_TYPES: SwaggerSourceType[] = ["ui", "openapi", "config"];
 const MAX_INTERACTIVE_API_CHOICES = 30;
 const SERVICE_LOAD_CONCURRENCY = 4;
+const JSON_SCHEMA_VERSION = 1;
+const DEFAULT_SEARCH_LIMIT = 20;
+const MAX_SEARCH_LIMIT = 100;
 const COMMON_OPTIONS = ["type", "url", "timeout", "chrome-path", "no-interactive", "format"];
 const COMMAND_OPTIONS: Record<CliCommand, Set<string>> = {
-  search: new Set([...COMMON_OPTIONS, "keyword", "service"]),
+  search: new Set([...COMMON_OPTIONS, "keyword", "service", "limit"]),
   gen: new Set([...COMMON_OPTIONS, "method", "path", "service", "copy"]),
 };
 const REMOVED_OPTIONS: Record<string, string> = {
@@ -153,12 +289,101 @@ const REMOVED_OPTIONS: Record<string, string> = {
   version: "直接提供准确的 OpenAPI 或 swagger-config URL",
 };
 
+function writeProtocolSuccess<T>(
+  command: CliCommand,
+  data: T,
+  warnings: CliProtocolWarning[] = [],
+): void {
+  const response: CliProtocolSuccess<T> = {
+    schemaVersion: JSON_SCHEMA_VERSION,
+    ok: true,
+    command,
+    data,
+    warnings,
+  };
+  process.stdout.write(`${JSON.stringify(response, null, 2)}\n`);
+}
+
+function normalizeProtocolError(error: unknown): CliProtocolError {
+  if (error instanceof CliProtocolError) return error;
+
+  const message = error instanceof Error ? error.message : String(error);
+  if (/命令 services 已删除|未知命令/.test(message)) {
+    return new CliProtocolError("INVALID_COMMAND", message);
+  }
+  if (/无法启动系统 Chrome/.test(message)) {
+    return new CliProtocolError("CHROME_NOT_FOUND", message);
+  }
+  if (/请求超时|超时/.test(message)) {
+    return new CliProtocolError("SOURCE_TIMEOUT", message);
+  }
+  if (/不是有效的 OpenAPI\/Swagger JSON/.test(message)) {
+    return new CliProtocolError("OPENAPI_INVALID", message);
+  }
+  if (/不是有效的 swagger-config JSON/.test(message)) {
+    return new CliProtocolError("SWAGGER_CONFIG_INVALID", message);
+  }
+  if (/未找到服务|未找到文档|没有可用服务/.test(message)) {
+    return new CliProtocolError("SERVICE_NOT_FOUND", message);
+  }
+  if (/加载服务/.test(message)) {
+    return new CliProtocolError("SERVICE_LOAD_FAILED", message);
+  }
+  if (/未找到 API|未找到可用 API/.test(message)) {
+    return new CliProtocolError("API_NOT_FOUND", message);
+  }
+  if (/多个服务中存在 API/.test(message)) {
+    return new CliProtocolError("AMBIGUOUS_API", message);
+  }
+  if (/复制到剪贴板失败/.test(message)) {
+    return new CliProtocolError("CLIPBOARD_FAILED", message);
+  }
+  if (
+    /参数|--type|--url|--method|--path|--keyword|--format|--limit|来源配置|缺少来源|配置已删除/.test(
+      message,
+    )
+  ) {
+    return new CliProtocolError("INVALID_ARGUMENT", message);
+  }
+  if (/HTTP \d+|页面已加载|读取 .*失败/.test(message)) {
+    return new CliProtocolError("SOURCE_LOAD_FAILED", message);
+  }
+  return new CliProtocolError("UNKNOWN_ERROR", message);
+}
+
+function createProtocolFailure(command: string, error: unknown): CliProtocolFailure {
+  const normalizedError = normalizeProtocolError(error);
+  return {
+    schemaVersion: JSON_SCHEMA_VERSION,
+    ok: false,
+    command,
+    error: {
+      code: normalizedError.code,
+      message: normalizedError.message,
+      ...(normalizedError.details === undefined ? {} : { details: normalizedError.details }),
+    },
+  };
+}
+
+function requestedCommand(argv: string[]): string {
+  const firstArgument = argv[0];
+  return firstArgument && !firstArgument.startsWith("-") ? firstArgument : "gen";
+}
+
+function wantsJsonOutput(argv: string[]): boolean {
+  return argv.some(
+    (argument, index) =>
+      argument.toLowerCase() === "--format=json" ||
+      (argument === "--format" && String(argv[index + 1] || "").toLowerCase() === "json"),
+  );
+}
+
 function printHelp(): void {
   process.stdout.write(`ts-swagger 命令行工具
 
 用法:
   ts-swagger [gen] [--type <ui|openapi|config>] [--url <url>] [--method <method>] [--path <api-path>] [--service <name>] [--copy] [--format <ts|json>]
-  ts-swagger search --keyword <text> [--type <ui|openapi|config>] [--url <url>] [--service <name>] [--format <text|json>]
+  ts-swagger search --keyword <text> [--type <ui|openapi|config>] [--url <url>] [--service <name>] [--limit <1-100>] [--format <text|json>]
 
 来源类型:
   ui       加载 Swagger UI / Knife4j 页面，读取页面真实发出的 GET 响应
@@ -170,6 +395,8 @@ function printHelp(): void {
   - 来源优先级: --type/--url > TS_SWAGGER_TYPE/TS_SWAGGER_URL > ts-swagger.config.json
   - --type 和 --url 必须成对提供；交互终端会询问缺少的部分
   - search/gen 默认加载全部服务；--service 仅用于过滤指定服务
+  - search 默认返回前 20 条稳定排序结果，可用 --limit 调整（最大 100）
+  - --format json 使用 schemaVersion=1 的稳定成功/失败协议
   - --no-interactive 可在 AI/CI 脚本中禁用所有交互
   - ui 模式需要系统 Chrome，可用 --chrome-path 或 TS_SWAGGER_CHROME_PATH 指定路径
   - CLI 不会探测或猜测任何 OpenAPI / swagger-config 地址
@@ -426,6 +653,38 @@ function serviceDocumentLabel(context: ServiceDocumentContext): string {
   );
 }
 
+function createApiSelector(candidate: ServiceApiCandidate): ApiSelector {
+  return {
+    service: serviceDocumentLabel(candidate.context),
+    method: candidate.api.method,
+    path: candidate.api.path,
+  };
+}
+
+function compareText(left: string, right: string): number {
+  if (left === right) return 0;
+  return left < right ? -1 : 1;
+}
+
+function apiSearchScore(api: ApiItem, keyword: string): number {
+  const query = keyword.trim().toLowerCase();
+  const pathValue = api.path.toLowerCase();
+  const operationId = api.operationId.toLowerCase();
+  const summary = api.summary.toLowerCase();
+  const description = api.description.toLowerCase();
+  const tags = api.tags.join(" ").toLowerCase();
+
+  if (pathValue === query) return 1000;
+  if (operationId === query) return 900;
+  if (summary === query) return 800;
+  if (pathValue.includes(query)) return 600;
+  if (operationId.includes(query)) return 500;
+  if (summary.includes(query)) return 400;
+  if (tags.includes(query)) return 300;
+  if (description.includes(query)) return 200;
+  return 0;
+}
+
 function formatApiChoice(candidate: ServiceApiCandidate): string {
   const summary = candidate.api.summary || candidate.api.description || "";
   return `[${serviceDocumentLabel(candidate.context)}] ${candidate.api.method.toUpperCase()} ${candidate.api.path}${summary ? `  // ${summary}` : ""}`;
@@ -441,9 +700,20 @@ function searchServiceApis(
   documents: ServiceDocumentContext[],
   keyword: string,
 ): ServiceApiCandidate[] {
-  return documents.flatMap((context) =>
+  const candidates = documents.flatMap((context) =>
     searchApis(context.document, keyword).map((api) => ({ context, api })),
   );
+  return candidates.sort((left, right) => {
+    const scoreDifference = apiSearchScore(right.api, keyword) - apiSearchScore(left.api, keyword);
+    if (scoreDifference !== 0) return scoreDifference;
+
+    return (
+      compareText(serviceDocumentLabel(left.context), serviceDocumentLabel(right.context)) ||
+      compareText(left.api.path, right.api.path) ||
+      compareText(left.api.method, right.api.method) ||
+      compareText(left.api.operationId, right.api.operationId)
+    );
+  });
 }
 
 async function pickApiInteractively(
@@ -451,7 +721,9 @@ async function pickApiInteractively(
   documents: ServiceDocumentContext[],
 ): Promise<ServiceApiCandidate> {
   const allApis = collectServiceApis(documents);
-  if (allApis.length === 0) throw new Error("所有已加载文档中均未找到可用 API。");
+  if (allApis.length === 0) {
+    throw new CliProtocolError("API_NOT_FOUND", "所有已加载文档中均未找到可用 API。");
+  }
 
   let keyword = "";
   while (true) {
@@ -540,8 +812,10 @@ async function resolveServiceDocuments(
       ? resolved.documents.filter((item) => item.title === requestedService)
       : resolved.documents;
     if (selectedDocuments.length === 0) {
-      throw new Error(
+      throw new CliProtocolError(
+        "SERVICE_NOT_FOUND",
         `未找到文档 "${requestedService}"。可选文档: ${resolved.documents.map((item) => item.title).join(", ")}`,
+        { requestedService, availableServices: resolved.documents.map((item) => item.title) },
       );
     }
     const services = resolved.documents.map((item) => ({
@@ -560,14 +834,20 @@ async function resolveServiceDocuments(
   }
 
   const services = Array.isArray(resolved.config.urls) ? resolved.config.urls : [];
-  if (services.length === 0) throw new Error(`${resolved.configUrl} 中没有可用服务`);
+  if (services.length === 0) {
+    throw new CliProtocolError("SERVICE_NOT_FOUND", `${resolved.configUrl} 中没有可用服务`, {
+      configUrl: resolved.configUrl,
+    });
+  }
 
   const selectedServices = requestedService
     ? services.filter((item) => item.name === requestedService)
     : services;
   if (selectedServices.length === 0) {
-    throw new Error(
+    throw new CliProtocolError(
+      "SERVICE_NOT_FOUND",
       `未找到服务 "${requestedService}"。可选服务: ${services.map((item) => item.name).join(", ")}`,
+      { requestedService, availableServices: services.map((item) => item.name) },
     );
   }
 
@@ -585,7 +865,11 @@ async function resolveServiceDocuments(
         return { document, documentUrl: service.url, service };
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        throw new Error(`加载服务 "${service.name}" 失败: ${message}`);
+        throw new CliProtocolError(
+          "SERVICE_LOAD_FAILED",
+          `加载服务 "${service.name}" 失败: ${message}`,
+          { service: service.name, documentUrl: service.url },
+        );
       }
     },
   );
@@ -610,9 +894,56 @@ function formatTsOutput(parts: GeneratedTypes): string {
 function ensureMethod(method: string): (typeof API_METHODS)[number] {
   const normalized = String(method || "").trim().toLowerCase();
   if (!API_METHODS.includes(normalized as (typeof API_METHODS)[number])) {
-    throw new Error(`无效的 --method "${method}"。可选值: ${API_METHODS.join(", ")}`);
+    throw new CliProtocolError(
+      "INVALID_ARGUMENT",
+      `无效的 --method "${method}"。可选值: ${API_METHODS.join(", ")}`,
+      { option: "method", allowedValues: API_METHODS },
+    );
   }
   return normalized as (typeof API_METHODS)[number];
+}
+
+function ensureSearchLimit(options: CliOptions): number {
+  const value = options.limit;
+  if (value === undefined) return DEFAULT_SEARCH_LIMIT;
+  if (typeof value !== "string" || !/^\d+$/.test(value)) {
+    throw new CliProtocolError(
+      "INVALID_ARGUMENT",
+      `--limit 必须是 1 到 ${MAX_SEARCH_LIMIT} 之间的整数`,
+      { option: "limit", min: 1, max: MAX_SEARCH_LIMIT },
+    );
+  }
+
+  const limit = Number.parseInt(value, 10);
+  if (limit < 1 || limit > MAX_SEARCH_LIMIT) {
+    throw new CliProtocolError(
+      "INVALID_ARGUMENT",
+      `--limit 必须是 1 到 ${MAX_SEARCH_LIMIT} 之间的整数`,
+      { option: "limit", value: limit, min: 1, max: MAX_SEARCH_LIMIT },
+    );
+  }
+  return limit;
+}
+
+function ensureSearchOutputFormat(options: CliOptions): SearchOutputFormat {
+  const value = options.format;
+  if (value === undefined) return "text";
+  if (value === "text" || value === "json") return value;
+  throw new CliProtocolError(
+    "INVALID_ARGUMENT",
+    `search 的 --format 仅支持 text 或 json，当前值: ${String(value)}`,
+    { option: "format", allowedValues: ["text", "json"] },
+  );
+}
+
+function ensureGenOutputFormat(value: unknown): GenOutputFormat {
+  if (value === undefined || value === "") return "ts";
+  if (value === "ts" || value === "json") return value;
+  throw new CliProtocolError(
+    "INVALID_ARGUMENT",
+    `gen 的 --format 仅支持 ts 或 json，当前值: ${String(value)}`,
+    { option: "format", allowedValues: ["ts", "json"] },
+  );
 }
 
 function copyToClipboard(text: string): boolean {
@@ -649,39 +980,44 @@ async function runSearchCommand(
   options: CliOptions,
 ): Promise<void> {
   const keyword = getStringOption(options, "keyword").trim();
-  if (!keyword) throw new Error("缺少必填参数: --keyword");
+  if (!keyword) {
+    throw new CliProtocolError("INVALID_ARGUMENT", "缺少必填参数: --keyword", {
+      requiredOptions: ["keyword"],
+    });
+  }
+  const outputFormat = ensureSearchOutputFormat(options);
+  const limit = ensureSearchLimit(options);
   const collection = await resolveServiceDocuments(resolved, options, settings.timeoutMs);
   const results = searchServiceApis(collection.documents, keyword);
+  const returnedResults = results.slice(0, limit);
 
-  if (getStringOption(options, "format") === "json") {
-    process.stdout.write(
-      `${JSON.stringify(
-        {
-          host: sourceOrigin(source),
-          service: getStringOption(options, "service") || null,
-          services: collection.services,
-          keyword,
-          count: results.length,
-          items: results.map((item) => ({
-            service: serviceDocumentLabel(item.context),
-            documentUrl: item.context.documentUrl,
-            ...item.api,
-          })),
-        },
-        null,
-        2,
-      )}\n`,
-    );
+  if (outputFormat === "json") {
+    writeProtocolSuccess("search", {
+      host: sourceOrigin(source),
+      service: getStringOption(options, "service") || null,
+      services: collection.services,
+      keyword,
+      total: results.length,
+      returned: returnedResults.length,
+      limit,
+      items: returnedResults.map((item) => ({
+        service: serviceDocumentLabel(item.context),
+        documentUrl: item.context.documentUrl,
+        ...item.api,
+        selector: createApiSelector(item),
+      })),
+    });
     return;
   }
 
   process.stdout.write(`关键词: ${keyword}\n`);
   process.stdout.write(`已加载服务/文档: ${collection.documents.length}\n`);
+  process.stdout.write(`匹配结果: ${results.length}，显示: ${returnedResults.length}\n`);
   if (results.length === 0) {
     process.stdout.write("未匹配到 API。\n");
     return;
   }
-  results.forEach((item) => {
+  returnedResults.forEach((item) => {
     process.stdout.write(`${formatApiChoice(item)}\n`);
   });
 }
@@ -693,6 +1029,8 @@ async function runGenCommand(
   options: CliOptions,
   prompt: readline.Interface | null,
 ): Promise<void> {
+  let outputFormat: GenOutputFormat | undefined =
+    options.format === undefined ? undefined : ensureGenOutputFormat(options.format);
   const collection = await resolveServiceDocuments(resolved, options, settings.timeoutMs);
   let method = getStringOption(options, "method")
     ? ensureMethod(getStringOption(options, "method"))
@@ -706,8 +1044,16 @@ async function runGenCommand(
     pathValue = selectedCandidate.api.path;
     process.stderr.write(`已选择 API: ${formatApiChoice(selectedCandidate)}\n`);
   }
-  if (!method) throw new Error("缺少必填参数: --method");
-  if (!pathValue) throw new Error("缺少必填参数: --path");
+  if (!method) {
+    throw new CliProtocolError("INVALID_ARGUMENT", "缺少必填参数: --method", {
+      requiredOptions: ["method", "path"],
+    });
+  }
+  if (!pathValue) {
+    throw new CliProtocolError("INVALID_ARGUMENT", "缺少必填参数: --path", {
+      requiredOptions: ["method", "path"],
+    });
+  }
 
   if (!selectedCandidate) {
     const matchedCandidates = collection.documents.flatMap((context) => {
@@ -721,7 +1067,17 @@ async function runGenCommand(
       const methodTips = pathCandidates.length
         ? ` 该 path 可用方法: ${[...new Set(pathCandidates.map((item) => item.api.method.toUpperCase()))].join(", ")}`
         : "";
-      throw new Error(`未找到 API: ${method.toUpperCase()} ${pathValue}.${methodTips}`);
+      throw new CliProtocolError(
+        "API_NOT_FOUND",
+        `未找到 API: ${method.toUpperCase()} ${pathValue}.${methodTips}`,
+        {
+          method,
+          path: pathValue,
+          availableMethods: [
+            ...new Set(pathCandidates.map((item) => item.api.method)),
+          ],
+        },
+      );
     }
     if (matchedCandidates.length === 1) {
       selectedCandidate = matchedCandidates[0];
@@ -733,21 +1089,26 @@ async function runGenCommand(
         formatApiChoice,
       );
     } else {
-      throw new Error(
+      throw new CliProtocolError(
+        "AMBIGUOUS_API",
         `多个服务中存在 API ${method.toUpperCase()} ${pathValue}，请使用 --service <name> 指定服务。可选服务: ${matchedCandidates.map((item) => serviceDocumentLabel(item.context)).join(", ")}`,
+        {
+          candidates: matchedCandidates.map((item) => createApiSelector(item)),
+        },
       );
     }
   }
   const context = selectedCandidate.context;
   const matchedApi = selectedCandidate.api;
 
-  let outputFormat = getStringOption(options, "format").trim().toLowerCase();
   if (!outputFormat && prompt) {
-    outputFormat = await selectByNumber(
-      prompt,
-      "请选择输出格式:",
-      ["ts", "json"],
-      (item) => (item === "ts" ? "TypeScript 代码" : "JSON 结构"),
+    outputFormat = ensureGenOutputFormat(
+      await selectByNumber(
+        prompt,
+        "请选择输出格式:",
+        ["ts", "json"],
+        (item) => (item === "ts" ? "TypeScript 代码" : "JSON 结构"),
+      ),
     );
   }
   if (!outputFormat) outputFormat = "ts";
@@ -761,35 +1122,34 @@ async function runGenCommand(
   const generated = parser.getStructuredTypes(pathValue, method);
   const tsOutput = formatTsOutput(generated);
 
-  if (outputFormat === "json") {
-    process.stdout.write(
-      `${JSON.stringify(
-        {
-          host: sourceOrigin(source),
-          service: context.service?.name || null,
-          documentUrl: context.documentUrl,
-          matchedApi,
-          code: tsOutput,
-          parts: generated,
-        },
-        null,
-        2,
-      )}\n`,
+  if (shouldCopy && !copyToClipboard(tsOutput)) {
+    throw new CliProtocolError(
+      "CLIPBOARD_FAILED",
+      "复制到剪贴板失败（未检测到 pbcopy / wl-copy / xclip / xsel）",
     );
+  }
+
+  if (outputFormat === "json") {
+    writeProtocolSuccess("gen", {
+      host: sourceOrigin(source),
+      service: context.service?.name || null,
+      documentUrl: context.documentUrl,
+      selector: createApiSelector(selectedCandidate),
+      matchedApi,
+      code: tsOutput,
+      parts: generated,
+    });
   } else {
     process.stdout.write(`${tsOutput}\n`);
   }
 
   if (shouldCopy) {
-    if (!copyToClipboard(tsOutput)) {
-      throw new Error("复制到剪贴板失败（未检测到 pbcopy / wl-copy / xclip / xsel）");
-    }
     process.stderr.write("已复制生成的 TypeScript 到剪贴板。\n");
   }
 }
 
-async function main(): Promise<void> {
-  const { command: rawCommand, options } = parseArgv(process.argv.slice(2));
+async function main(argv: string[]): Promise<void> {
+  const { command: rawCommand, options } = parseArgv(argv);
   if (options.help) {
     printHelp();
     return;
@@ -821,8 +1181,15 @@ async function main(): Promise<void> {
   }
 }
 
-void main().catch((error: unknown) => {
-  const message = error instanceof Error ? error.message : String(error);
-  process.stderr.write(`[ts-swagger] ${message}\n`);
-  process.exit(1);
+const cliArgv = process.argv.slice(2);
+void main(cliArgv).catch((error: unknown) => {
+  const normalizedError = normalizeProtocolError(error);
+  if (wantsJsonOutput(cliArgv)) {
+    process.stdout.write(
+      `${JSON.stringify(createProtocolFailure(requestedCommand(cliArgv), normalizedError), null, 2)}\n`,
+    );
+  } else {
+    process.stderr.write(`[ts-swagger] ${normalizedError.message}\n`);
+  }
+  process.exitCode = 1;
 });
