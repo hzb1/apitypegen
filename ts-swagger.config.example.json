@@ -1,6 +1,8 @@
 {
-  "host": "http://localhost:9966",
-  "version": "v3",
+  "source": {
+    "type": "ui",
+    "url": "http://localhost:9999/doc.html#/home"
+  },
   "generator": {
     "indent": 2,
     "useInterface": true,

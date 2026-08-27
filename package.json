@@ -1,6 +1,6 @@
 {
   "name": "ts-swagger",
-  "version": "0.5.2",
+  "version": "0.6.0",
   "private": false,
   "type": "module",
   "bin": {
@@ -11,6 +11,8 @@
     "build": "npm run clean && tsc -p tsconfig.build.json",
     "deploy:extension": "bash scripts/deploy-extension.sh",
     "deploy:ui": "bash scripts/deploy-ui.sh",
+    "test:core": "npm run build && node --test tests/swagger-loader.test.mjs tests/cli.test.mjs",
+    "test:browser": "npm run build && node --test tests/browser-discovery.test.mjs",
     "typecheck:core": "tsc -p tsconfig.build.json --noEmit",
     "prepare": "npm run build",
     "prepack": "npm run build",
@@ -28,5 +30,8 @@
   "devDependencies": {
     "@types/node": "^22.15.30",
     "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "playwright-core": "^1.62.1"
   }
 }

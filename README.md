@@ -130,9 +130,9 @@ nvm use
 
 ```bash
 npm run ts-swagger -- --help
-npm run ts-swagger -- services --host http://localhost:9966
+npm run ts-swagger -- services --type config --url http://localhost:9999/v3/api-docs/swagger-config
 npm run ts-swagger -- gen
-npm run ts-swagger -- gen --host http://localhost:9966 --service 用户服务 --method post --path /api/order/create
+npm run ts-swagger -- gen --type openapi --url http://localhost:9999/job/v3/api-docs --method post --path /api/order/create
 ```
 
 本机日常使用可以通过 `npm link` 注册全局命令：
@@ -140,63 +140,71 @@ npm run ts-swagger -- gen --host http://localhost:9966 --service 用户服务 --
 ```bash
 npm link
 ts-swagger --help
-ts-swagger services --host http://localhost:9966
+ts-swagger services --type config --url http://localhost:9999/v3/api-docs/swagger-config
 ```
 
 发布到 npm 后，可通过全局安装使用：
 
 ```bash
 npm install -g ts-swagger
-ts-swagger gen --host http://localhost:9966 --service 用户服务 --method post --path /api/order/create
+ts-swagger gen --type ui --url http://localhost:9999/doc.html#/home
 ```
 
 ### 8.2 可选配置
 
-`ts-swagger.config.json` 不是必需文件。它适合放本机常用 host 和生成偏好，已被 `.gitignore` 忽略。
+`ts-swagger.config.json` 不是必需文件。它适合保存常用文档来源和生成偏好，已被 `.gitignore` 忽略。
 
-如果希望少传 `--host`，可以参考 `ts-swagger.config.example.json` 新建本地配置：
+可以参考 `ts-swagger.config.example.json` 新建本地配置：
 
 ```json
 {
-  "host": "http://localhost:9966",
-  "version": "v3"
+  "source": {
+    "type": "ui",
+    "url": "http://localhost:9999/doc.html#/home"
+  }
 }
 ```
 
-host 优先级：`--host` > `TS_SWAGGER_HOST` > `ts-swagger.config.json`。
-如果三者都没有，CLI 会直接报错提示。
+来源优先级：`--type/--url` > `TS_SWAGGER_TYPE/TS_SWAGGER_URL` > `ts-swagger.config.json.source`。
+如果均未提供，交互终端会先询问来源类型和地址，非交互终端会直接报错。
 
 也可以不用配置文件，改用环境变量：
 
 ```bash
-export TS_SWAGGER_HOST=http://localhost:9966
+export TS_SWAGGER_TYPE=config
+export TS_SWAGGER_URL=http://localhost:9999/v3/api-docs/swagger-config
 ts-swagger services
 ```
 
 ### 8.3 常用命令
 
 ```bash
-# 交互式生成（人类友好，逐步提问 host/service/api）
+# 交互式生成（逐步选择来源、服务和 API）
 npm run ts-swagger -- gen
 
-# 列出 swagger-config 服务
-npm run ts-swagger -- services --host http://localhost:9966
+# 从 Knife4j / Swagger UI 页面真实网络响应中发现服务
+npm run ts-swagger -- services --type ui --url http://localhost:9999/doc.html#/home
 
-# 搜索接口
-npm run ts-swagger -- search --host http://localhost:9966 --keyword order --service 用户服务
+# 从明确的 swagger-config 搜索接口
+npm run ts-swagger -- search --type config --url http://localhost:9999/v3/api-docs/swagger-config --keyword order --service 用户服务
 
-# 生成 TS（脚本模式，参数完整）
-npm run ts-swagger -- gen --host http://localhost:9966 --method post --path /api/order/create --service 用户服务
+# 从明确的 OpenAPI JSON 生成 TS
+npm run ts-swagger -- gen --type openapi --url http://localhost:9999/job/v3/api-docs --method post --path /api/order/create
 
 # 生成 TS 并复制到剪切板
-npm run ts-swagger -- gen --host http://localhost:9966 --method post --path /api/order/create --service 用户服务 --copy
+npm run ts-swagger -- gen --type openapi --url http://localhost:9999/job/v3/api-docs --method post --path /api/order/create --copy
 
 # 在 AI / CI 中禁用交互（缺参数直接报错）
-npm run ts-swagger -- gen --no-interactive --host http://localhost:9966 --method post --path /api/order/create --service 用户服务
-
-# 直接使用文档 URL（跳过 swagger-config / service）
-npm run ts-swagger -- gen --doc-url http://localhost:3000/docs/json --method post --path /api/showcase/v1/users  --copy
+npm run ts-swagger -- gen --no-interactive --type openapi --url http://localhost:9999/job/v3/api-docs --method post --path /api/order/create
 ```
+
+CLI 只支持三种明确来源：
+
+- `ui`：启动系统 Chrome，加载 Swagger UI / Knife4j 页面，只读取页面真实发出的 GET 响应。
+- `openapi`：地址必须直接返回 OpenAPI / Swagger JSON。
+- `config`：地址必须直接返回 swagger-config JSON。
+
+CLI 不会枚举、探测或猜测 OpenAPI 地址。`ui` 模式需要系统 Chrome；非标准安装位置可使用 `--chrome-path` 或 `TS_SWAGGER_CHROME_PATH` 指定。
 
 ### 8.4 服务参数行为
 
@@ -207,9 +215,9 @@ npm run ts-swagger -- gen --doc-url http://localhost:3000/docs/json --method pos
 
 ### 8.5 gen 交互行为
 
-- 在交互终端中执行 `ts-swagger gen`，可不传 `--host` / `--service` / `--method` / `--path`，CLI 会逐步提问：
-- 先输入来源地址：`OpenAPI doc URL / swagger-config URL / Swagger host`。
-- CLI 会先读取该地址返回的 JSON：如果是 OpenAPI 文档就直接使用；如果是 `swagger-config` 就进入服务选择；如果不是 JSON 文档，再把它当作 host 探测常见 `swagger-config` 路径。
+- 在交互终端中执行 `ts-swagger gen`，可不传 `--type` / `--url` / `--service` / `--method` / `--path`，CLI 会逐步提问。
+- 先选择 `Swagger UI / Knife4j 页面`、`OpenAPI JSON` 或 `swagger-config JSON`，再输入对应地址。
+- UI 来源通过系统 Chrome 读取页面真实 GET 响应，不会检查页面源码或尝试候选路径。
 - 若来源是 swagger-config 且服务多于一个，会提示选择服务。
 - 然后通过关键词筛选并选择接口。
 - 最后可选择输出格式（TypeScript / JSON）及是否复制到剪贴板。
