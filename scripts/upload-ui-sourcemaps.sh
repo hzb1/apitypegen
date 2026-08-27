@@ -14,6 +14,9 @@ if [[ -f "${ROOT_DIR}/.env.glitchtip.local" ]]; then
 fi
 
 RELEASE_NAME="${npm_package_version:?npm_package_version is required}"
+ORGANIZATION="${UI_SENTRY_ORG:-ts-swagger}"
+PROJECT="${UI_SENTRY_PROJECT:-3}"
+URL_PREFIX="${UI_SOURCEMAP_URL_PREFIX:-https://swagger.huzhibin.top/assets/}"
 BATCH_FILE_COUNT="${SOURCEMAP_BATCH_FILE_COUNT:-4}"
 
 fail() {
@@ -34,9 +37,6 @@ fi
 [[ -d "${ASSETS_DIR}" ]] || fail "Assets directory not found: ${ASSETS_DIR}"
 command -v sentry-cli >/dev/null 2>&1 || fail "sentry-cli is not available"
 [[ -n "${SENTRY_URL:-}" ]] || fail "SENTRY_URL is required; configure .env.glitchtip.local or the CI secret"
-[[ -n "${SENTRY_ORG:-}" ]] || fail "SENTRY_ORG is required; configure .env.glitchtip.local or the CI variable"
-[[ -n "${SENTRY_PROJECT:-}" ]] || fail "SENTRY_PROJECT is required; configure .env.glitchtip.local or the CI variable"
-[[ -n "${SOURCEMAP_URL_PREFIX:-}" ]] || fail "SOURCEMAP_URL_PREFIX is required; configure .env.glitchtip.local or the CI variable"
 [[ -n "${SENTRY_AUTH_TOKEN:-}" ]] || fail "SENTRY_AUTH_TOKEN is required; configure .env.glitchtip.local or the CI secret"
 
 files=()
@@ -62,11 +62,11 @@ for ((batch_start = 0; batch_start < total_files; batch_start += BATCH_FILE_COUN
     "${batch_number}" "$((batch_start + 1))" "${batch_end}" "${total_files}"
 
   SENTRY_URL="${SENTRY_URL}" sentry-cli releases \
-    --org "${SENTRY_ORG}" \
-    --project "${SENTRY_PROJECT}" \
+    --org "${ORGANIZATION}" \
+    --project "${PROJECT}" \
     files "${RELEASE_NAME}" upload-sourcemaps \
     "${batch[@]}" \
-    --url-prefix "${SOURCEMAP_URL_PREFIX}"
+    --url-prefix "${URL_PREFIX}"
 done
 
 printf '[sourcemaps] Uploaded %d file(s) in %d batch(es) for release %s\n' \

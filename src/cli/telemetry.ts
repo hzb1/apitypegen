@@ -33,6 +33,9 @@ type CliPackageMetadata = {
 const TELEMETRY_FLUSH_TIMEOUT_MS = 750;
 const DEFAULT_GLITCHTIP_DSN =
   "https://dfe44a96f48249fd8e46561ff2df2ce4@monitor.huzhibin.top/2";
+const CLI_DIST_DIRECTORY = fileURLToPath(new URL("../", import.meta.url))
+  .replaceAll("\\", "/")
+  .replace(/\/$/u, "");
 const ENABLED_VALUES = new Set(["1", "true"]);
 const ALLOWED_TAGS = new Set([
   "command",
@@ -77,21 +80,51 @@ export function redactTelemetryText(value: string): string {
     .replace(/\b[a-z]:\\(?:[^\\\s:),]+\\)+[^\\\s:),]*/giu, "<path>");
 }
 
+/** 将文件 URL 或本机路径归一化为便于比较的斜杠路径。 */
+function normalizeLocalStackPath(value: string): string {
+  try {
+    return (value.startsWith("file:") ? fileURLToPath(value) : value).replaceAll("\\", "/");
+  } catch {
+    return value.replaceAll("\\", "/");
+  }
+}
+
+/** 判断单个路径是否位于当前安装的 ts-swagger 编译目录中。 */
+function isCliApplicationPath(value: string | undefined): boolean {
+  if (!value) return false;
+
+  const normalized = normalizeLocalStackPath(value);
+  const comparablePath = process.platform === "win32" ? normalized.toLowerCase() : normalized;
+  const comparableRoot =
+    process.platform === "win32" ? CLI_DIST_DIRECTORY.toLowerCase() : CLI_DIST_DIRECTORY;
+  return comparablePath.startsWith(`${comparableRoot}/`);
+}
+
 /** 将本机堆栈路径转换为不包含用户目录的稳定 artifact 路径。 */
 function sanitizeStackPath(value: string | undefined): string | undefined {
   if (!value) return undefined;
   if (value.startsWith("node:")) return value;
+  if (!isCliApplicationPath(value)) return "<path>";
 
-  const normalized = value.replaceAll("\\", "/");
-  const distIndex = normalized.lastIndexOf("/dist/");
-  if (distIndex >= 0) {
-    return `app://${normalized.slice(distIndex)}`;
-  }
-  return "<path>";
+  const normalized = normalizeLocalStackPath(value);
+  const relativePath = normalized.slice(CLI_DIST_DIRECTORY.length + 1);
+  return `app:///dist/${relativePath}`;
+}
+
+/** 判断堆栈帧是否来自随 npm 包公开发布的 CLI 编译目录。 */
+function isCliApplicationFrame(frame: StackFrame): boolean {
+  return isCliApplicationPath(frame.filename) || isCliApplicationPath(frame.abs_path);
+}
+
+/** 清理公开 CLI 源码帧中用于定位问题的单行代码。 */
+function sanitizeSourceLine(value: string): string {
+  return redactTelemetryText(value);
 }
 
 /** 清理异常堆栈中的单个调用帧。 */
 function sanitizeStackFrame(frame: StackFrame): StackFrame {
+  const isApplicationFrame = isCliApplicationFrame(frame);
+
   return {
     filename: sanitizeStackPath(frame.filename),
     abs_path: sanitizeStackPath(frame.abs_path),
@@ -101,6 +134,16 @@ function sanitizeStackFrame(frame: StackFrame): StackFrame {
     lineno: frame.lineno,
     colno: frame.colno,
     in_app: frame.in_app,
+    context_line:
+      isApplicationFrame && frame.context_line
+        ? sanitizeSourceLine(frame.context_line)
+        : undefined,
+    pre_context: isApplicationFrame
+      ? frame.pre_context?.map(sanitizeSourceLine)
+      : undefined,
+    post_context: isApplicationFrame
+      ? frame.post_context?.map(sanitizeSourceLine)
+      : undefined,
   };
 }
 
@@ -170,7 +213,9 @@ function readCliVersion(): string | undefined {
 
 /** 将任意用户命令归一化为低基数、不可识别用户输入的标签。 */
 function normalizeCommandTag(command: string): string {
-  return command === "search" || command === "gen" ? command : "unknown";
+  return command === "search" || command === "gen" || command === "telemetry-test"
+    ? command
+    : "unknown";
 }
 
 /**
@@ -182,8 +227,8 @@ export async function reportUnknownCliError(
   error: unknown,
   context: CliTelemetryContext,
   environment: CliTelemetryEnvironment = process.env,
-): Promise<void> {
-  if (!isCliTelemetryEnabled(environment)) return;
+): Promise<boolean> {
+  if (!isCliTelemetryEnabled(environment)) return false;
 
   try {
     const Sentry = await import("@sentry/node");
@@ -197,6 +242,10 @@ export async function reportUnknownCliError(
       tracesSampleRate: 0,
       sendDefaultPii: false,
       skipOpenTelemetrySetup: true,
+      integrations: [
+        Sentry.linkedErrorsIntegration({ key: "cause", limit: 3 }),
+        Sentry.contextLinesIntegration({ frameContextLines: 3 }),
+      ],
       beforeSend: sanitizeTelemetryEvent,
     });
     Sentry.captureException(error, {
@@ -208,8 +257,38 @@ export async function reportUnknownCliError(
         arch: process.arch,
       },
     });
-    await Sentry.flush(TELEMETRY_FLUSH_TIMEOUT_MS);
+    return await Sentry.flush(TELEMETRY_FLUSH_TIMEOUT_MS);
   } catch {
     // 遥测属于非关键路径，不得覆盖或污染原始 CLI 错误。
+    return false;
   }
+}
+
+/** 构造一个来自真实 CLI 编译文件且包含 cause 链的诊断测试错误。 */
+function createCliTelemetryTestError(): Error {
+  const cause = new Error("CLI GlitchTip 测试 cause：用于验证异常链展示");
+  return new Error("CLI GlitchTip 诊断测试：用于验证应用堆栈与源码上下文", {
+    cause,
+  });
+}
+
+/**
+ * 显式发送一条 CLI GlitchTip 诊断测试事件。
+ *
+ * `DO_NOT_TRACK` 仍拥有最高优先级，测试环境可以继续覆盖内置 DSN。
+ */
+export async function sendCliTelemetryTestEvent(
+  environment: CliTelemetryEnvironment = process.env,
+): Promise<boolean> {
+  return reportUnknownCliError(
+    createCliTelemetryTestError(),
+    {
+      command: "telemetry-test",
+      errorCode: "UNKNOWN_ERROR",
+    },
+    {
+      ...environment,
+      TS_SWAGGER_TELEMETRY: "1",
+    },
+  );
 }

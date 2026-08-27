@@ -329,7 +329,7 @@ ts-swagger search --type config --url <url> --keyword order --limit 20 --format 
 
 ### 9.1 CLI 匿名错误上报
 
-CLI 的匿名错误上报默认关闭，显式开启后会发送至内置的独立 `ts-swagger-cli` 项目：
+CLI 的匿名错误上报默认关闭，显式开启后会发送至 GlitchTip 的 `ts-swagger/cli` 项目：
 
 ```bash
 TS_SWAGGER_TELEMETRY=1 ts-swagger gen \
@@ -337,15 +337,33 @@ TS_SWAGGER_TELEMETRY=1 ts-swagger gen \
   --url https://example.com/openapi.json
 ```
 
-设置 `DO_NOT_TRACK=1` 会覆盖上述配置并禁止上报。私有部署或本地接收测试可以通过 `TS_SWAGGER_GLITCHTIP_DSN` 覆盖内置 DSN。CLI 只上报无法归类的 `UNKNOWN_ERROR`，不会上报参数错误、API 未找到、来源超时等预期失败；上报事件仅保留 CLI release、已知命令名、错误码、Node 主版本、操作系统、架构和脱敏堆栈。Swagger URL、认证信息、OpenAPI 内容、生成结果、搜索关键词、用户目录、请求、用户上下文、面包屑及额外数据不会发送。
+设置 `DO_NOT_TRACK=1` 会覆盖上述配置并禁止上报。私有部署或本地接收测试可以通过 `TS_SWAGGER_GLITCHTIP_DSN` 覆盖内置 DSN。CLI 只上报无法归类的 `UNKNOWN_ERROR`，不会上报参数错误、API 未找到、来源超时等预期失败；上报事件仅保留 CLI release、已知命令名、错误码、Node 主版本、操作系统、架构、脱敏堆栈、最多 3 层 cause，以及公开 `dist` 应用帧的前后源码行。Swagger URL、认证信息、OpenAPI 内容、生成结果、搜索关键词、用户目录、运行时变量、第三方源码上下文、请求、用户上下文、面包屑及额外数据不会发送。
 
 GlitchTip SDK 仅在显式开启且发生未知异常时动态加载。事件发送失败或 750ms 内无法完成刷新时，不会改变 CLI 的 stdout、stderr 或退出码。DSN 只用于接收事件，不要把 `SENTRY_AUTH_TOKEN` 放入 CLI 环境或 npm 包；API Token 仍仅用于 CI/CD 上传 sourcemap。
 
 CLI release 使用根目录 `package.json` 的版本并标记为 `ts-swagger@<version>`。CLI 与 UI 应使用不同的 GlitchTip 项目和 sourcemap 发布任务，避免当前根包与 `ui/package.json` 的版本及事件类型互相混淆。
 
-### 9.2 UI sourcemap
+需要验证真实函数名、cause 和源码上下文时，可以显式发送一条诊断测试事件。该命令会向真实 `cli` 项目写入一个 Issue，不属于普通本地测试：
 
-UI 生产构建会在 `ui/dist` 中生成 sourcemap。首次使用前需安装 `@sentry/cli`，并准备好 GlitchTip API token：
+```bash
+npm run glitchtip:test:cli
+```
+
+命令成功会输出明确提示；设置 `DO_NOT_TRACK=1` 时会拒绝发送并返回非零退出码。
+
+### 9.2 CLI sourcemap
+
+CLI 构建会为 `dist/**/*.js` 生成带内嵌 TypeScript 源码的 `.js.map`，事件帧统一使用 `app:///dist/...`。在 `.env.glitchtip.local` 中准备 `SENTRY_URL` 和 `SENTRY_AUTH_TOKEN` 后，执行：
+
+```bash
+npm run build:glitchtip:cli
+```
+
+该命令会先构建 CLI，再把 JavaScript 和 sourcemap 上传到默认组织 `ts-swagger`、项目 `cli`，release 为 `ts-swagger@<version>`，artifact 前缀为 `app:///dist`。私有部署可以分别通过 `CLI_SENTRY_ORG`、`CLI_SENTRY_PROJECT` 和 `CLI_SOURCEMAP_URL_PREFIX` 覆盖。
+
+### 9.3 UI sourcemap
+
+UI 生产构建会在 `ui/dist` 中生成 sourcemap，并上传到 GlitchTip 的 `ts-swagger` 组织下“网页应用”项目（ID `3`）。使用项目 ID 可以避免项目 slug 改名影响上传。首次使用前需安装 `@sentry/cli`，并准备好 GlitchTip API token：
 
 ```bash
 npm install --save-dev @sentry/cli
@@ -378,14 +396,14 @@ CI/CD 中不要提交认证信息，应通过 Secret 变量提供：
 
 ```bash
 SENTRY_URL=https://monitor.huzhibin.top \
-SENTRY_ORG=swaggerhuzhibintop \
-SENTRY_PROJECT=swagger \
-SOURCEMAP_URL_PREFIX=https://swagger.huzhibin.top/assets/ \
+UI_SENTRY_ORG=ts-swagger \
+UI_SENTRY_PROJECT=3 \
+UI_SOURCEMAP_URL_PREFIX=https://swagger.huzhibin.top/assets/ \
 SENTRY_AUTH_TOKEN=your-new-api-token \
 npm run build:glitchtip
 ```
 
-上传脚本从 `.env.glitchtip.local` 或 CI 环境变量读取 GlitchTip 地址、组织、项目和静态资源前缀；静态资源 artifact 前缀需要与事件 frame 的 `abs_path` 保持一致。
+上传脚本从 `.env.glitchtip.local` 或 CI 环境变量读取 GlitchTip 地址、Token，以及 UI 专用的 `UI_SENTRY_ORG`、`UI_SENTRY_PROJECT`、`UI_SOURCEMAP_URL_PREFIX`。默认值分别为 `ts-swagger`、`3`、`https://swagger.huzhibin.top/assets/`；`UI_SENTRY_PROJECT` 可以填写项目 ID 或 slug，静态资源 artifact 前缀需要与事件 frame 的 `abs_path` 保持一致。
 
 部署到生产服务器时，sourcemap 会先上传到 GlitchTip，随后只同步 JS/CSS 等运行文件，`.map` 文件不会部署到服务器，以避免暴露源代码。
 

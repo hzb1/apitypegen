@@ -86,10 +86,7 @@ require_cmd sentry-cli
 
 require_env SENTRY_AUTH_TOKEN
 require_env SENTRY_URL
-require_env SENTRY_ORG
-require_env SENTRY_PROJECT
-require_env SOURCEMAP_URL_PREFIX
-export SENTRY_URL SENTRY_ORG SENTRY_PROJECT SOURCEMAP_URL_PREFIX
+export SENTRY_URL SENTRY_AUTH_TOKEN
 
 log "Typechecking UI"
 npm run typecheck

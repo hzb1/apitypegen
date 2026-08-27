@@ -1,12 +1,17 @@
 import assert from "node:assert/strict";
 import http from "node:http";
+import path from "node:path";
 import test from "node:test";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   isCliTelemetryEnabled,
   redactTelemetryText,
   reportUnknownCliError,
   sanitizeTelemetryEvent,
+  sendCliTelemetryTestEvent,
 } from "../dist/cli/telemetry.js";
+
+const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 function listen(server) {
   return new Promise((resolve, reject) => {
@@ -65,6 +70,7 @@ test("遥测文本会清理来源地址、认证信息和用户目录", () => {
 });
 
 test("GlitchTip 事件只保留允许字段并清理堆栈路径", () => {
+  const applicationFramePath = path.join(repositoryRoot, "dist/cli/ts-swagger.js");
   const sanitized = sanitizeTelemetryEvent({
     type: undefined,
     event_id: "event-id",
@@ -93,13 +99,20 @@ test("GlitchTip 事件只保留允许字段并清理堆栈路径", () => {
           stacktrace: {
             frames: [
               {
-                filename: "file:///Users/alice/project/dist/cli/ts-swagger.js",
-                abs_path: "/Users/alice/project/dist/cli/ts-swagger.js",
+                filename: pathToFileURL(applicationFramePath).href,
+                abs_path: applicationFramePath,
                 function: "runGenerator",
                 lineno: 100,
                 colno: 12,
                 context_line: "const token = 'secret'",
                 vars: { token: "secret" },
+              },
+              {
+                filename: "/Users/alice/project/node_modules/dependency/index.js",
+                abs_path: "/Users/alice/project/node_modules/dependency/index.js",
+                function: "externalFunction",
+                lineno: 20,
+                context_line: "const privateExternalValue = 'must be removed'",
               },
             ],
           },
@@ -114,20 +127,29 @@ test("GlitchTip 事件只保留允许字段并清理堆栈路径", () => {
     sanitized.exception?.values?.[0]?.stacktrace?.frames?.[0]?.filename,
     "app:///dist/cli/ts-swagger.js",
   );
+  assert.equal(
+    sanitized.exception?.values?.[0]?.stacktrace?.frames?.[0]?.context_line,
+    "const token=<redacted>",
+  );
+  assert.equal(
+    sanitized.exception?.values?.[0]?.stacktrace?.frames?.[1]?.context_line,
+    undefined,
+  );
   assert.equal(sanitized.tags?.private_tag, undefined);
   assert.doesNotMatch(
     serialized,
-    /private\.example|alice|user@example|breadcrumb|private context|OpenAPI document|developer-macbook|context_line|vars/,
+    /private\.example|alice|user@example|breadcrumb|private context|OpenAPI document|developer-macbook|privateExternalValue|vars/,
   );
 });
 
 test("默认关闭时错误上报直接返回且不影响调用方", async () => {
-  await assert.doesNotReject(
-    reportUnknownCliError(
+  assert.equal(
+    await reportUnknownCliError(
       new Error("本地错误"),
       { command: "gen", errorCode: "UNKNOWN_ERROR" },
       {},
     ),
+    false,
   );
 });
 
@@ -148,29 +170,26 @@ test("实际发送的 GlitchTip envelope 不包含敏感输入", async () => {
   const address = await listen(server);
 
   try {
-    await reportUnknownCliError(
-      new Error(
-        "读取 https://private.example.com/openapi.json?token=secret 失败：/Users/alice/project/private.ts",
-      ),
+    const sent = await sendCliTelemetryTestEvent(
       {
-        command: "private-command",
-        errorCode: "UNKNOWN_ERROR",
-      },
-      {
-        TS_SWAGGER_TELEMETRY: "1",
         TS_SWAGGER_GLITCHTIP_DSN: `http://public@127.0.0.1:${address.port}/1`,
       },
     );
 
+    assert.equal(sent, true);
     assert.equal(requests.length, 1);
     assert.match(requests[0].url, /^\/api\/1\/envelope\//);
     assert.match(requests[0].body, /ts-swagger@0\.6\.0/);
     assert.match(requests[0].body, /UNKNOWN_ERROR/);
-    assert.match(requests[0].body, /<source-url>/);
-    assert.match(requests[0].body, /"command":"unknown"/);
+    assert.match(requests[0].body, /CLI GlitchTip 诊断测试/);
+    assert.match(requests[0].body, /CLI GlitchTip 测试 cause/);
+    assert.match(requests[0].body, /createCliTelemetryTestError/);
+    assert.match(requests[0].body, /app:\/\/\/dist\/cli\/telemetry\.js/);
+    assert.match(requests[0].body, /context_line/);
+    assert.match(requests[0].body, /"command":"telemetry-test"/);
     assert.doesNotMatch(
       requests[0].body,
-      /private\.example|token=secret|alice|private-command/,
+      /\/Users\/|\/home\/|private-command/,
     );
   } finally {
     await close(server);

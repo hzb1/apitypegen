@@ -9,8 +9,11 @@
   "scripts": {
     "clean": "rm -rf dist",
     "build": "npm run clean && tsc -p tsconfig.build.json",
+    "build:glitchtip:cli": "npm run build && npm run sourcemaps:upload:cli",
     "deploy:extension": "bash scripts/deploy-extension.sh",
     "deploy:ui": "bash scripts/deploy-ui.sh",
+    "glitchtip:test:cli": "npm run build && node ./scripts/send-cli-glitchtip-test.mjs",
+    "sourcemaps:upload:cli": "bash scripts/upload-cli-sourcemaps.sh",
     "test:core": "npm run build && node --test tests/swagger-loader.test.mjs tests/openapi-cache.test.mjs tests/cli.test.mjs tests/cli-telemetry.test.mjs",
     "test:browser": "npm run build && node --test tests/browser-discovery.test.mjs",
     "typecheck:core": "tsc -p tsconfig.build.json --noEmit",
@@ -28,6 +31,7 @@
     "ts-swagger.config.example.json"
   ],
   "devDependencies": {
+    "@sentry/cli": "^2.58.6",
     "@types/node": "^22.15.30",
     "typescript": "^5.8.3"
   },
