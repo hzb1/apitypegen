@@ -1,10 +1,10 @@
 import {
-  loadOpenApiDocumentFromUrl,
   loadSwaggerConfigFromUrl,
   normalizeBaseUrl,
   type OpenApiDocument,
   type SwaggerConfig,
 } from "./swagger-loader.js";
+import { loadOpenApiDocumentWithCache } from "./openapi-cache.js";
 
 /**
  * Swagger 文档来源类型。
@@ -66,6 +66,12 @@ export type ResolveSwaggerSourceOptions = {
 
   /** 用户显式指定的系统 Chrome 路径。 */
   chromePath?: string;
+
+  /** OpenAPI 文档缓存有效期。 */
+  cacheTtlMs?: number;
+
+  /** 是否立即向服务端重新校验 OpenAPI 缓存。 */
+  refreshCache?: boolean;
 };
 
 const SOURCE_TYPES: SwaggerSourceType[] = ["ui", "openapi", "config"];
@@ -101,7 +107,11 @@ export async function loadSwaggerSource(
   }
 
   if (normalizedSource.type === "openapi") {
-    const document = await loadOpenApiDocumentFromUrl(normalizedSource.url, options.timeoutMs);
+    const { document } = await loadOpenApiDocumentWithCache(normalizedSource.url, {
+      timeoutMs: options.timeoutMs,
+      ttlMs: options.cacheTtlMs,
+      refresh: options.refreshCache,
+    });
     return {
       kind: "openapi",
       documents: [createCapturedOpenApiDocument(normalizedSource.url, document)],

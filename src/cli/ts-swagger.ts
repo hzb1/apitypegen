@@ -8,7 +8,10 @@ import process, { stdin as input } from "node:process";
 import readline from "node:readline/promises";
 import { collectApis, findApiByPathAndMethod, searchApis, type ApiItem } from "../core/api-index.js";
 import {
-  loadOpenApiDocumentFromUrl,
+  loadOpenApiDocumentWithCache,
+  type OpenApiCacheStatus,
+} from "../core/openapi-cache.js";
+import {
   normalizeBaseUrl,
   type OpenApiDocument,
   type SwaggerServiceConfig,
@@ -202,6 +205,12 @@ type Settings = {
 
   /** 完整的 TypeScript 生成设置。 */
   generator: Required<GeneratorOptions>;
+
+  /** OpenAPI 文档缓存有效期。 */
+  cacheTtlMs: number;
+
+  /** 是否立即向服务端重新校验 OpenAPI 缓存。 */
+  refreshCache: boolean;
 };
 
 /** 已加载服务或文档的生成上下文。 */
@@ -214,6 +223,9 @@ type ServiceDocumentContext = {
 
   /** 文档所属服务；单个直接文档来源时为 null。 */
   service: SwaggerServiceConfig | null;
+
+  /** 文档通过本地缓存加载时的状态。 */
+  cacheStatus?: OpenApiCacheStatus;
 };
 
 /** 单个服务文档加载失败后的结构化信息。 */
@@ -315,7 +327,16 @@ const SERVICE_LOAD_CONCURRENCY = 4;
 const JSON_SCHEMA_VERSION = 1;
 const DEFAULT_SEARCH_LIMIT = 20;
 const MAX_SEARCH_LIMIT = 100;
-const COMMON_OPTIONS = ["type", "url", "timeout", "chrome-path", "no-interactive", "format"];
+const OPENAPI_CACHE_TTL_MS = 5 * 60 * 1000;
+const COMMON_OPTIONS = [
+  "type",
+  "url",
+  "timeout",
+  "chrome-path",
+  "no-interactive",
+  "format",
+  "refresh",
+];
 const COMMAND_OPTIONS: Record<CliCommand, Set<string>> = {
   search: new Set([...COMMON_OPTIONS, "keyword", "service", "limit"]),
   gen: new Set([...COMMON_OPTIONS, "method", "path", "service", "copy"]),
@@ -421,8 +442,8 @@ function printHelp(): void {
   process.stdout.write(`ts-swagger 命令行工具
 
 用法:
-  ts-swagger [gen] [--type <ui|openapi|config>] [--url <url>] [--method <method>] [--path <api-path>] [--service <name>] [--copy] [--format <ts|json>]
-  ts-swagger search --keyword <text> [--type <ui|openapi|config>] [--url <url>] [--service <name>] [--limit <1-100>] [--format <text|json>]
+  ts-swagger [gen] [--type <ui|openapi|config>] [--url <url>] [--method <method>] [--path <api-path>] [--service <name>] [--refresh] [--copy] [--format <ts|json>]
+  ts-swagger search --keyword <text> [--type <ui|openapi|config>] [--url <url>] [--service <name>] [--limit <1-100>] [--refresh] [--format <text|json>]
 
 来源类型:
   ui       加载 Swagger UI / Knife4j 页面，读取页面真实发出的 GET 响应
@@ -436,6 +457,7 @@ function printHelp(): void {
   - search/gen 默认加载全部服务；--service 仅用于过滤指定服务
   - search 默认返回前 20 条稳定排序结果，可用 --limit 调整（最大 100）
   - --format json 使用 schemaVersion=1 的稳定成功/失败协议
+  - OpenAPI 文档默认缓存 5 分钟；--refresh 会立即向服务端重新校验
   - --no-interactive 可在 AI/CI 脚本中禁用所有交互
   - ui 模式需要系统 Chrome，可用 --chrome-path 或 TS_SWAGGER_CHROME_PATH 指定路径
   - CLI 不会探测或猜测任何 OpenAPI / swagger-config 地址
@@ -545,6 +567,13 @@ async function loadUserConfig(cwd: string): Promise<UserConfigLoadResult> {
 
 function resolveSettings(options: CliOptions, userConfig: UserConfig): Settings {
   const timeoutMs = toInt(getStringOption(options, "timeout"), 15000);
+  if (options.refresh !== undefined && options.refresh !== true) {
+    throw new CliProtocolError(
+      "INVALID_ARGUMENT",
+      "--refresh 是布尔开关，不接受参数值",
+      { option: "refresh" },
+    );
+  }
   const chromePath =
     getStringOption(options, "chrome-path") || process.env.TS_SWAGGER_CHROME_PATH || undefined;
   const generator: Required<GeneratorOptions> = {
@@ -554,7 +583,13 @@ function resolveSettings(options: CliOptions, userConfig: UserConfig): Settings 
       userConfig.generator?.typeNameMapper || ((rawName: string): string => rawName),
   };
 
-  return { timeoutMs, chromePath, generator };
+  return {
+    timeoutMs,
+    chromePath,
+    generator,
+    cacheTtlMs: OPENAPI_CACHE_TTL_MS,
+    refreshCache: getBooleanOption(options, "refresh"),
+  };
 }
 
 function isInteractiveAllowed(options: CliOptions): boolean {
@@ -850,10 +885,18 @@ async function mapWithConcurrency<T, R>(
   return results;
 }
 
+function cacheStatusLabel(status?: OpenApiCacheStatus): string {
+  if (status === "hit") return "缓存命中";
+  if (status === "validated") return "缓存已校验";
+  if (status === "refreshed") return "缓存已更新";
+  if (status === "miss") return "网络加载";
+  return "页面响应";
+}
+
 async function resolveServiceDocuments(
   resolved: ResolvedSwaggerSource,
   options: CliOptions,
-  timeoutMs: number,
+  settings: Settings,
 ): Promise<ServiceDocumentCollection> {
   const requestedService = getStringOption(options, "service");
   if (resolved.kind === "openapi") {
@@ -904,20 +947,44 @@ async function resolveServiceDocuments(
   if (selectedServices.length > 1) {
     process.stderr.write(`正在加载 ${selectedServices.length} 个服务的 OpenAPI 文档...\n`);
   }
+  let completedServices = 0;
+  const showDetailedProgress = selectedServices.length > 1;
   const loadResults = await mapWithConcurrency(
     selectedServices,
     SERVICE_LOAD_CONCURRENCY,
     async (service): Promise<ServiceDocumentLoadResult> => {
       const captured = findCapturedDocument(resolved.capturedDocuments, service.url);
       try {
-        const document =
-          captured?.document || (await loadOpenApiDocumentFromUrl(service.url, timeoutMs));
+        const loaded = captured
+          ? { document: captured.document, cacheStatus: undefined }
+          : await loadOpenApiDocumentWithCache(service.url, {
+              timeoutMs: settings.timeoutMs,
+              ttlMs: settings.cacheTtlMs,
+              refresh: settings.refreshCache,
+            });
+        completedServices += 1;
+        if (showDetailedProgress) {
+          process.stderr.write(
+            `[${completedServices}/${selectedServices.length}] ${service.name}：${cacheStatusLabel(loaded.cacheStatus)}\n`,
+          );
+        }
         return {
           kind: "success",
-          context: { document, documentUrl: service.url, service },
+          context: {
+            document: loaded.document,
+            documentUrl: service.url,
+            service,
+            cacheStatus: loaded.cacheStatus,
+          },
         };
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
+        completedServices += 1;
+        if (showDetailedProgress) {
+          process.stderr.write(
+            `[${completedServices}/${selectedServices.length}] ${service.name}：加载失败\n`,
+          );
+        }
         return {
           kind: "failure",
           failure: {
@@ -1066,7 +1133,7 @@ async function runSearchCommand(
   }
   const outputFormat = ensureSearchOutputFormat(options);
   const limit = ensureSearchLimit(options);
-  const collection = await resolveServiceDocuments(resolved, options, settings.timeoutMs);
+  const collection = await resolveServiceDocuments(resolved, options, settings);
   const warnings = createServiceFailureWarnings(collection.failures);
   warnings.forEach((warning) => process.stderr.write(`[ts-swagger] 警告: ${warning.message}\n`));
   const results = searchServiceApis(collection.documents, keyword);
@@ -1117,7 +1184,7 @@ async function runGenCommand(
 ): Promise<void> {
   let outputFormat: GenOutputFormat | undefined =
     options.format === undefined ? undefined : ensureGenOutputFormat(options.format);
-  const collection = await resolveServiceDocuments(resolved, options, settings.timeoutMs);
+  const collection = await resolveServiceDocuments(resolved, options, settings);
   if (collection.failures.length > 0) {
     throw new CliProtocolError(
       "INCOMPLETE_SERVICE_LOAD",

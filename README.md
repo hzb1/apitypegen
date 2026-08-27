@@ -199,6 +199,9 @@ npm run ts-swagger -- gen --type openapi --url http://localhost:9999/job/v3/api-
 
 # 在 AI / CI 中禁用交互（缺参数直接报错）
 npm run ts-swagger -- gen --no-interactive --type openapi --url http://localhost:9999/job/v3/api-docs --method post --path /api/order/create
+
+# 忽略缓存有效期，立即向服务端重新校验文档
+npm run ts-swagger -- search --type config --url http://localhost:9999/v3/api-docs/swagger-config --keyword order --refresh
 ```
 
 CLI 只支持三种明确来源：
@@ -278,7 +281,17 @@ ts-swagger search --type config --url <url> --keyword order --limit 20 --format 
 - 多个服务存在相同的 `method + path` 时，交互终端会让用户从带服务名的 API 项中选择；非交互模式需要通过 `--service` 消除歧义。
 - 同时加载多个服务时最多并发请求 4 个 OpenAPI 文档。
 
-### 8.6 gen 交互行为
+### 8.6 性能与缓存
+
+- OpenAPI 文档默认缓存 5 分钟；有效期内再次执行 `search` 或 `gen` 不会重复下载服务文档。
+- 缓存过期后会优先使用 `ETag` 和 `Last-Modified` 发起条件请求；服务端返回 `304` 时继续使用本地文档。
+- `--refresh` 会跳过 5 分钟有效期并立即向服务端重新校验，但服务端支持条件请求时不必重新传输完整文档。
+- 多服务仍最多并发加载 4 个文档，加载进度和缓存状态只写入 `stderr`，`--format json` 的 `stdout` 保持为单一协议对象。
+- 默认缓存目录为 `$XDG_CACHE_HOME/ts-swagger/openapi`；未配置 `XDG_CACHE_HOME` 时使用 `~/.cache/ts-swagger/openapi`。
+- 缓存文件名只使用来源 URL 的 SHA-256 摘要，缓存元数据不保存原始来源 URL、请求头或鉴权信息；目录和文件权限分别限制为 `0700` 与 `0600`。
+- 缓存目录不可读写或缓存内容损坏时会退回网络加载，不影响 CLI 的正常功能。
+
+### 8.7 gen 交互行为
 
 - 在交互终端中执行 `ts-swagger gen`，可不传 `--type` / `--url` / `--method` / `--path`，CLI 会逐步提问。
 - 先选择 `Swagger UI / Knife4j 页面`、`OpenAPI JSON` 或 `swagger-config JSON`，再输入对应地址。

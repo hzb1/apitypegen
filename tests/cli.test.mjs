@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const cliPath = path.join(repositoryRoot, "dist/cli/ts-swagger.js");
 const emptyCwd = mkdtempSync(path.join(tmpdir(), "ts-swagger-cli-test-"));
+const cacheRoot = mkdtempSync(path.join(tmpdir(), "ts-swagger-cli-cache-test-"));
 
 function runCli(args) {
   return spawnSync(process.execPath, [cliPath, ...args], {
@@ -20,6 +21,7 @@ function runCli(args) {
       TS_SWAGGER_TYPE: "",
       TS_SWAGGER_URL: "",
       TS_SWAGGER_HOST: "",
+      XDG_CACHE_HOME: cacheRoot,
     },
   });
 }
@@ -33,6 +35,7 @@ function runCliAsync(args) {
         TS_SWAGGER_TYPE: "",
         TS_SWAGGER_URL: "",
         TS_SWAGGER_HOST: "",
+        XDG_CACHE_HOME: cacheRoot,
       },
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -284,6 +287,7 @@ test("多服务默认全部加载，--service 仅作为过滤器", async () => {
       path: "/users",
     });
 
+    requests.length = 0;
     const limitedSearchResult = await runCliAsync([
       "search",
       ...commonArgs,
@@ -299,6 +303,9 @@ test("多服务默认全部加载，--service 仅作为过滤器", async () => {
     assert.equal(limitedSearchOutput.data.total, 2);
     assert.equal(limitedSearchOutput.data.returned, 1);
     assert.equal(limitedSearchOutput.data.items.length, 1);
+    assert.ok(requests.includes("/config"));
+    assert.ok(!requests.includes("/service-a"));
+    assert.ok(!requests.includes("/service-b"));
 
     const invalidLimitResult = await runCliAsync([
       "search",
@@ -378,6 +385,7 @@ test("多服务默认全部加载，--service 仅作为过滤器", async () => {
       ...partialArgs,
       "--service",
       "service-a",
+      "--refresh",
       "--method",
       "get",
       "--path",
@@ -453,6 +461,7 @@ test("多服务默认全部加载，--service 仅作为过滤器", async () => {
       "shared-search",
       "--service",
       "service-a",
+      "--refresh",
       "--format",
       "json",
     ]);
