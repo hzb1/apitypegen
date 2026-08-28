@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "npm run dev --workspace=@apitypegen/ui",
     "build": "npm run build --workspaces --if-present",
-    "build:cli": "npm run build --workspace=apitypegen",
+    "build:cli": "npm run build --workspace=@hzb1/apitypegen",
     "build:ui": "npm run build --workspace=@apitypegen/ui",
     "build:extension": "npm run build --workspace=@apitypegen/extension",
     "build:glitchtip:cli": "npm run build:cli && npm run sourcemaps:upload:cli",
@@ -19,9 +19,9 @@
     "glitchtip:test:cli": "npm run build:cli && node ./scripts/send-cli-glitchtip-test.mjs",
     "lint": "npm run lint --workspace=@apitypegen/ui",
     "sourcemaps:upload:cli": "bash scripts/upload-cli-sourcemaps.sh",
-    "test": "npm run test --workspace=apitypegen",
-    "test:browser": "npm run test:browser --workspace=apitypegen",
-    "typecheck": "npm run typecheck --workspace=apitypegen && npm run typecheck --workspace=@apitypegen/ui",
+    "test": "npm run test --workspace=@hzb1/apitypegen",
+    "test:browser": "npm run test:browser --workspace=@hzb1/apitypegen",
+    "typecheck": "npm run typecheck --workspace=@hzb1/apitypegen && npm run typecheck --workspace=@apitypegen/ui",
     "apitypegen": "node ./cli/dist/cli/apitypegen.js"
   },
   "engines": {

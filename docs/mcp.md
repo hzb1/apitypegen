@@ -1,56 +1,174 @@
 # MCP 接入指南
 
-APITypeGen MCP Server 随 CLI 发布，通过 stdio 为 AI 客户端提供接口搜索和 TypeScript 生成工具。
+APITypeGen MCP 让 Codex、Claude Code 根据用户提供的接口文档地址搜索 API，
+并生成 TypeScript 类型。
 
 [返回文档中心](README.md) · [CLI](../cli/README.md) · [常见问题](troubleshooting.md)
 
-## 配置
+## 使用要求
+
+- Node.js 20 或更高版本；
+- 已安装 Codex CLI 或 Claude Code；
+- 只有读取 Swagger UI / Knife4j 页面时才需要系统 Chrome。
+
+检查 Node.js：
 
 ```bash
-npm install -g apitypegen
+node --version
+npx --version
 ```
+
+不需要全局安装 APITypeGen，下面的命令会通过 `npx` 自动下载和启动。
+
+## 在 Codex 中安装
+
+在终端执行：
+
+```bash
+codex mcp add apitypegen -- npx -y @hzb1/apitypegen mcp
+```
+
+检查是否安装成功：
+
+```bash
+codex mcp get apitypegen
+codex mcp list
+```
+
+然后重启 Codex。在对话中输入 `/mcp`，应当能够看到 `apitypegen`。
+
+Codex 会自动把配置保存到 `~/.codex/config.toml`，不需要手工编辑。
+Codex CLI、桌面端和 IDE 扩展共享这份配置。详情见
+[OpenAI 官方 MCP 文档](https://learn.chatgpt.com/docs/extend/mcp?surface=cli)。
+
+## 在 Claude Code 中安装
+
+### 推荐：所有项目都能使用
+
+APITypeGen 是通用的接口类型工具，推荐安装到 Claude Code 的用户作用域：
+
+```bash
+claude mcp add --scope user --transport stdio apitypegen -- npx -y @hzb1/apitypegen mcp
+```
+
+只需配置一次，以后在本机任意项目中打开 Claude Code 都可以使用。
+
+检查是否安装成功：
+
+```bash
+claude mcp get apitypegen
+claude mcp list
+```
+
+然后重启 Claude Code。在对话中输入 `/mcp`，应当能够看到 `apitypegen`。
+
+### 可选：只给当前项目使用
+
+在项目目录中执行：
+
+```bash
+claude mcp add --scope local --transport stdio apitypegen -- npx -y @hzb1/apitypegen mcp
+```
+
+### 可选：让团队共享
+
+在项目根目录执行：
+
+```bash
+claude mcp add --scope project --transport stdio apitypegen -- npx -y @hzb1/apitypegen mcp
+```
+
+Claude Code 会在项目根目录创建或更新 `.mcp.json`。这个文件可以提交到 Git，
+团队成员首次使用时需要确认信任。
+
+详情见 [Claude Code 官方 MCP 文档](https://code.claude.com/docs/en/mcp)。
+
+## JSON 配置应该写在哪里
+
+下面这种配置只适用于 Claude Code 的项目级 `.mcp.json`：
 
 ```json
 {
   "mcpServers": {
     "apitypegen": {
-      "command": "apitypegen",
-      "args": ["mcp"]
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@hzb1/apitypegen", "mcp"]
     }
   }
 }
 ```
 
-客户端找不到命令时，把 `command` 改为可执行文件的绝对路径。
+一般不需要手写它，执行前面的 `claude mcp add --scope project ...` 即可自动生成。
+Codex 使用 TOML 配置，不能把这段 JSON 写入 Codex。
 
-## 工具
+## 如何使用
 
-### `search_apis`
+安装后直接向 AI 描述文档地址和目标接口，例如：
 
-必填：
+```text
+使用 apitypegen，根据下面的 OpenAPI 地址查找“用户详情”接口，
+生成 TypeScript 类型并写入当前项目：
+http://localhost:9999/job/v3/api-docs
+```
 
-- `source`: `{ "type": "ui|openapi|config", "url": "https://..." }`
-- `keyword`: 搜索关键词
+如果提供的是 Swagger UI / Knife4j 页面，请明确说明来源类型：
 
-可选：`service`、`limit`（1–100）、`refresh`、`timeoutMs`、`chromePath`。
+```text
+使用 apitypegen 读取下面的 Swagger UI 页面，搜索“订单查询”接口并生成类型。
+来源类型是 ui：
+http://localhost:9999/doc.html#/home
+```
 
-### `generate_typescript`
+支持三种来源：
 
-必填：`source`、`method`、`path`；多服务有歧义时还需 `service`。工具只返回代码，不写文件或剪贴板。
+| 类型 | 地址 |
+|---|---|
+| `openapi` | OpenAPI 或 Swagger JSON 地址 |
+| `config` | swagger-config JSON 地址 |
+| `ui` | Swagger UI 或 Knife4j 页面地址 |
 
-## 推荐流程
+APITypeGen 不会猜测文档地址。
 
-1. 用户明确提供文档地址。
-2. 调用 `search_apis`。
-3. 原样使用结果中的 `selector` 调用 `generate_typescript`。
+## MCP 工具
 
-不要从展示文本重新解析 selector，也不要猜测文档地址。
+- `search_apis`：搜索接口并返回精确的接口选择器；
+- `generate_typescript`：生成该接口的模型、查询参数、请求体和响应类型。
 
-常见错误：
+AI 的标准调用流程是：
 
-- `AMBIGUOUS_API`：补充 `service`。
-- `API_NOT_FOUND`：重新搜索 selector。
-- `INCOMPLETE_SERVICE_LOAD`：指定服务后重试。
-- `SERVICE_LOAD_FAILED`：检查 URL、网络和超时。
+```text
+search_apis → generate_typescript → 写入当前项目
+```
 
-两个工具均为只读、幂等操作，只访问用户明确提供的 `http` / `https` 地址。
+两个工具均为只读工具。APITypeGen 只返回查询结果和代码，不会自行修改项目文件。
+
+## 常见问题
+
+### 找不到 npm 包
+
+确认包已发布：
+
+```bash
+npm view @hzb1/apitypegen version
+```
+
+### MCP 连接失败
+
+在终端测试能否启动：
+
+```bash
+npx -y @hzb1/apitypegen mcp
+```
+
+正常情况下命令会保持运行并等待 MCP 通信。按 `Ctrl+C` 退出。
+
+### 无法访问 localhost
+
+文档服务必须能被运行 Codex 或 Claude Code 的同一台电脑访问。先确认该地址可以在
+本机浏览器中打开。云端 AI 无法直接访问你电脑的 `localhost`。
+
+### UI 模式无法启动
+
+确认本机已安装 Chrome。如果已经知道 OpenAPI JSON 地址，优先使用 `openapi`，
+这样不需要启动 Chrome。

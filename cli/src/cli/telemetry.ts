@@ -1,7 +1,7 @@
-import { readFileSync } from "node:fs";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import type { ErrorEvent, Event, Exception, StackFrame } from "@sentry/node";
+import { readPackageVersion } from "../package-metadata.js";
 
 /** CLI 遥测上报时允许附带的执行上下文。 */
 export type CliTelemetryContext = {
@@ -28,12 +28,6 @@ export type CliTelemetryEnvironment = {
 
   /** 通用的禁止遥测标记。 */
   DO_NOT_TRACK?: string;
-};
-
-/** CLI package.json 中用于标记 GlitchTip release 的版本信息。 */
-type CliPackageMetadata = {
-  /** 当前发布的 npm 包版本。 */
-  version?: unknown;
 };
 
 const TELEMETRY_FLUSH_TIMEOUT_MS = 750;
@@ -207,11 +201,7 @@ export function sanitizeTelemetryEvent(event: ErrorEvent): ErrorEvent {
 /** 读取当前安装包版本，读取失败时不阻止 CLI 错误输出。 */
 function readCliVersion(): string | undefined {
   try {
-    const packagePath = fileURLToPath(new URL("../../package.json", import.meta.url));
-    const metadata = JSON.parse(readFileSync(packagePath, "utf8")) as CliPackageMetadata;
-    return typeof metadata.version === "string" && metadata.version.trim()
-      ? metadata.version.trim()
-      : undefined;
+    return readPackageVersion();
   } catch {
     return undefined;
   }

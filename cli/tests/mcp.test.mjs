@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import test from "node:test";
@@ -8,6 +9,9 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 
 const cliRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const cliPath = path.join(cliRoot, "dist/cli/apitypegen.js");
+const packageVersion = JSON.parse(
+  readFileSync(path.join(cliRoot, "package.json"), "utf8"),
+).version;
 
 function listen(server) {
   return new Promise((resolve, reject) => {
@@ -69,6 +73,8 @@ test("MCP stdio 暴露搜索和生成工具并返回结构化结果", async () =
     });
     client = new Client({ name: "apitypegen-test", version: "1.0.0" });
     await client.connect(transport);
+
+    assert.equal(client.getServerVersion()?.version, packageVersion);
 
     const tools = await client.listTools();
     assert.deepEqual(

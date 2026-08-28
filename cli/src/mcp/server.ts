@@ -9,6 +9,7 @@ import {
 } from "../application/swagger-commands.js";
 import type { GeneratorOptions } from "../core/swagger-to-ts.js";
 import { CliProtocolError, createProtocolFailure } from "../cli/protocol.js";
+import { readPackageVersion } from "../package-metadata.js";
 
 /**
  * MCP 工具支持的 Swagger 来源类型。
@@ -310,7 +311,10 @@ export async function executeGenerateTypescriptTool(input: GenerateTypescriptToo
 
 /** 创建已经注册 APITypeGen 工具的 MCP Server。 */
 export function createApiTypeGenMcpServer(): McpServer {
-  const server = new McpServer({ name: "apitypegen", version: "0.7.0" });
+  const server = new McpServer({
+    name: "apitypegen",
+    version: readPackageVersion(),
+  });
 
   server.registerTool(
     "search_apis",

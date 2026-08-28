@@ -27,7 +27,7 @@ npm run dev
 ### CLI
 
 ```bash
-npm install -g apitypegen
+npm install -g @hzb1/apitypegen
 apitypegen gen \
   --type openapi \
   --url https://example.com/openapi.json \
@@ -37,16 +37,19 @@ apitypegen gen \
 
 ### MCP Server
 
-```json
-{
-  "mcpServers": {
-    "apitypegen": {
-      "command": "apitypegen",
-      "args": ["mcp"]
-    }
-  }
-}
+Codex：
+
+```bash
+codex mcp add apitypegen -- npx -y @hzb1/apitypegen mcp
 ```
+
+Claude Code：
+
+```bash
+claude mcp add --transport stdio apitypegen -- npx -y @hzb1/apitypegen mcp
+```
+
+配置保存位置、验证方法和使用示例见 [MCP 接入指南](docs/mcp.md)。
 
 ## 来源类型
 

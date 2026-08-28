@@ -9,7 +9,7 @@ CLI 支持从 Swagger UI、OpenAPI JSON 或 `swagger-config` 中搜索接口并�
 ## 安装
 
 ```bash
-npm install -g apitypegen
+npm install -g @hzb1/apitypegen
 apitypegen --help
 ```
 
@@ -106,4 +106,28 @@ CLI 包内置 stdio MCP Server：
 apitypegen mcp
 ```
 
-接入方式见 [MCP 指南](../docs/mcp.md)。匿名错误上报默认关闭；`APITYPEGEN_TELEMETRY=1` 开启，`DO_NOT_TRACK=1` 强制关闭。
+接入 Claude Code：
+
+```bash
+claude mcp add --transport stdio apitypegen -- apitypegen mcp
+claude mcp get apitypegen
+```
+
+接入 Codex：
+
+```bash
+codex mcp add apitypegen -- apitypegen mcp
+codex mcp get apitypegen
+```
+
+接入后可以直接对 AI 说：
+
+```text
+使用 apitypegen，从这个 OpenAPI 地址搜索“订单详情”接口，
+生成 TypeScript 类型并写入 src/api/order.types.ts：
+https://example.com/openapi.json
+```
+
+MCP 提供只读的 `search_apis` 和 `generate_typescript` 工具。完整说明见
+[MCP 指南](../docs/mcp.md)。匿名错误上报默认关闭；`APITYPEGEN_TELEMETRY=1`
+开启，`DO_NOT_TRACK=1` 强制关闭。

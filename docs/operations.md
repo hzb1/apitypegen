@@ -52,3 +52,21 @@ npm run lint
 npm run build
 npm run verify:version --workspace=@apitypegen/extension
 ```
+
+## 发布 CLI 与 MCP Server
+
+CLI 和 MCP Server 使用同一个 `apitypegen` npm 版本与发布包。发布脚本会再次执行
+CLI 类型检查、核心测试和浏览器发现测试；任何一项失败都会阻止发布。
+
+```bash
+npm login --registry=https://registry.npmjs.org
+npm publish --workspace=@hzb1/apitypegen
+```
+
+发布后从 npm registry 重新安装并验证两个入口：
+
+```bash
+npm install -g @hzb1/apitypegen
+apitypegen --help
+apitypegen mcp
+```
