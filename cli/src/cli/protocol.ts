@@ -1,12 +1,14 @@
 import type { ApiItem } from "../core/api-index.js";
+import type { SwaggerSource } from "../core/swagger-source.js";
 
 /**
  * CLI 支持的命令。
  *
+ * - `inspect`：识别用户明确提供的接口文档地址。
  * - `search`：按关键词检索 API。
  * - `gen`：为指定 API 生成 TypeScript 类型。
  */
-export type CliCommand = "search" | "gen";
+export type CliCommand = "inspect" | "search" | "gen";
 
 /**
  * CLI JSON 协议使用的稳定错误码。
@@ -15,6 +17,7 @@ export type CliCommand = "search" | "gen";
  * - `INVALID_ARGUMENT`：命令参数缺失、冲突或取值无效。
  * - `SOURCE_LOAD_FAILED`：无法读取用户指定的文档来源。
  * - `SOURCE_TIMEOUT`：读取文档来源或浏览器发现超时。
+ * - `SOURCE_TYPE_UNKNOWN`：响应内容无法识别为支持的接口文档来源。
  * - `OPENAPI_INVALID`：响应内容不是有效的 OpenAPI 文档。
  * - `SWAGGER_CONFIG_INVALID`：响应内容不是有效的 swagger-config。
  * - `CHROME_NOT_FOUND`：UI 模式无法找到可用的系统 Chrome。
@@ -31,6 +34,7 @@ export type CliErrorCode =
   | "INVALID_ARGUMENT"
   | "SOURCE_LOAD_FAILED"
   | "SOURCE_TIMEOUT"
+  | "SOURCE_TYPE_UNKNOWN"
   | "OPENAPI_INVALID"
   | "SWAGGER_CONFIG_INVALID"
   | "CHROME_NOT_FOUND"
@@ -104,6 +108,76 @@ export type CliRecoveryCandidate = {
   selector: ApiSelector;
 };
 
+/** 语义恢复中的类型生成候选项。 */
+export type GenerateTypesRecoveryCandidate = {
+  /** 供用户或 AI 理解候选接口用途的摘要。 */
+  summary: string;
+
+  /** 可直接用于重新生成类型的精确选择器。 */
+  selector: ApiSelector;
+};
+
+/**
+ * CLI 与 MCP 适配层共用的错误恢复意图。
+ *
+ * - `inspect-source`：重新识别用户明确提供的来源地址。
+ * - `search-api`：使用明确来源重新搜索接口。
+ * - `generate-types`：选择候选接口后重新生成类型。
+ * - `ask-user`：缺少必要信息，需要询问用户。
+ * - `stop`：错误不可安全恢复，应停止自动调用。
+ */
+export type RecoveryIntent =
+  | {
+      /** 恢复动作为重新识别来源。 */
+      action: "inspect-source";
+
+      /** 需要重新识别的用户来源地址。 */
+      url: string;
+
+      /** 面向调用方解释下一步操作。 */
+      message: string;
+    }
+  | {
+      /** 恢复动作为重新搜索接口。 */
+      action: "search-api";
+
+      /** 重新搜索时使用的明确文档来源。 */
+      source: SwaggerSource;
+
+      /** 重新搜索时使用的关键词。 */
+      keyword: string;
+
+      /** 面向调用方解释下一步操作。 */
+      message: string;
+    }
+  | {
+      /** 恢复动作为选择候选接口后生成类型。 */
+      action: "generate-types";
+
+      /** 重新生成时使用的明确文档来源。 */
+      source: SwaggerSource;
+
+      /** 可以交给用户或 AI 选择的生成候选项。 */
+      candidates: GenerateTypesRecoveryCandidate[];
+
+      /** 面向调用方解释下一步操作。 */
+      message: string;
+    }
+  | {
+      /** 恢复动作需要询问用户。 */
+      action: "ask-user";
+
+      /** 需要向用户展示的问题或说明。 */
+      message: string;
+    }
+  | {
+      /** 恢复动作要求停止自动调用。 */
+      action: "stop";
+
+      /** 说明不能继续自动恢复的原因。 */
+      message: string;
+    };
+
 /** CLI 错误中供用户或 AI 直接采取行动的恢复建议。 */
 export type CliErrorRecovery = {
   /** 调用方应执行的恢复动作。 */
@@ -117,6 +191,9 @@ export type CliErrorRecovery = {
 
   /** 需要调用方选择的相近 API 列表。 */
   candidates?: CliRecoveryCandidate[];
+
+  /** 供 CLI 与 MCP 分别转换的统一语义恢复意图。 */
+  intent?: RecoveryIntent;
 };
 
 /** CLI JSON 协议的成功响应。 */
@@ -192,7 +269,8 @@ export class CliProtocolError extends Error {
   }
 }
 
-const JSON_SCHEMA_VERSION = 1;
+/** CLI 与 MCP 共用的结构化输出协议版本。 */
+export const PROTOCOL_SCHEMA_VERSION = 1 as const;
 
 /** 创建不执行任何输出操作的 CLI 成功协议对象。 */
 export function createProtocolSuccess<T>(
@@ -201,7 +279,7 @@ export function createProtocolSuccess<T>(
   warnings: CliProtocolWarning[] = [],
 ): CliProtocolSuccess<T> {
   return {
-    schemaVersion: JSON_SCHEMA_VERSION,
+    schemaVersion: PROTOCOL_SCHEMA_VERSION,
     ok: true,
     command,
     data,
@@ -222,6 +300,16 @@ export function normalizeProtocolError(error: unknown): CliProtocolError {
   }
   if (/请求超时|超时/.test(message)) {
     return new CliProtocolError("SOURCE_TIMEOUT", message);
+  }
+  if (/无法识别接口文档来源/.test(message)) {
+    return new CliProtocolError("SOURCE_TYPE_UNKNOWN", message, undefined, {
+      action: "retry",
+      message: "请确认该地址是否为准确的接口文档地址。",
+      intent: {
+        action: "ask-user",
+        message: "请用户确认该地址是否为准确的接口文档地址。",
+      },
+    });
   }
   if (/不是有效的 OpenAPI\/Swagger JSON/.test(message)) {
     return new CliProtocolError("OPENAPI_INVALID", message);
@@ -261,7 +349,7 @@ export function normalizeProtocolError(error: unknown): CliProtocolError {
 export function createProtocolFailure(command: string, error: unknown): CliProtocolFailure {
   const normalizedError = normalizeProtocolError(error);
   return {
-    schemaVersion: JSON_SCHEMA_VERSION,
+    schemaVersion: PROTOCOL_SCHEMA_VERSION,
     ok: false,
     command,
     error: {

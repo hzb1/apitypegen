@@ -1,5 +1,10 @@
 import process from "node:process";
-import type { GenCommandResult, SearchCommandResult, SearchResultItem } from "./command-results.js";
+import type {
+  GenCommandResult,
+  InspectCommandResult,
+  SearchCommandResult,
+  SearchResultItem,
+} from "./command-results.js";
 import {
   createProtocolFailure,
   createProtocolSuccess,
@@ -40,6 +45,26 @@ export function createProgressReporter(
 function formatSearchResultItem(item: SearchResultItem): string {
   const summary = item.summary || item.description || "";
   return `[${item.service}] ${item.method.toUpperCase()} ${item.path}${summary ? `  // ${summary}` : ""}`;
+}
+
+/** 根据用户选择的格式展示 inspect 命令结果。 */
+export function presentInspectResult(
+  result: InspectCommandResult,
+  output: CliOutputWriter = processOutputWriter,
+): void {
+  if (result.outputFormat === "json") {
+    output.writeStdout(
+      `${JSON.stringify(createProtocolSuccess("inspect", result.data), null, 2)}\n`,
+    );
+    return;
+  }
+
+  output.writeStdout(`来源类型: ${result.data.source.type}\n`);
+  output.writeStdout(`来源地址: ${result.data.source.url}\n`);
+  if (result.data.resolvedUrl !== result.data.source.url) {
+    output.writeStdout(`最终地址: ${result.data.resolvedUrl}\n`);
+  }
+  output.writeStdout(`判定依据: ${result.data.reason}\n`);
 }
 
 /** 根据用户选择的格式展示 search 命令结果。 */

@@ -1,7 +1,25 @@
 import type { ApiItem } from "../core/api-index.js";
+import type { SwaggerSourceInspection } from "../core/source-inspector.js";
 import type { SwaggerServiceConfig } from "../core/swagger-loader.js";
 import type { GeneratedTypes } from "../core/swagger-to-ts.js";
 import type { ApiSelector, CliProtocolWarning } from "./protocol.js";
+
+/**
+ * inspect 命令支持的输出格式。
+ *
+ * - `text`：输出便于人工阅读的来源识别结果。
+ * - `json`：输出版本化的 JSON 协议对象。
+ */
+export type InspectOutputFormat = "text" | "json";
+
+/** inspect 命令执行完成后交给展示层的统一结果。 */
+export type InspectCommandResult = {
+  /** 用户请求的展示格式。 */
+  outputFormat: InspectOutputFormat;
+
+  /** 根据响应内容识别出的来源信息。 */
+  data: SwaggerSourceInspection;
+};
 
 /**
  * search 命令支持的输出格式。

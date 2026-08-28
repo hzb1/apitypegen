@@ -475,6 +475,13 @@ function recoverySourceUrl(sourceUrl: string): string {
   }
 }
 
+function recoverySource(source: SwaggerSource): SwaggerSource {
+  return {
+    type: source.type,
+    url: recoverySourceUrl(source.url),
+  };
+}
+
 function createGenRecoveryCommand(
   source: SwaggerSource,
   selector: PartialApiSelector,
@@ -581,6 +588,16 @@ export function generateSwaggerTypes(
     });
   }
   if (context.failures.length > 0) {
+    const recoveryCandidates = context.documents
+      .slice(0, MAX_RECOVERY_CANDIDATES)
+      .map((item) => ({
+        summary: `在已加载服务 ${serviceDocumentLabel(item)} 中重试`,
+        selector: {
+          service: serviceDocumentLabel(item),
+          method,
+          path: pathValue,
+        },
+      }));
     const recoveryCommands = context.documents
       .slice(0, MAX_RECOVERY_CANDIDATES)
       .map((item) =>
@@ -602,6 +619,12 @@ export function generateSwaggerTypes(
         action: "retry",
         message: "选择一个已成功加载的服务进行隔离重试。",
         commands: recoveryCommands,
+        intent: {
+          action: "generate-types",
+          source: recoverySource(context.source),
+          candidates: recoveryCandidates,
+          message: "选择一个已成功加载的服务进行隔离重试。",
+        },
       },
     );
   }
@@ -631,6 +654,7 @@ export function generateSwaggerTypes(
       (item) => item.api.path === pathValue,
     );
     const nearestCandidates = createNearestApiCandidates(targetDocuments, method, pathValue);
+    const recoveryCandidateItems = nearestCandidates.map(createApiRecoveryCandidate);
     const methodTips = pathCandidates.length
       ? ` 该 path 可用方法: ${[...new Set(pathCandidates.map((item) => item.api.method.toUpperCase()))].join(", ")}`
       : "";
@@ -647,10 +671,26 @@ export function generateSwaggerTypes(
         message: pathCandidates.length
           ? "该路径存在其他 HTTP 方法，请从候选 API 中选择。"
           : "请选择最接近的 API 后重试。",
-        candidates: nearestCandidates.map(createApiRecoveryCandidate),
+        candidates: recoveryCandidateItems,
         commands: nearestCandidates.map((item) =>
           createGenRecoveryCommand(context.source, createApiSelector(item)),
         ),
+        intent:
+          recoveryCandidateItems.length > 0
+            ? {
+                action: "generate-types",
+                source: recoverySource(context.source),
+                candidates: recoveryCandidateItems,
+                message: pathCandidates.length
+                  ? "从该路径的可用 HTTP 方法中选择一个接口。"
+                  : "从最接近的接口中选择一个后重新生成。",
+              }
+            : {
+                action: "search-api",
+                source: recoverySource(context.source),
+                keyword: pathValue,
+                message: "先按路径关键词搜索接口，再使用返回的精确 selector 生成类型。",
+              },
       },
     );
   }
@@ -667,6 +707,12 @@ export function generateSwaggerTypes(
         commands: recoveryCandidates.map((item) =>
           createGenRecoveryCommand(context.source, createApiSelector(item)),
         ),
+        intent: {
+          action: "generate-types",
+          source: recoverySource(context.source),
+          candidates: recoveryCandidates.map(createApiRecoveryCandidate),
+          message: "请选择目标服务后重新生成。",
+        },
       },
     );
   }

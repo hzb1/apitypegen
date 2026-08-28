@@ -59,6 +59,12 @@ CLI 和 MCP 使用相同的来源：
 - `swagger-config`：包含一个或多个 OpenAPI 地址的多服务文档配置 JSON。
 - `page`：接口文档页面（Swagger UI / Knife4j），需要本机 Chrome。
 
+不确定地址属于哪种来源时，可以先执行：
+
+```bash
+apitypegen inspect --url https://example.com/api-docs --format json
+```
+
 工具不会猜测或探测文档地址。Web UI 加载跨域或内网文档时通常需要浏览器扩展。
 
 ## 文档

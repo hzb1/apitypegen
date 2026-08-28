@@ -4,6 +4,7 @@ import {
   createProgressReporter,
   presentFailure,
   presentGenResult,
+  presentInspectResult,
   presentSearchResult,
 } from "../dist/cli/presenters.js";
 import { CliProtocolError } from "../dist/cli/protocol.js";
@@ -71,6 +72,27 @@ test("JSON Presenter 只向 stdout 写入单一稳定协议对象", () => {
   assert.equal(protocol.ok, true);
   assert.equal(protocol.command, "search");
   assert.equal(protocol.data.items[0].selector.service, "order-service");
+});
+
+test("inspect Presenter 支持文本与稳定 JSON 输出", () => {
+  const data = {
+    source: { type: "openapi", url: "http://localhost:9999/openapi" },
+    resolvedUrl: "http://localhost:9999/openapi",
+    status: 200,
+    contentType: "application/json",
+    reason: "JSON 包含 OpenAPI 版本字段以及 paths",
+  };
+  const jsonOutput = createOutput();
+  presentInspectResult({ outputFormat: "json", data }, jsonOutput.writer);
+  const protocol = JSON.parse(jsonOutput.read().stdout);
+  assert.equal(protocol.schemaVersion, 1);
+  assert.equal(protocol.command, "inspect");
+  assert.equal(protocol.data.source.type, "openapi");
+
+  const textOutput = createOutput();
+  presentInspectResult({ outputFormat: "text", data }, textOutput.writer);
+  assert.match(textOutput.read().stdout, /来源类型: openapi/);
+  assert.match(textOutput.read().stdout, /判定依据:/);
 });
 
 test("Human Presenter 使用同一搜索结果生成文本", () => {

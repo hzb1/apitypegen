@@ -78,11 +78,49 @@ test("帮助信息只展示 type/url 三种来源", () => {
   const result = runCli(["--help"]);
 
   assert.equal(result.status, 0);
+  assert.match(result.stdout, /apitypegen inspect --url <url>/);
   assert.match(result.stdout, /--type <page\|openapi\|swagger-config>/);
   assert.match(result.stdout, /不写命令时默认执行 gen/);
   assert.doesNotMatch(result.stdout, /apitypegen services/);
   assert.doesNotMatch(result.stdout, /--host/);
   assert.doesNotMatch(result.stdout, /--doc-url/);
+});
+
+test("inspect 命令识别来源并返回稳定 JSON 协议", async () => {
+  const requests = [];
+  const server = http.createServer((request, response) => {
+    requests.push(request.url);
+    response.setHeader("content-type", "application/json");
+    response.end(
+      JSON.stringify({
+        openapi: "3.0.0",
+        info: { title: "Inspect Service" },
+        paths: {},
+      }),
+    );
+  });
+
+  try {
+    const address = await listen(server);
+    const result = await runCliAsync([
+      "inspect",
+      "--url",
+      `http://127.0.0.1:${address.port}/provided-url`,
+      "--no-interactive",
+      "--format",
+      "json",
+    ]);
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stderr, "");
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.schemaVersion, 1);
+    assert.equal(output.command, "inspect");
+    assert.equal(output.data.source.type, "openapi");
+    assert.deepEqual(requests, ["/provided-url"]);
+  } finally {
+    await close(server);
+  }
 });
 
 test("npm bin 入口可以正常启动 CLI", () => {

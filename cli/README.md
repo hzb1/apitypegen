@@ -30,8 +30,20 @@ npm run apitypegen -- --help
 | `page` | 接口文档页面（Swagger UI / Knife4j） | 需要本机 Chrome |
 
 CLI 不会猜测文档地址。`page` 模式可用 `--chrome-path` 或 `APITYPEGEN_CHROME_PATH` 指定 Chrome。
+不确定类型时，交互流程选择“不确定，帮我识别”，或先执行 `inspect`。
 
 ## 常用命令
+
+识别用户提供的准确地址：
+
+```bash
+apitypegen inspect \
+  --url http://localhost:9999/doc.html#/home \
+  --format json
+```
+
+`inspect` 只请求这个 URL，并根据响应内容返回 `page`、`openapi` 或
+`swagger-config`，不会扫描主机或尝试常见路径。
 
 不带参数时进入交互式生成：
 
@@ -128,6 +140,6 @@ codex mcp get apitypegen
 https://example.com/openapi.json
 ```
 
-MCP 提供只读的 `search_apis` 和 `generate_typescript` 工具。完整说明见
+MCP 提供只读的 `inspect_source`、`search_apis` 和 `generate_typescript` 工具。完整说明见
 [MCP 指南](../docs/mcp.md)。匿名错误上报默认关闭；`APITYPEGEN_TELEMETRY=1`
 开启，`DO_NOT_TRACK=1` 强制关闭。

@@ -17,6 +17,9 @@
 - 返回多服务文档配置 JSON：`swagger-config`。
 - 接口文档页面（Swagger UI / Knife4j）：`page`，需要 Chrome。
 
+不确定时，CLI 执行 `apitypegen inspect --url <地址>`；MCP 调用
+`inspect_source`。识别过程只读取给定地址，不会猜测其他路径。
+
 Chrome 不在标准路径时使用 `--chrome-path` 或 `APITYPEGEN_CHROME_PATH`。
 
 ## 接口不唯一

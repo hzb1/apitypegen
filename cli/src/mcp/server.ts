@@ -7,8 +7,14 @@ import {
   searchSwaggerApis,
   type SwaggerCommandSettings,
 } from "../application/swagger-commands.js";
+import { inspectSwaggerSource } from "../core/source-inspector.js";
 import type { GeneratorOptions } from "../core/swagger-to-ts.js";
-import { CliProtocolError, createProtocolFailure } from "../cli/protocol.js";
+import {
+  CliProtocolError,
+  PROTOCOL_SCHEMA_VERSION,
+  normalizeProtocolError,
+  type RecoveryIntent,
+} from "../cli/protocol.js";
 import { readPackageVersion } from "../package-metadata.js";
 
 /**
@@ -38,6 +44,15 @@ export type McpSwaggerSource = {
 
   /** 用户明确提供的来源地址。 */
   url: string;
+};
+
+/** inspect_source 工具的调用参数。 */
+export type InspectSourceToolInput = {
+  /** 用户明确提供、需要识别类型的接口文档地址。 */
+  url: string;
+
+  /** 来源请求的超时时间。 */
+  timeoutMs?: number;
 };
 
 /** search_apis 工具的调用参数。 */
@@ -88,9 +103,86 @@ export type GenerateTypescriptToolInput = {
   chromePath?: string;
 };
 
+/**
+ * MCP 稳定协议中的工具名称。
+ *
+ * - `inspect_source`：识别来源类型。
+ * - `search_apis`：搜索接口。
+ * - `generate_typescript`：生成 TypeScript 类型。
+ */
+export type McpToolName = "inspect_source" | "search_apis" | "generate_typescript";
+
+/** MCP 恢复建议中的单次工具调用。 */
+export type McpRecoveryToolCall = {
+  /** 应继续调用的 MCP 工具名称。 */
+  tool: McpToolName;
+
+  /** 可直接传递给该工具的结构化参数。 */
+  arguments: Record<string, unknown>;
+};
+
+/** MCP 恢复建议中的候选工具调用。 */
+export type McpRecoveryCandidate = McpRecoveryToolCall & {
+  /** 供 AI 或用户理解候选项用途的摘要。 */
+  summary: string;
+};
+
+/**
+ * MCP 错误中的下一步恢复动作。
+ *
+ * - `call_tool`：直接调用指定工具。
+ * - `select_tool_call`：从候选工具调用中选择一个。
+ * - `ask_user`：缺少可靠信息，应询问用户。
+ * - `stop`：当前错误不应继续自动重试。
+ */
+export type McpRecovery =
+  | {
+      /** 恢复动作为直接调用工具。 */
+      action: "call_tool";
+
+      /** 解释为什么应执行该工具调用。 */
+      message: string;
+
+      /** 可直接执行的工具调用。 */
+      next: McpRecoveryToolCall;
+    }
+  | {
+      /** 恢复动作为选择候选工具调用。 */
+      action: "select_tool_call";
+
+      /** 解释候选项的选择目标。 */
+      message: string;
+
+      /** 可直接执行的候选工具调用列表。 */
+      candidates: McpRecoveryCandidate[];
+    }
+  | {
+      /** 恢复动作要求询问用户。 */
+      action: "ask_user";
+
+      /** 应向用户展示的问题或说明。 */
+      message: string;
+    }
+  | {
+      /** 恢复动作要求停止自动调用。 */
+      action: "stop";
+
+      /** 说明不能继续自动恢复的原因。 */
+      message: string;
+    };
+
 const DEFAULT_TIMEOUT_MS = 15_000;
 const OPENAPI_CACHE_TTL_MS = 5 * 60 * 1000;
 const DEFAULT_SEARCH_LIMIT = 20;
+
+/** MCP 客户端可读取的服务级使用说明。 */
+export const MCP_INSTRUCTIONS = `APITypeGen 用于从用户提供的接口文档地址查找 API 并生成 TypeScript 类型。
+1. 用户只提供地址且来源类型不明确时，先调用 inspect_source。
+2. 已知来源类型后，先调用 search_apis 查找接口，再原样使用返回的 selector 调用 generate_typescript。
+3. 不要猜测、拼接或探测 OpenAPI、swagger-config 地址。
+4. 多服务来源默认加载全部服务；同名接口必须使用 selector.service 消除歧义。
+5. 工具失败时优先遵循 error.recovery 中可直接调用的工具和参数；ask_user 时询问用户，stop 时停止重试。
+6. generate_typescript 只返回代码和结构化类型，不写入用户文件。`;
 
 const DEFAULT_GENERATOR_OPTIONS: Required<GeneratorOptions> = {
   indent: 2,
@@ -112,6 +204,14 @@ const sourceSchema = z.object({
     .url()
     .refine((value) => /^https?:\/\//i.test(value), "来源地址只支持 http 或 https")
     .describe("用户明确提供的接口文档页面、OpenAPI JSON 或 swagger-config 地址"),
+});
+
+const inspectDataSchema = z.object({
+  source: sourceSchema,
+  resolvedUrl: z.string(),
+  status: z.number().int(),
+  contentType: z.string(),
+  reason: z.string(),
 });
 
 const selectorSchema = z.object({
@@ -190,15 +290,28 @@ const errorSchema = z.object({
   recovery: z.unknown().optional(),
 });
 
-const searchOutputSchema = {
+const inspectOutputSchema = {
+  schemaVersion: z.literal(PROTOCOL_SCHEMA_VERSION).describe("稳定协议版本"),
   ok: z.boolean().describe("工具是否执行成功"),
+  command: z.literal("inspect_source").describe("实际执行的 MCP 工具"),
+  data: inspectDataSchema.optional().describe("来源识别成功后的结构化数据"),
+  warnings: z.array(warningSchema).optional().describe("不阻断识别成功的警告"),
+  error: errorSchema.optional().describe("来源识别失败后的稳定错误"),
+};
+
+const searchOutputSchema = {
+  schemaVersion: z.literal(PROTOCOL_SCHEMA_VERSION).describe("稳定协议版本"),
+  ok: z.boolean().describe("工具是否执行成功"),
+  command: z.literal("search_apis").describe("实际执行的 MCP 工具"),
   data: searchDataSchema.optional().describe("搜索成功后的结构化数据"),
   warnings: z.array(warningSchema).optional().describe("不阻断搜索成功的警告"),
   error: errorSchema.optional().describe("搜索失败后的稳定错误"),
 };
 
 const generateOutputSchema = {
+  schemaVersion: z.literal(PROTOCOL_SCHEMA_VERSION).describe("稳定协议版本"),
   ok: z.boolean().describe("工具是否执行成功"),
+  command: z.literal("generate_typescript").describe("实际执行的 MCP 工具"),
   data: generateDataSchema.optional().describe("生成成功后的结构化数据"),
   warnings: z.array(warningSchema).optional().describe("不阻断生成成功的警告"),
   error: errorSchema.optional().describe("生成失败后的稳定错误"),
@@ -227,6 +340,93 @@ function createToolText(structuredContent: object): string {
   return JSON.stringify(structuredContent, null, 2);
 }
 
+function recoveryFromIntent(intent: RecoveryIntent): McpRecovery {
+  if (
+    (intent.action === "search-api" || intent.action === "generate-types") &&
+    intent.source.url === "<source-url>"
+  ) {
+    return {
+      action: "ask_user",
+      message: "来源地址包含凭据或敏感查询参数，请用户重新提供可用于下一次工具调用的完整地址。",
+    };
+  }
+  if (intent.action === "inspect-source") {
+    return {
+      action: "call_tool",
+      message: intent.message,
+      next: {
+        tool: "inspect_source",
+        arguments: { url: intent.url },
+      },
+    };
+  }
+  if (intent.action === "search-api") {
+    return {
+      action: "call_tool",
+      message: intent.message,
+      next: {
+        tool: "search_apis",
+        arguments: { source: intent.source, keyword: intent.keyword },
+      },
+    };
+  }
+  if (intent.action === "generate-types") {
+    return {
+      action: "select_tool_call",
+      message: intent.message,
+      candidates: intent.candidates.map((candidate) => ({
+        summary: candidate.summary,
+        tool: "generate_typescript",
+        arguments: {
+          source: intent.source,
+          service: candidate.selector.service,
+          method: candidate.selector.method,
+          path: candidate.selector.path,
+        },
+      })),
+    };
+  }
+  return {
+    action: intent.action === "ask-user" ? "ask_user" : "stop",
+    message: intent.message,
+  };
+}
+
+function createMcpFailure(command: McpToolName, error: unknown) {
+  const normalizedError = normalizeProtocolError(error);
+  const recovery = normalizedError.recovery?.intent
+    ? recoveryFromIntent(normalizedError.recovery.intent)
+    : {
+        action: normalizedError.code === "INVALID_ARGUMENT" ? "ask_user" as const : "stop" as const,
+        message:
+          normalizedError.code === "INVALID_ARGUMENT"
+            ? "请根据错误信息补充或修正工具参数。"
+            : "当前错误没有可安全自动执行的恢复步骤，请检查来源可访问性后重试。",
+      };
+  return {
+    schemaVersion: PROTOCOL_SCHEMA_VERSION,
+    ok: false as const,
+    command,
+    warnings: [],
+    error: {
+      code: normalizedError.code,
+      message: normalizedError.message,
+      ...(normalizedError.details === undefined ? {} : { details: normalizedError.details }),
+      recovery,
+    },
+  };
+}
+
+function createMcpSuccess<T>(command: McpToolName, data: T, warnings: unknown[] = []) {
+  return {
+    schemaVersion: PROTOCOL_SCHEMA_VERSION,
+    ok: true as const,
+    command,
+    data,
+    warnings,
+  };
+}
+
 function validateToolSource(source: McpSwaggerSource, chromePath?: string): void {
   const sourceType = String(source.type);
   if (!["page", "openapi", "swagger-config"].includes(sourceType)) {
@@ -250,6 +450,27 @@ function validateToolSource(source: McpSwaggerSource, chromePath?: string): void
   }
 }
 
+/** 执行 inspect_source，不依赖 MCP 传输层，便于契约测试和其他适配器复用。 */
+export async function executeInspectSourceTool(input: InspectSourceToolInput) {
+  try {
+    const data = await inspectSwaggerSource(input.url, {
+      timeoutMs: input.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+    });
+    const structuredContent = createMcpSuccess("inspect_source", data);
+    return {
+      content: [{ type: "text" as const, text: createToolText(structuredContent) }],
+      structuredContent,
+    };
+  } catch (error) {
+    const structuredContent = createMcpFailure("inspect_source", error);
+    return {
+      content: [{ type: "text" as const, text: createToolText(structuredContent) }],
+      structuredContent,
+      isError: true,
+    };
+  }
+}
+
 /** 执行 search_apis，不依赖 MCP 传输层，便于契约测试和其他适配器复用。 */
 export async function executeSearchApisTool(input: SearchApisToolInput) {
   try {
@@ -263,20 +484,17 @@ export async function executeSearchApisTool(input: SearchApisToolInput) {
       keyword: input.keyword,
       limit: input.limit ?? DEFAULT_SEARCH_LIMIT,
     });
-    const structuredContent = {
-      ok: true as const,
-      data: result.data,
-      warnings: result.warnings,
-    };
+    const structuredContent = createMcpSuccess(
+      "search_apis",
+      result.data,
+      result.warnings,
+    );
     return {
       content: [{ type: "text" as const, text: createToolText(structuredContent) }],
       structuredContent,
     };
   } catch (error) {
-    const structuredContent = {
-      ok: false as const,
-      error: createProtocolFailure("search", error).error,
-    };
+    const structuredContent = createMcpFailure("search_apis", error);
     return {
       content: [{ type: "text" as const, text: createToolText(structuredContent) }],
       structuredContent,
@@ -299,20 +517,13 @@ export async function executeGenerateTypescriptTool(input: GenerateTypescriptToo
       method: input.method,
       path: input.path,
     });
-    const structuredContent = {
-      ok: true as const,
-      data,
-      warnings: [],
-    };
+    const structuredContent = createMcpSuccess("generate_typescript", data);
     return {
       content: [{ type: "text" as const, text: createToolText(structuredContent) }],
       structuredContent,
     };
   } catch (error) {
-    const structuredContent = {
-      ok: false as const,
-      error: createProtocolFailure("gen", error).error,
-    };
+    const structuredContent = createMcpFailure("generate_typescript", error);
     return {
       content: [{ type: "text" as const, text: createToolText(structuredContent) }],
       structuredContent,
@@ -323,10 +534,43 @@ export async function executeGenerateTypescriptTool(input: GenerateTypescriptToo
 
 /** 创建已经注册 APITypeGen 工具的 MCP Server。 */
 export function createApiTypeGenMcpServer(): McpServer {
-  const server = new McpServer({
-    name: "apitypegen",
-    version: readPackageVersion(),
-  });
+  const server = new McpServer(
+    {
+      name: "apitypegen",
+      version: readPackageVersion(),
+    },
+    { instructions: MCP_INSTRUCTIONS },
+  );
+
+  server.registerTool(
+    "inspect_source",
+    {
+      title: "识别接口文档来源",
+      description:
+        "读取用户明确提供的单个 URL，并根据响应内容识别为 page、openapi 或 swagger-config。不会拼接路径、扫描主机或探测候选地址。",
+      inputSchema: {
+        url: z
+          .url()
+          .refine((value) => /^https?:\/\//i.test(value), "来源地址只支持 http 或 https")
+          .describe("用户明确提供、需要识别类型的接口文档地址"),
+        timeoutMs: z
+          .number()
+          .int()
+          .min(1000)
+          .max(120000)
+          .optional()
+          .describe("请求超时时间，单位毫秒"),
+      },
+      outputSchema: inspectOutputSchema,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    executeInspectSourceTool,
+  );
 
   server.registerTool(
     "search_apis",

@@ -30,7 +30,7 @@
   "scripts": {
     "clean": "rm -rf dist",
     "build": "npm run clean && tsc -p tsconfig.build.json",
-    "test": "npm run build && node --test tests/swagger-loader.test.mjs tests/openapi-cache.test.mjs tests/cli.test.mjs tests/cli-presenters.test.mjs tests/cli-telemetry.test.mjs tests/mcp.test.mjs",
+    "test": "npm run build && node --test tests/swagger-loader.test.mjs tests/source-inspector.test.mjs tests/openapi-cache.test.mjs tests/cli.test.mjs tests/cli-presenters.test.mjs tests/cli-telemetry.test.mjs tests/mcp.test.mjs",
     "test:browser": "npm run build && node --test tests/browser-discovery.test.mjs",
     "typecheck": "tsc -p tsconfig.build.json --noEmit",
     "prepack": "npm run build",

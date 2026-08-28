@@ -27,7 +27,7 @@ function close(server) {
   });
 }
 
-test("MCP stdio 暴露搜索和生成工具并返回结构化结果", async () => {
+test("MCP stdio 暴露识别、搜索和生成工具并返回结构化结果", async () => {
   const document = {
     openapi: "3.0.0",
     info: { title: "Order Service" },
@@ -75,11 +75,13 @@ test("MCP stdio 暴露搜索和生成工具并返回结构化结果", async () =
     await client.connect(transport);
 
     assert.equal(client.getServerVersion()?.version, packageVersion);
+    assert.match(client.getInstructions(), /先调用 inspect_source/);
+    assert.match(client.getInstructions(), /不要猜测、拼接或探测/);
 
     const tools = await client.listTools();
     assert.deepEqual(
       tools.tools.map((tool) => tool.name).sort(),
-      ["generate_typescript", "search_apis"],
+      ["generate_typescript", "inspect_source", "search_apis"],
     );
     assert.ok(tools.tools.every((tool) => tool.outputSchema));
     assert.deepEqual(
@@ -87,6 +89,15 @@ test("MCP stdio 暴露搜索和生成工具并返回结构化结果", async () =
         .inputSchema.properties.source.properties.type.enum,
       ["page", "openapi", "swagger-config"],
     );
+
+    const inspectResult = await client.callTool({
+      name: "inspect_source",
+      arguments: { url: documentUrl },
+    });
+    assert.equal(inspectResult.isError, undefined);
+    assert.equal(inspectResult.structuredContent.schemaVersion, 1);
+    assert.equal(inspectResult.structuredContent.command, "inspect_source");
+    assert.equal(inspectResult.structuredContent.data.source.type, "openapi");
 
     const searchResult = await client.callTool({
       name: "search_apis",
@@ -96,6 +107,8 @@ test("MCP stdio 暴露搜索和生成工具并返回结构化结果", async () =
       },
     });
     assert.equal(searchResult.isError, undefined);
+    assert.equal(searchResult.structuredContent.schemaVersion, 1);
+    assert.equal(searchResult.structuredContent.command, "search_apis");
     assert.equal(searchResult.structuredContent.ok, true);
     assert.equal(searchResult.structuredContent.data.items.length, 1);
     assert.deepEqual(searchResult.structuredContent.data.items[0].selector, {
@@ -113,9 +126,34 @@ test("MCP stdio 暴露搜索和生成工具并返回结构化结果", async () =
       },
     });
     assert.equal(generateResult.isError, undefined);
+    assert.equal(generateResult.structuredContent.schemaVersion, 1);
+    assert.equal(generateResult.structuredContent.command, "generate_typescript");
     assert.equal(generateResult.structuredContent.ok, true);
     assert.match(generateResult.structuredContent.data.code, /响应数据/);
     assert.equal(generateResult.structuredContent.data.selector.path, "/orders/{id}");
+
+    const recoveryResult = await client.callTool({
+      name: "generate_typescript",
+      arguments: {
+        source: { type: "openapi", url: documentUrl },
+        method: "post",
+        path: "/orders/{id}",
+      },
+    });
+    assert.equal(recoveryResult.isError, true);
+    assert.equal(recoveryResult.structuredContent.error.code, "API_NOT_FOUND");
+    assert.equal(
+      recoveryResult.structuredContent.error.recovery.action,
+      "select_tool_call",
+    );
+    assert.equal(
+      recoveryResult.structuredContent.error.recovery.candidates[0].tool,
+      "generate_typescript",
+    );
+    assert.equal(
+      recoveryResult.structuredContent.error.recovery.candidates[0].arguments.method,
+      "get",
+    );
   } finally {
     await client?.close();
     await transport?.close();

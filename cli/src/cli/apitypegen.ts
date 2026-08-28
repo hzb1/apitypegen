@@ -12,6 +12,7 @@ import {
   searchSwaggerApis,
   type SwaggerCommandContext,
 } from "../application/swagger-commands.js";
+import { inspectSwaggerSource } from "../core/source-inspector.js";
 import { normalizeBaseUrl } from "../core/swagger-loader.js";
 import {
   ensureSwaggerSourceType,
@@ -22,6 +23,8 @@ import type { GeneratorOptions } from "../core/swagger-to-ts.js";
 import {
   type GenCommandResult,
   type GenOutputFormat,
+  type InspectCommandResult,
+  type InspectOutputFormat,
   type SearchCommandResult,
   type SearchOutputFormat,
   type SearchResultItem,
@@ -30,6 +33,7 @@ import {
   createProgressReporter,
   presentFailure,
   presentGenResult,
+  presentInspectResult,
   presentSearchResult,
   type CliProgressReporter,
 } from "./presenters.js";
@@ -108,6 +112,16 @@ type PartialSourceInput = {
   url?: string;
 };
 
+/**
+ * 交互来源选择支持的选项。
+ *
+ * - `page`：用户确认输入的是接口文档页面。
+ * - `openapi`：用户确认输入的是 OpenAPI JSON。
+ * - `swagger-config`：用户确认输入的是多服务配置 JSON。
+ * - `inspect`：用户不确定类型，由内容识别器读取准确 URL 后判断。
+ */
+type InteractiveSourceChoice = SwaggerSourceType | "inspect";
+
 const DEFAULT_CONFIG = {
   generator: {
     indent: 2,
@@ -137,6 +151,7 @@ const COMMON_OPTIONS = [
   "refresh",
 ];
 const COMMAND_OPTIONS: Record<CliCommand, Set<string>> = {
+  inspect: new Set(["url", "timeout", "no-interactive", "format"]),
   search: new Set([...COMMON_OPTIONS, "keyword", "service", "limit"]),
   gen: new Set([...COMMON_OPTIONS, "method", "path", "service", "copy"]),
 };
@@ -165,6 +180,7 @@ function printHelp(): void {
   process.stdout.write(`APITypeGen 命令行工具
 
 用法:
+  apitypegen inspect --url <url> [--timeout <ms>] [--format <text|json>]
   apitypegen [gen] [--type <page|openapi|swagger-config>] [--url <url>] [--method <method>] [--path <api-path>] [--service <name>] [--refresh] [--copy] [--format <ts|json>]
   apitypegen search --keyword <text> [--type <page|openapi|swagger-config>] [--url <url>] [--service <name>] [--limit <1-100>] [--refresh] [--format <text|json>]
   apitypegen mcp
@@ -176,6 +192,7 @@ function printHelp(): void {
 
 说明:
   - 不写命令时默认执行 gen；交互终端会引导选择来源和 API
+  - 不确定来源类型时，可先执行 inspect；交互流程也可选择“帮我识别”
   - 来源优先级: --type/--url > APITYPEGEN_TYPE/APITYPEGEN_URL > apitypegen.config.json
   - 旧 TS_SWAGGER_* 环境变量和 ts-swagger.config.json 仍兼容读取
   - --type 和 --url 必须成对提供；交互终端会询问缺少的部分
@@ -186,7 +203,7 @@ function printHelp(): void {
   - --no-interactive 可在 AI/CI 脚本中禁用所有交互
   - page 模式需要系统 Chrome，可用 --chrome-path 或 APITYPEGEN_CHROME_PATH 指定路径
   - CLI 不会探测或猜测任何 OpenAPI / swagger-config 地址
-  - mcp 通过 stdio 启动 MCP Server，提供 search_apis 和 generate_typescript 工具
+  - mcp 通过 stdio 启动 MCP Server，提供 inspect_source、search_apis 和 generate_typescript 工具
 `);
 }
 
@@ -233,7 +250,7 @@ function parseArgv(argv: string[]): ParsedArgs {
 }
 
 function ensureCommand(command: string): CliCommand {
-  if (command === "search" || command === "gen") return command;
+  if (command === "inspect" || command === "search" || command === "gen") return command;
   if (command === "services") {
     throw new Error("命令 services 已删除；search/gen 会默认加载全部服务");
   }
@@ -391,6 +408,10 @@ function sourceTypeLabel(type: SwaggerSourceType): string {
   return labels[type];
 }
 
+function interactiveSourceChoiceLabel(choice: InteractiveSourceChoice): string {
+  return choice === "inspect" ? "不确定，帮我识别" : sourceTypeLabel(choice);
+}
+
 function sourceUrlPrompt(type: SwaggerSourceType): string {
   if (type === "page") return "请输入接口文档页面地址（Swagger UI / Knife4j）";
   if (type === "openapi") return "请输入 OpenAPI JSON 地址";
@@ -399,13 +420,33 @@ function sourceUrlPrompt(type: SwaggerSourceType): string {
 
 async function askSwaggerSource(
   rl: readline.Interface,
+  timeoutMs: number,
   partial: PartialSourceInput = {},
 ): Promise<SwaggerSource> {
-  const type =
-    partial.type ||
-    (await selectByNumber(rl, "请选择接口文档来源:", SOURCE_TYPES, sourceTypeLabel));
-  const url = partial.url || (await askRequiredInput(rl, sourceUrlPrompt(type)));
-  return { type, url: normalizeBaseUrl(url) };
+  if (partial.type) {
+    const url = partial.url || (await askRequiredInput(rl, sourceUrlPrompt(partial.type)));
+    return { type: partial.type, url: normalizeBaseUrl(url) };
+  }
+
+  const choices: InteractiveSourceChoice[] = [...SOURCE_TYPES, "inspect"];
+  const choice = await selectByNumber(
+    rl,
+    "请选择接口文档来源:",
+    choices,
+    interactiveSourceChoiceLabel,
+  );
+  if (choice === "inspect") {
+    const url = partial.url || (await askRequiredInput(rl, "请输入接口文档地址"));
+    process.stderr.write("正在读取该地址并识别来源类型...\n");
+    const inspection = await inspectSwaggerSource(url, { timeoutMs });
+    process.stderr.write(
+      `已识别为 ${sourceTypeLabel(inspection.source.type)}：${inspection.reason}\n`,
+    );
+    return inspection.source;
+  }
+
+  const url = partial.url || (await askRequiredInput(rl, sourceUrlPrompt(choice)));
+  return { type: choice, url: normalizeBaseUrl(url) };
 }
 
 function normalizeConfiguredSource(source: SwaggerSource, configName: string): SwaggerSource {
@@ -422,6 +463,7 @@ async function resolveSwaggerSourceInput(
   options: CliOptions,
   userConfig: UserConfig,
   prompt: readline.Interface | null,
+  timeoutMs: number,
 ): Promise<SwaggerSource> {
   const cliTypeValue = getStringOption(options, "type");
   const cliUrlValue = getStringOption(options, "url");
@@ -431,7 +473,7 @@ async function resolveSwaggerSourceInput(
       url: cliUrlValue ? normalizeBaseUrl(cliUrlValue) : undefined,
     };
     if (partial.type && partial.url) return partial as SwaggerSource;
-    if (prompt) return askSwaggerSource(prompt, partial);
+    if (prompt) return askSwaggerSource(prompt, timeoutMs, partial);
     throw new Error("--type 和 --url 必须同时提供");
   }
 
@@ -461,7 +503,7 @@ async function resolveSwaggerSourceInput(
   if (userConfig.source) {
     return normalizeConfiguredSource(userConfig.source, `${CONFIG_FILENAME}.source`);
   }
-  if (prompt) return askSwaggerSource(prompt);
+  if (prompt) return askSwaggerSource(prompt, timeoutMs);
   throw new Error("缺少来源。请同时提供 --type 和 --url，或配置 APITYPEGEN_TYPE/APITYPEGEN_URL");
 }
 
@@ -571,6 +613,17 @@ function ensureSearchOutputFormat(options: CliOptions): SearchOutputFormat {
   );
 }
 
+function ensureInspectOutputFormat(options: CliOptions): InspectOutputFormat {
+  const value = options.format;
+  if (value === undefined) return "text";
+  if (value === "text" || value === "json") return value;
+  throw new CliProtocolError(
+    "INVALID_ARGUMENT",
+    `inspect 的 --format 仅支持 text 或 json，当前值: ${String(value)}`,
+    { option: "format", allowedValues: ["text", "json"] },
+  );
+}
+
 function ensureGenOutputFormat(value: unknown): GenOutputFormat {
   if (value === undefined || value === "") return "ts";
   if (value === "ts" || value === "json") return value;
@@ -618,6 +671,25 @@ async function executeSearchCommand(
     outputFormat,
     data: result.data,
     warnings: result.warnings,
+  };
+}
+
+async function executeInspectCommand(
+  options: CliOptions,
+  prompt: readline.Interface | null,
+  timeoutMs: number,
+): Promise<InspectCommandResult> {
+  const url =
+    getStringOption(options, "url").trim() ||
+    (prompt ? await askRequiredInput(prompt, "请输入接口文档地址") : "");
+  if (!url) {
+    throw new CliProtocolError("INVALID_ARGUMENT", "缺少必填参数: --url", {
+      requiredOptions: ["url"],
+    });
+  }
+  return {
+    outputFormat: ensureInspectOutputFormat(options),
+    data: await inspectSwaggerSource(url, { timeoutMs }),
   };
 }
 
@@ -714,7 +786,13 @@ async function main(argv: string[]): Promise<void> {
   const reporter = createProgressReporter();
 
   try {
-    const source = await resolveSwaggerSourceInput(options, config, prompt);
+    if (command === "inspect") {
+      const result = await executeInspectCommand(options, prompt, settings.timeoutMs);
+      presentInspectResult(result);
+      return;
+    }
+
+    const source = await resolveSwaggerSourceInput(options, config, prompt, settings.timeoutMs);
     if (getStringOption(options, "chrome-path") && source.type !== "page") {
       throw new Error("--chrome-path 仅能与 --type page 一起使用");
     }
