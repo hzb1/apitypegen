@@ -1,31 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="3200" height="694" viewBox="0 0 3200 694" role="img" aria-label="APITypeGen logo replica full">
-  <defs>
-    <linearGradient id="docBlueFull" x1="150" y1="100" x2="620" y2="585" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#4599DE" />
-      <stop offset="1" stop-color="#1D73CC" />
-    </linearGradient>
-    <linearGradient id="docBlueDarkFull" x1="150" y1="515" x2="620" y2="585" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#1F6FC4" />
-      <stop offset="1" stop-color="#155DAE" />
-    </linearGradient>
-  </defs>
-
-  <path d="M170 100 H540 C551 100 560 109 560 120 V565 C560 576 551 585 540 585 H170 C159 585 150 576 150 565 V120 C150 109 159 100 170 100 Z" fill="url(#docBlueFull)" />
-  <path d="M150 552 L452 528 L515 585 H170 C159 585 150 576 150 565 Z" fill="url(#docBlueDarkFull)" />
-
-  <text x="335" y="505" text-anchor="middle" font-size="245" font-family="Arial Black, Arial, Helvetica, sans-serif" font-weight="900" fill="#FFFFFF">TS</text>
-
-  <circle cx="700" cy="365" r="212" fill="#81B730" stroke="#FFFFFF" stroke-width="16" />
-
-  <path d="M588 305 V383 H672" stroke="#FFFFFF" stroke-width="32" stroke-linecap="round" stroke-linejoin="round" fill="none" />
-  <path d="M730 352 L778 304" stroke="#FFFFFF" stroke-width="32" stroke-linecap="round" stroke-linejoin="round" fill="none" />
-  <path d="M700 418 V468" stroke="#FFFFFF" stroke-width="32" stroke-linecap="round" stroke-linejoin="round" fill="none" />
-
-  <circle cx="588" cy="305" r="40" fill="#FFFFFF" />
-  <circle cx="782" cy="305" r="40" fill="#FFFFFF" />
-  <circle cx="700" cy="385" r="40" fill="#FFFFFF" />
-  <circle cx="700" cy="500" r="40" fill="#FFFFFF" />
-
-  <text x="1020" y="470" font-size="340" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-weight="800" fill="#2B83DC">API</text>
-  <text x="1660" y="470" font-size="340" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-weight="700" fill="#111827">TypeGen</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="128" viewBox="0 0 520 128" role="img" aria-label="APITypeGen">
+  <defs><linearGradient id="brand" x1="16" y1="12" x2="112" y2="116" gradientUnits="userSpaceOnUse"><stop stop-color="#3157E8"/><stop offset=".52" stop-color="#1677E8"/><stop offset="1" stop-color="#09B7C9"/></linearGradient><linearGradient id="word" x1="148" y1="34" x2="260" y2="92" gradientUnits="userSpaceOnUse"><stop stop-color="#3157E8"/><stop offset="1" stop-color="#078DAF"/></linearGradient></defs>
+  <rect x="8" y="8" width="112" height="112" rx="28" fill="url(#brand)"/>
+  <path d="M40 48L27 64L40 80M90 48L103 64L90 80" fill="none" stroke="#D8E1EA" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/><path d="M53 35H77C81 35 83 37 83 41C83 45 81 47 77 47H70V89C70 93 68 95 65 95C62 95 60 93 60 89V47H53C49 47 47 45 47 41C47 37 49 35 53 35Z" fill="#FFF"/>
+  <text x="148" y="82" fill="url(#word)" font-family="Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="58" font-weight="800" letter-spacing="-2">API</text><text x="244" y="82" fill="#14213D" font-family="Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="58" font-weight="720" letter-spacing="-2">TypeGen</text>
 </svg>

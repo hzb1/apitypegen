@@ -1,26 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-label="APITypeGen icon">
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-labelledby="title description">
+  <title id="title">APITypeGen</title>
+  <desc id="description">以 TypeScript 泛型令牌表示类型生成的标志</desc>
   <defs>
-    <linearGradient id="swaggerCircle" x1="28" y1="22" x2="102" y2="106" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#a6ef4a" />
-      <stop offset="1" stop-color="#67be1f" />
+    <linearGradient id="brand" x1="16" y1="12" x2="112" y2="116" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#3157E8" />
+      <stop offset="0.52" stop-color="#1677E8" />
+      <stop offset="1" stop-color="#09B7C9" />
     </linearGradient>
-    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
-      <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#0b1728" flood-opacity="0.18" />
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#123B7A" flood-opacity="0.22" />
     </filter>
   </defs>
-
-  <g filter="url(#shadow)">
-    <circle cx="64" cy="64" r="58" fill="url(#swaggerCircle)" />
-  </g>
-
-  <text
-    x="64"
-    y="64"
-    text-anchor="middle"
-    dominant-baseline="middle"
-    font-size="40"
-    font-family="'JetBrains Mono', 'SFMono-Regular', Menlo, Monaco, Consolas, 'Courier New', monospace"
-    font-weight="800"
-    fill="#1d6fcb"
-  >{TS}</text>
+  <rect x="8" y="8" width="112" height="112" rx="28" fill="url(#brand)" filter="url(#shadow)" />
+  <path d="M40 48L27 64L40 80M90 48L103 64L90 80" fill="none" stroke="#D8E1EA" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M53 35H77C81 35 83 37 83 41C83 45 81 47 77 47H70V89C70 93 68 95 65 95C62 95 60 93 60 89V47H53C49 47 47 45 47 41C47 37 49 35 53 35Z" fill="#FFFFFF" />
 </svg>

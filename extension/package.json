@@ -1,6 +1,6 @@
 {
   "name": "@apitypegen/extension",
-  "version": "0.5.2",
+  "version": "0.8.0",
   "private": true,
   "scripts": {
     "dev": "vite build --watch",

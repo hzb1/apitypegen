@@ -3,7 +3,7 @@ import type { AutoCompleteProps } from "antd";
 import { AutoComplete, Button, Input, Select, Tooltip } from "antd";
 import { MenuOutlined, QuestionCircleOutlined, SettingOutlined } from "@ant-design/icons";
 import ThemeDropdown from "@/components/theme/ThemeDropdown.tsx";
-import logoUrl from "@/assets/logo/logo-replica-full.svg";
+import logoUrl from "@/assets/logo/logo-full.svg";
 import type { LoadingFeedback } from "../home.types.ts";
 import DocumentStatusChip, { type DocumentMode } from "./DocumentStatusChip.tsx";
 

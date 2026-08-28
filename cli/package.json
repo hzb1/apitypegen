@@ -1,6 +1,6 @@
 {
   "name": "apitypegen",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "从 API 文档生成可靠的 TypeScript 类型",
   "private": false,
   "type": "module",

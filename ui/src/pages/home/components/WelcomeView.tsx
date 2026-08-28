@@ -11,7 +11,7 @@ import {
   SafetyCertificateOutlined,
   ThunderboltOutlined,
 } from "@ant-design/icons";
-import logoUrl from "@/assets/logo/logo-replica-full.svg";
+import logoUrl from "@/assets/logo/logo-full.svg";
 import { EXTENSION_URL } from "../home.constants.ts";
 import type { LoadingFeedback } from "../home.types.ts";
 import type { PluginStatus } from "@/hooks/usePluginEnabled.ts";
