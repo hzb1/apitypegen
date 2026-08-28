@@ -1,47 +1,107 @@
 # APITypeGen CLI
 
-从 Swagger UI、OpenAPI JSON 或 `swagger-config` 中检索接口，并生成 TypeScript 类型。
+从 Swagger UI、OpenAPI JSON 或 `swagger-config` 中搜索接口并生成 TypeScript。适合终端、脚本、CI 和 AI 调用。
+
+[返回首页](../README.md) · [MCP 指南](../docs/mcp.md) · [常见问题](../docs/troubleshooting.md)
 
 ## 安装
 
 ```bash
 npm install -g apitypegen
+apitypegen --help
 ```
 
-## 使用
+仓库内开发：
 
 ```bash
-apitypegen --help
-apitypegen search --type openapi --url <OpenAPI-URL> --keyword order
-apitypegen gen --type openapi --url <OpenAPI-URL> --method post --path /api/order/create
+npm install
+npm run build:cli
+npm run apitypegen -- --help
 ```
 
-CLI 支持交互模式，也可以通过 `--no-interactive` 和 `--format json` 在 AI、CI 或其他脚本中调用。完整说明参见[项目 README](https://github.com/hzb1/ts-swagger#8-cli给-ai脚本调用)。
+## 来源
+
+| `--type` | URL 内容 | 说明 |
+| --- | --- | --- |
+| `openapi` | OpenAPI / Swagger JSON | 推荐 |
+| `config` | `swagger-config` JSON | 支持多服务 |
+| `ui` | Swagger UI / Knife4j 页面 | 需要本机 Chrome |
+
+CLI 不会猜测文档地址。`ui` 模式可用 `--chrome-path` 或 `APITYPEGEN_CHROME_PATH` 指定 Chrome。
+
+## 常用命令
+
+不带参数时进入交互式生成：
+
+```bash
+apitypegen
+```
+
+搜索接口：
+
+```bash
+apitypegen search \
+  --type config \
+  --url http://localhost:9999/v3/api-docs/swagger-config \
+  --keyword order
+```
+
+生成类型：
+
+```bash
+apitypegen gen \
+  --type openapi \
+  --url http://localhost:9999/v3/api-docs \
+  --method post \
+  --path /api/order/create \
+  --copy
+```
+
+AI / CI 调用：
+
+```bash
+apitypegen search \
+  --no-interactive \
+  --type openapi \
+  --url http://localhost:9999/v3/api-docs \
+  --keyword order \
+  --format json
+```
+
+`--format json` 使用 `schemaVersion: 1` 的稳定协议：结果写入 `stdout`，日志写入 `stderr`，失败退出码为 `1`。
+
+## 关键参数
+
+- `--service <name>`：只加载指定服务，或消除同路径接口歧义。
+- `--limit <1-100>`：搜索结果数，默认 20。
+- `--refresh`：立即重新校验 5 分钟文档缓存。
+- `--timeout <ms>`：请求超时，默认 15000ms。
+- `--no-interactive`：缺少参数时直接失败。
+
+完整参数以 `apitypegen --help` 为准。
+
+## 配置
+
+可复制 `cli/apitypegen.config.example.json` 为项目根目录的 `apitypegen.config.json`。来源优先级：
+
+1. `--type` / `--url`
+2. `APITYPEGEN_TYPE` / `APITYPEGEN_URL`
+3. `apitypegen.config.json`
+
+旧 `TS_SWAGGER_*` 环境变量和 `ts-swagger.config.json` 仍兼容读取。
+
+## 多服务
+
+- `search` 默认搜索全部服务，部分服务失败时仍返回成功结果和警告。
+- `gen --service <name>` 只加载目标服务。
+- 多个服务存在相同 `method + path` 时，非交互调用必须传 `--service`。
 
 ## MCP
 
-通过 stdio 启动本地 MCP Server：
+CLI 包内置 stdio MCP Server：
 
 ```bash
 apitypegen mcp
 ```
 
-通用 MCP Client 配置示例：
-
-```json
-{
-  "mcpServers": {
-    "apitypegen": {
-      "command": "apitypegen",
-      "args": ["mcp"]
-    }
-  }
-}
-```
-
-Server 提供两个只读工具：
-
-- `search_apis`：根据明确的 `ui`、`openapi` 或 `config` 来源搜索接口，并返回可复用的精确 selector。
-- `generate_typescript`：根据服务名、HTTP 方法和 OpenAPI 路径生成 TypeScript，只返回代码，不写文件或剪贴板。
-
-推荐让 AI 先调用 `search_apis`，再把返回的 selector 传给 `generate_typescript`。MCP 与 CLI 共用同一应用层，不会启动 CLI 子进程，也不会解析终端输出。
+接入方式见 [MCP 指南](../docs/mcp.md)。匿名错误上报默认关闭；`APITYPEGEN_TELEMETRY=1` 开启，`DO_NOT_TRACK=1` 强制关闭。

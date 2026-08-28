@@ -1,73 +1,46 @@
-# React + TypeScript + Vite
+# APITypeGen Web UI
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+用于在浏览器中加载 OpenAPI / Swagger 文档、搜索接口并复制 TypeScript 类型。
 
-Currently, two official plugins are available:
+[返回首页](../README.md) · [浏览器扩展](../extension/README.md) · [常见问题](../docs/troubleshooting.md)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## 启动
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+打开终端输出的地址：
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+- “试用示例项目”：加载 `/demo/openapi.json`。
+- “多服务示例”：加载 `/demo/swagger-config.json`。
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+两种 Demo 都不依赖后端或浏览器扩展。
+
+## 可用能力
+
+- 浏览分组、搜索接口、查看并复制生成类型。
+- 加载同源或允许 CORS 的远程文档。
+- 保存到浏览器本地接口库，之后离线打开。
+- 在 `/network` 调试请求。
+
+本地库保存在 IndexedDB，按站点 origin 隔离；清理站点数据会删除记录。
+
+## 浏览器扩展
+
+以下场景需要扩展：
+
+- 加载内网或受 CORS 限制的文档。
+- 代理发送跨域请求。
+- 使用 `proxyFetch` 调试模式。
+
+安装方法见 [浏览器扩展指南](../extension/README.md)。
+
+## 检查
+
+```bash
+npm run typecheck --workspace=@apitypegen/ui
+npm run lint --workspace=@apitypegen/ui
+npm run build:ui
 ```
