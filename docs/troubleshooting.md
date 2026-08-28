@@ -14,8 +14,8 @@
 ## CLI / MCP 来源怎么选
 
 - 直接返回 OpenAPI JSON：`openapi`。
-- 返回 `swagger-config` JSON：`config`。
-- Swagger UI / Knife4j 页面：`ui`，需要 Chrome。
+- 返回多服务配置 JSON（`swagger-config`）：`config`。
+- 接口文档页面（Swagger UI / Knife4j）：`page`，需要 Chrome。
 
 Chrome 不在标准路径时使用 `--chrome-path` 或 `APITYPEGEN_CHROME_PATH`。
 

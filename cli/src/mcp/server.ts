@@ -14,11 +14,11 @@ import { readPackageVersion } from "../package-metadata.js";
 /**
  * MCP 工具支持的 Swagger 来源类型。
  *
- * - `ui`：加载 Swagger UI 或 Knife4j 页面产生的真实网络响应。
+ * - `page`：加载 Swagger UI 或 Knife4j 接口文档页面产生的真实网络响应。
  * - `openapi`：直接读取 OpenAPI 或 Swagger JSON。
  * - `config`：直接读取 swagger-config JSON。
  */
-export type McpSwaggerSourceType = "ui" | "openapi" | "config";
+export type McpSwaggerSourceType = "page" | "openapi" | "config";
 
 /**
  * MCP 代码生成工具支持的 HTTP 方法。
@@ -60,7 +60,7 @@ export type SearchApisToolInput = {
   /** 来源请求和页面发现的超时时间。 */
   timeoutMs?: number;
 
-  /** ui 来源使用的系统 Chrome 可执行文件路径。 */
+  /** page 来源使用的系统 Chrome 可执行文件路径。 */
   chromePath?: string;
 };
 
@@ -84,7 +84,7 @@ export type GenerateTypescriptToolInput = {
   /** 来源请求和页面发现的超时时间。 */
   timeoutMs?: number;
 
-  /** ui 来源使用的系统 Chrome 可执行文件路径。 */
+  /** page 来源使用的系统 Chrome 可执行文件路径。 */
   chromePath?: string;
 };
 
@@ -103,11 +103,13 @@ const DEFAULT_GENERATOR_OPTIONS: Required<GeneratorOptions> = {
 };
 
 const sourceSchema = z.object({
-  type: z.enum(["ui", "openapi", "config"]).describe("来源读取方式"),
+  type: z
+    .enum(["page", "openapi", "config"])
+    .describe("来源读取方式：page=接口文档页面，openapi=OpenAPI JSON，config=多服务配置 JSON"),
   url: z
     .url()
     .refine((value) => /^https?:\/\//i.test(value), "来源地址只支持 http 或 https")
-    .describe("用户明确提供的 Swagger UI、OpenAPI 或 swagger-config 地址"),
+    .describe("用户明确提供的接口文档页面、OpenAPI JSON 或 swagger-config 地址"),
 });
 
 const selectorSchema = z.object({
@@ -224,15 +226,23 @@ function createToolText(structuredContent: object): string {
 }
 
 function validateToolSource(source: McpSwaggerSource, chromePath?: string): void {
+  const sourceType = String(source.type);
+  if (!["page", "openapi", "config"].includes(sourceType)) {
+    throw new CliProtocolError(
+      "INVALID_ARGUMENT",
+      `无效的来源类型 "${sourceType}"。可选值: page, openapi, config`,
+      { sourceType, allowedValues: ["page", "openapi", "config"] },
+    );
+  }
   if (!/^https?:\/\//i.test(source.url)) {
     throw new CliProtocolError("INVALID_ARGUMENT", "MCP 来源地址只支持 http 或 https", {
       sourceType: source.type,
     });
   }
-  if (chromePath && source.type !== "ui") {
+  if (chromePath && source.type !== "page") {
     throw new CliProtocolError(
       "INVALID_ARGUMENT",
-      "chromePath 仅能与 ui 来源一起使用",
+      "chromePath 仅能与 page 来源一起使用",
       { sourceType: source.type },
     );
   }
@@ -321,7 +331,7 @@ export function createApiTypeGenMcpServer(): McpServer {
     {
       title: "搜索 OpenAPI 接口",
       description:
-        "从用户明确提供的 OpenAPI、swagger-config 或 Swagger UI 来源中搜索接口。返回精确 selector，适合随后调用 generate_typescript。不会猜测任何文档地址。",
+        "从用户明确提供的 OpenAPI JSON、多服务配置 JSON 或接口文档页面（Swagger UI / Knife4j）中搜索接口。返回精确 selector，适合随后调用 generate_typescript。不会猜测任何文档地址。",
       inputSchema: {
         source: sourceSchema,
         keyword: z.string().trim().min(1).describe("API 搜索关键词"),
@@ -329,7 +339,7 @@ export function createApiTypeGenMcpServer(): McpServer {
         limit: z.number().int().min(1).max(100).optional().describe("最多返回 1 到 100 条结果"),
         refresh: z.boolean().optional().describe("是否立即重新校验 OpenAPI 缓存"),
         timeoutMs: z.number().int().min(1000).max(120000).optional().describe("请求超时时间，单位毫秒"),
-        chromePath: z.string().min(1).optional().describe("ui 来源使用的系统 Chrome 路径"),
+        chromePath: z.string().min(1).optional().describe("page 来源使用的系统 Chrome 路径"),
       },
       outputSchema: searchOutputSchema,
       annotations: {
@@ -355,7 +365,7 @@ export function createApiTypeGenMcpServer(): McpServer {
         path: z.string().trim().min(1).startsWith("/").describe("OpenAPI 路径"),
         refresh: z.boolean().optional().describe("是否立即重新校验 OpenAPI 缓存"),
         timeoutMs: z.number().int().min(1000).max(120000).optional().describe("请求超时时间，单位毫秒"),
-        chromePath: z.string().min(1).optional().describe("ui 来源使用的系统 Chrome 路径"),
+        chromePath: z.string().min(1).optional().describe("page 来源使用的系统 Chrome 路径"),
       },
       outputSchema: generateOutputSchema,
       annotations: {

@@ -1,6 +1,6 @@
 {
   "source": {
-    "type": "ui",
+    "type": "page",
     "url": "http://localhost:9999/doc.html#/home"
   },
   "generator": {

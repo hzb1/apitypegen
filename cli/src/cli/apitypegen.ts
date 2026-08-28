@@ -122,7 +122,7 @@ const DEFAULT_CONFIG = {
 const CONFIG_FILENAME = "apitypegen.config.json";
 const LEGACY_CONFIG_FILENAME = "ts-swagger.config.json";
 const API_METHODS = ["get", "post", "put", "delete", "patch"] as const;
-const SOURCE_TYPES: SwaggerSourceType[] = ["ui", "openapi", "config"];
+const SOURCE_TYPES: SwaggerSourceType[] = ["page", "openapi", "config"];
 const MAX_INTERACTIVE_API_CHOICES = 30;
 const DEFAULT_SEARCH_LIMIT = 20;
 const MAX_SEARCH_LIMIT = 100;
@@ -141,7 +141,7 @@ const COMMAND_OPTIONS: Record<CliCommand, Set<string>> = {
   gen: new Set([...COMMON_OPTIONS, "method", "path", "service", "copy"]),
 };
 const REMOVED_OPTIONS: Record<string, string> = {
-  "source-url": "--type ui --url <Swagger-UI-URL>",
+  "source-url": "--type page --url <Swagger-UI-URL>",
   "doc-url": "--type openapi --url <OpenAPI-URL>",
   "swagger-config-url": "--type config --url <swagger-config-URL>",
   host: "--type config --url <swagger-config-URL>",
@@ -165,14 +165,14 @@ function printHelp(): void {
   process.stdout.write(`APITypeGen 命令行工具
 
 用法:
-  apitypegen [gen] [--type <ui|openapi|config>] [--url <url>] [--method <method>] [--path <api-path>] [--service <name>] [--refresh] [--copy] [--format <ts|json>]
-  apitypegen search --keyword <text> [--type <ui|openapi|config>] [--url <url>] [--service <name>] [--limit <1-100>] [--refresh] [--format <text|json>]
+  apitypegen [gen] [--type <page|openapi|config>] [--url <url>] [--method <method>] [--path <api-path>] [--service <name>] [--refresh] [--copy] [--format <ts|json>]
+  apitypegen search --keyword <text> [--type <page|openapi|config>] [--url <url>] [--service <name>] [--limit <1-100>] [--refresh] [--format <text|json>]
   apitypegen mcp
 
 来源类型:
-  ui       加载 Swagger UI / Knife4j 页面，读取页面真实发出的 GET 响应
+  page     接口文档页面（Swagger UI / Knife4j），读取页面真实发出的 GET 响应
   openapi  直接读取 OpenAPI / Swagger JSON
-  config   直接读取 swagger-config JSON
+  config   多服务配置 JSON（swagger-config）
 
 说明:
   - 不写命令时默认执行 gen；交互终端会引导选择来源和 API
@@ -184,7 +184,7 @@ function printHelp(): void {
   - --format json 使用 schemaVersion=1 的稳定成功/失败协议
   - OpenAPI 文档默认缓存 5 分钟；--refresh 会立即向服务端重新校验
   - --no-interactive 可在 AI/CI 脚本中禁用所有交互
-  - ui 模式需要系统 Chrome，可用 --chrome-path 或 APITYPEGEN_CHROME_PATH 指定路径
+  - page 模式需要系统 Chrome，可用 --chrome-path 或 APITYPEGEN_CHROME_PATH 指定路径
   - CLI 不会探测或猜测任何 OpenAPI / swagger-config 地址
   - mcp 通过 stdio 启动 MCP Server，提供 search_apis 和 generate_typescript 工具
 `);
@@ -384,17 +384,17 @@ async function selectByNumber<T>(
 
 function sourceTypeLabel(type: SwaggerSourceType): string {
   const labels: Record<SwaggerSourceType, string> = {
-    ui: "Swagger UI / Knife4j 页面",
+    page: "接口文档页面（Swagger UI / Knife4j）",
     openapi: "OpenAPI JSON",
-    config: "swagger-config JSON",
+    config: "多服务配置 JSON（swagger-config）",
   };
   return labels[type];
 }
 
 function sourceUrlPrompt(type: SwaggerSourceType): string {
-  if (type === "ui") return "请输入 Swagger UI / Knife4j 页面地址";
+  if (type === "page") return "请输入接口文档页面地址（Swagger UI / Knife4j）";
   if (type === "openapi") return "请输入 OpenAPI JSON 地址";
-  return "请输入 swagger-config JSON 地址";
+  return "请输入多服务配置 JSON 地址（swagger-config）";
 }
 
 async function askSwaggerSource(
@@ -715,8 +715,8 @@ async function main(argv: string[]): Promise<void> {
 
   try {
     const source = await resolveSwaggerSourceInput(options, config, prompt);
-    if (getStringOption(options, "chrome-path") && source.type !== "ui") {
-      throw new Error("--chrome-path 仅能与 --type ui 一起使用");
+    if (getStringOption(options, "chrome-path") && source.type !== "page") {
+      throw new Error("--chrome-path 仅能与 --type page 一起使用");
     }
     const commandContext = await createSwaggerCommandContext({
       source,

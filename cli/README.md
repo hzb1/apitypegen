@@ -26,10 +26,10 @@ npm run apitypegen -- --help
 | `--type` | URL 内容 | 说明 |
 | --- | --- | --- |
 | `openapi` | OpenAPI / Swagger JSON | 推荐 |
-| `config` | `swagger-config` JSON | 支持多服务 |
-| `ui` | Swagger UI / Knife4j 页面 | 需要本机 Chrome |
+| `config` | 多服务配置 JSON（`swagger-config`） | 支持多服务 |
+| `page` | 接口文档页面（Swagger UI / Knife4j） | 需要本机 Chrome |
 
-CLI 不会猜测文档地址。`ui` 模式可用 `--chrome-path` 或 `APITYPEGEN_CHROME_PATH` 指定 Chrome。
+CLI 不会猜测文档地址。`page` 模式可用 `--chrome-path` 或 `APITYPEGEN_CHROME_PATH` 指定 Chrome。
 
 ## 常用命令
 

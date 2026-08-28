@@ -328,7 +328,7 @@ export async function createSwaggerCommandContext(
   input: CreateSwaggerCommandContextInput,
 ): Promise<SwaggerCommandContext> {
   const progress = input.progress || NO_PROGRESS;
-  if (input.source.type === "ui") {
+  if (input.source.type === "page") {
     progress.report(`正在通过系统 Chrome 读取页面网络响应: ${input.source.url}`);
   }
   const resolved = await loadSwaggerSource(input.source, input.settings);

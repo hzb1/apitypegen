@@ -82,6 +82,11 @@ test("MCP stdio 暴露搜索和生成工具并返回结构化结果", async () =
       ["generate_typescript", "search_apis"],
     );
     assert.ok(tools.tools.every((tool) => tool.outputSchema));
+    assert.deepEqual(
+      tools.tools.find((tool) => tool.name === "search_apis")
+        .inputSchema.properties.source.properties.type.enum,
+      ["page", "openapi", "config"],
+    );
 
     const searchResult = await client.callTool({
       name: "search_apis",
@@ -143,4 +148,16 @@ test("MCP 工具拒绝非 HTTP 来源且不尝试读取本地文件", async () =
   assert.equal(result.isError, true);
   assert.equal(result.structuredContent.error.code, "INVALID_ARGUMENT");
   assert.match(result.structuredContent.error.message, /http 或 https/);
+});
+
+test("MCP 工具拒绝旧 ui 来源类型", async () => {
+  const { executeSearchApisTool } = await import("../dist/mcp/server.js");
+  const result = await executeSearchApisTool({
+    source: { type: "ui", url: "http://localhost:9999/doc.html" },
+    keyword: "user",
+  });
+
+  assert.equal(result.isError, true);
+  assert.equal(result.structuredContent.error.code, "INVALID_ARGUMENT");
+  assert.match(result.structuredContent.error.message, /page, openapi, config/);
 });

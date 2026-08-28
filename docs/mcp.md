@@ -116,7 +116,7 @@ http://localhost:9999/job/v3/api-docs
 
 ```text
 使用 apitypegen 读取下面的 Swagger UI 页面，搜索“订单查询”接口并生成类型。
-来源类型是 ui：
+来源类型是 page：
 http://localhost:9999/doc.html#/home
 ```
 
@@ -125,8 +125,8 @@ http://localhost:9999/doc.html#/home
 | 类型 | 地址 |
 |---|---|
 | `openapi` | OpenAPI 或 Swagger JSON 地址 |
-| `config` | swagger-config JSON 地址 |
-| `ui` | Swagger UI 或 Knife4j 页面地址 |
+| `config` | 多服务配置 JSON（swagger-config）地址 |
+| `page` | 接口文档页面（Swagger UI / Knife4j）地址 |
 
 APITypeGen 不会猜测文档地址。
 

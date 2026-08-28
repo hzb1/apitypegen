@@ -141,7 +141,7 @@ test(
 );
 
 test(
-  "CLI ui 来源通过 Presenter 输出稳定搜索 JSON",
+  "CLI page 来源通过 Presenter 输出稳定搜索 JSON",
   { skip: chromePath ? false : "未检测到系统 Chrome" },
   async () => {
     const server = http.createServer((request, response) => {
@@ -188,7 +188,7 @@ test(
       const result = await runCliAsync([
         "search",
         "--type",
-        "ui",
+        "page",
         "--url",
         `${baseUrl}/doc.html#/home`,
         "--keyword",

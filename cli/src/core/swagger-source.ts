@@ -9,11 +9,11 @@ import { loadOpenApiDocumentWithCache } from "./openapi-cache.js";
 /**
  * Swagger 文档来源类型。
  *
- * - `ui`：加载 Swagger UI 或 Knife4j 页面并观察真实网络响应。
+ * - `page`：加载 Swagger UI 或 Knife4j 接口文档页面并观察真实网络响应。
  * - `openapi`：直接读取 OpenAPI 或 Swagger JSON。
  * - `config`：直接读取 swagger-config JSON。
  */
-export type SwaggerSourceType = "ui" | "openapi" | "config";
+export type SwaggerSourceType = "page" | "openapi" | "config";
 
 /** Swagger 文档来源。 */
 export type SwaggerSource = {
@@ -74,7 +74,7 @@ export type ResolveSwaggerSourceOptions = {
   refreshCache?: boolean;
 };
 
-const SOURCE_TYPES: SwaggerSourceType[] = ["ui", "openapi", "config"];
+const SOURCE_TYPES: SwaggerSourceType[] = ["page", "openapi", "config"];
 
 /** 校验并返回 Swagger 来源类型。 */
 export function ensureSwaggerSourceType(value: string): SwaggerSourceType {
@@ -99,9 +99,13 @@ export async function loadSwaggerSource(
   source: SwaggerSource,
   options: ResolveSwaggerSourceOptions,
 ): Promise<ResolvedSwaggerSource> {
-  const normalizedSource = { ...source, url: normalizeBaseUrl(source.url) };
+  const normalizedSource = {
+    ...source,
+    type: ensureSwaggerSourceType(source.type),
+    url: normalizeBaseUrl(source.url),
+  };
 
-  if (normalizedSource.type === "ui") {
+  if (normalizedSource.type === "page") {
     const { discoverOpenApiFromBrowser } = await import("./browser-openapi-discovery.js");
     return discoverOpenApiFromBrowser(normalizedSource.url, options);
   }

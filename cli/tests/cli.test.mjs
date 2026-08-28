@@ -78,7 +78,7 @@ test("帮助信息只展示 type/url 三种来源", () => {
   const result = runCli(["--help"]);
 
   assert.equal(result.status, 0);
-  assert.match(result.stdout, /--type <ui\|openapi\|config>/);
+  assert.match(result.stdout, /--type <page\|openapi\|config>/);
   assert.match(result.stdout, /不写命令时默认执行 gen/);
   assert.doesNotMatch(result.stdout, /apitypegen services/);
   assert.doesNotMatch(result.stdout, /--host/);
@@ -115,6 +115,21 @@ test("host 不再是合法来源类型", () => {
 
   assert.equal(result.status, 1);
   assert.match(result.stderr, /无效的 --type "host"/);
+});
+
+test("旧 ui 来源类型已替换为 page", () => {
+  const result = runCli([
+    "gen",
+    "--type",
+    "ui",
+    "--url",
+    "http://localhost:9999/doc.html",
+    "--no-interactive",
+  ]);
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /无效的 --type "ui"/);
+  assert.match(result.stderr, /page, openapi, config/);
 });
 
 test("非交互模式要求 type 和 url 成对提供", () => {
