@@ -1,6 +1,8 @@
 # APITypeGen Web UI
 
-用于在浏览器中加载 OpenAPI / Swagger 文档、搜索接口并复制 TypeScript 类型。
+APITypeGen — 从 API 文档生成可靠的 TypeScript 类型。
+
+Web UI 用于在浏览器中加载 OpenAPI / Swagger 文档、搜索接口并复制生成结果。
 
 [返回首页](../README.md) · [浏览器扩展](../extension/README.md) · [常见问题](../docs/troubleshooting.md)
 

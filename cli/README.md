@@ -1,6 +1,8 @@
 # APITypeGen CLI
 
-从 Swagger UI、OpenAPI JSON 或 `swagger-config` 中搜索接口并生成 TypeScript。适合终端、脚本、CI 和 AI 调用。
+APITypeGen — 从 API 文档生成可靠的 TypeScript 类型。
+
+CLI 支持从 Swagger UI、OpenAPI JSON 或 `swagger-config` 中搜索接口并生成类型，适合终端、脚本、CI 和 AI 调用。
 
 [返回首页](../README.md) · [MCP 指南](../docs/mcp.md) · [常见问题](../docs/troubleshooting.md)
 

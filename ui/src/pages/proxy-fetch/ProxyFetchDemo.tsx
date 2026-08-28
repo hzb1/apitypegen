@@ -70,7 +70,7 @@ type ResultState = {
 
 const EXTENSION_URL =
   (import.meta.env.VITE_PROXY_EXTENSION_URL as string | undefined) ??
-  "https://github.com/hzb1/ts-swagger/releases/latest/download/apitypegen-extension-dist-latest.zip";
+  "https://github.com/hzb1/apitypegen/releases/latest/download/apitypegen-extension-dist-latest.zip";
 
 const SCENARIOS: Scenario[] = [
   {

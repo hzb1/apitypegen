@@ -1,5 +1,6 @@
 {
   "name": "apitypegen-monorepo",
+  "description": "APITypeGen — 从 API 文档生成可靠的 TypeScript 类型",
   "private": true,
   "workspaces": [
     "cli",

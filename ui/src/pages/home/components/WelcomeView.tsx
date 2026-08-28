@@ -59,7 +59,7 @@ export default function WelcomeView(props: WelcomeViewProps) {
             <img src={logoUrl} alt="APITypeGen" className="home-welcome-logo" />
             <Tag color={pluginEnabled ? "success" : "processing"}>{extensionText}</Tag>
           </div>
-          <h1 className="home-welcome-title">接口文档工作台</h1>
+          <h1 className="home-welcome-title">从 API 文档生成可靠的 TypeScript 类型</h1>
           <p className="home-welcome-subtitle">
             从 Swagger/OpenAPI 进入可检索的 API 视图，保留类型生成、本地库和调试入口。
           </p>

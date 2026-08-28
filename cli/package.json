@@ -1,17 +1,17 @@
 {
   "name": "apitypegen",
   "version": "0.7.0",
-  "description": "从 OpenAPI 或 Swagger 接口文档生成 TypeScript 类型的命令行工具",
+  "description": "从 API 文档生成可靠的 TypeScript 类型",
   "private": false,
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/hzb1/ts-swagger.git",
+    "url": "git+https://github.com/hzb1/apitypegen.git",
     "directory": "cli"
   },
-  "homepage": "https://github.com/hzb1/ts-swagger#readme",
+  "homepage": "https://github.com/hzb1/apitypegen#readme",
   "bugs": {
-    "url": "https://github.com/hzb1/ts-swagger/issues"
+    "url": "https://github.com/hzb1/apitypegen/issues"
   },
   "bin": {
     "apitypegen": "./bin/apitypegen.mjs"

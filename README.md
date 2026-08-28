@@ -1,6 +1,8 @@
 # APITypeGen
 
-从 OpenAPI / Swagger 文档生成 TypeScript 类型。项目提供四个产品入口：
+> APITypeGen — 从 API 文档生成可靠的 TypeScript 类型
+
+项目提供四个产品入口：
 
 | 场景 | 使用产品 | 文档 |
 | --- | --- | --- |
