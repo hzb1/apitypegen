@@ -26,7 +26,7 @@ npm run apitypegen -- --help
 | `--type` | URL 内容 | 说明 |
 | --- | --- | --- |
 | `openapi` | OpenAPI / Swagger JSON | 推荐 |
-| `config` | 多服务配置 JSON（`swagger-config`） | 支持多服务 |
+| `swagger-config` | 多服务文档配置 JSON | 支持多服务 |
 | `page` | 接口文档页面（Swagger UI / Knife4j） | 需要本机 Chrome |
 
 CLI 不会猜测文档地址。`page` 模式可用 `--chrome-path` 或 `APITYPEGEN_CHROME_PATH` 指定 Chrome。
@@ -43,7 +43,7 @@ apitypegen
 
 ```bash
 apitypegen search \
-  --type config \
+  --type swagger-config \
   --url http://localhost:9999/v3/api-docs/swagger-config \
   --keyword order
 ```

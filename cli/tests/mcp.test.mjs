@@ -85,7 +85,7 @@ test("MCP stdio 暴露搜索和生成工具并返回结构化结果", async () =
     assert.deepEqual(
       tools.tools.find((tool) => tool.name === "search_apis")
         .inputSchema.properties.source.properties.type.enum,
-      ["page", "openapi", "config"],
+      ["page", "openapi", "swagger-config"],
     );
 
     const searchResult = await client.callTool({
@@ -159,5 +159,17 @@ test("MCP 工具拒绝旧 ui 来源类型", async () => {
 
   assert.equal(result.isError, true);
   assert.equal(result.structuredContent.error.code, "INVALID_ARGUMENT");
-  assert.match(result.structuredContent.error.message, /page, openapi, config/);
+  assert.match(result.structuredContent.error.message, /page, openapi, swagger-config/);
+});
+
+test("MCP 工具拒绝旧 config 来源类型", async () => {
+  const { executeSearchApisTool } = await import("../dist/mcp/server.js");
+  const result = await executeSearchApisTool({
+    source: { type: "config", url: "http://localhost:9999/swagger-config" },
+    keyword: "user",
+  });
+
+  assert.equal(result.isError, true);
+  assert.equal(result.structuredContent.error.code, "INVALID_ARGUMENT");
+  assert.match(result.structuredContent.error.message, /page, openapi, swagger-config/);
 });

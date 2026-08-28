@@ -11,9 +11,9 @@ import { loadOpenApiDocumentWithCache } from "./openapi-cache.js";
  *
  * - `page`：加载 Swagger UI 或 Knife4j 接口文档页面并观察真实网络响应。
  * - `openapi`：直接读取 OpenAPI 或 Swagger JSON。
- * - `config`：直接读取 swagger-config JSON。
+ * - `swagger-config`：读取包含一个或多个 OpenAPI 文档地址的多服务配置 JSON。
  */
-export type SwaggerSourceType = "page" | "openapi" | "config";
+export type SwaggerSourceType = "page" | "openapi" | "swagger-config";
 
 /** Swagger 文档来源。 */
 export type SwaggerSource = {
@@ -74,7 +74,7 @@ export type ResolveSwaggerSourceOptions = {
   refreshCache?: boolean;
 };
 
-const SOURCE_TYPES: SwaggerSourceType[] = ["page", "openapi", "config"];
+const SOURCE_TYPES: SwaggerSourceType[] = ["page", "openapi", "swagger-config"];
 
 /** 校验并返回 Swagger 来源类型。 */
 export function ensureSwaggerSourceType(value: string): SwaggerSourceType {

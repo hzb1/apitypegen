@@ -196,7 +196,7 @@ export async function discoverOpenApiFromBrowser(
     }
 
     throw new Error(
-      `页面已加载，但未捕获到有效的 OpenAPI 或 swagger-config GET 响应：${pageUrl}。请改用 --type openapi 或 --type config 提供准确地址。`,
+      `页面已加载，但未捕获到有效的 OpenAPI 或 swagger-config GET 响应：${pageUrl}。请改用 --type openapi 或 --type swagger-config 提供准确地址。`,
     );
   } finally {
     await context.close();

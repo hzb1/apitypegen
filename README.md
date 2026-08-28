@@ -56,7 +56,7 @@ claude mcp add --transport stdio apitypegen -- npx -y @hzb1/apitypegen mcp
 CLI 和 MCP 使用相同的来源：
 
 - `openapi`：直接返回 OpenAPI / Swagger JSON 的 URL。
-- `config`：多服务配置 JSON（`swagger-config`）的 URL。
+- `swagger-config`：包含一个或多个 OpenAPI 地址的多服务文档配置 JSON。
 - `page`：接口文档页面（Swagger UI / Knife4j），需要本机 Chrome。
 
 工具不会猜测或探测文档地址。Web UI 加载跨域或内网文档时通常需要浏览器扩展。

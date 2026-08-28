@@ -125,7 +125,7 @@ http://localhost:9999/doc.html#/home
 | 类型 | 地址 |
 |---|---|
 | `openapi` | OpenAPI 或 Swagger JSON 地址 |
-| `config` | 多服务配置 JSON（swagger-config）地址 |
+| `swagger-config` | 包含一个或多个 OpenAPI 地址的多服务文档配置 JSON |
 | `page` | 接口文档页面（Swagger UI / Knife4j）地址 |
 
 APITypeGen 不会猜测文档地址。

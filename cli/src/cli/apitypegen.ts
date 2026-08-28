@@ -122,7 +122,7 @@ const DEFAULT_CONFIG = {
 const CONFIG_FILENAME = "apitypegen.config.json";
 const LEGACY_CONFIG_FILENAME = "ts-swagger.config.json";
 const API_METHODS = ["get", "post", "put", "delete", "patch"] as const;
-const SOURCE_TYPES: SwaggerSourceType[] = ["page", "openapi", "config"];
+const SOURCE_TYPES: SwaggerSourceType[] = ["page", "openapi", "swagger-config"];
 const MAX_INTERACTIVE_API_CHOICES = 30;
 const DEFAULT_SEARCH_LIMIT = 20;
 const MAX_SEARCH_LIMIT = 100;
@@ -143,8 +143,8 @@ const COMMAND_OPTIONS: Record<CliCommand, Set<string>> = {
 const REMOVED_OPTIONS: Record<string, string> = {
   "source-url": "--type page --url <Swagger-UI-URL>",
   "doc-url": "--type openapi --url <OpenAPI-URL>",
-  "swagger-config-url": "--type config --url <swagger-config-URL>",
-  host: "--type config --url <swagger-config-URL>",
+  "swagger-config-url": "--type swagger-config --url <swagger-config-URL>",
+  host: "--type swagger-config --url <swagger-config-URL>",
   version: "直接提供准确的 OpenAPI 或 swagger-config URL",
 };
 
@@ -165,14 +165,14 @@ function printHelp(): void {
   process.stdout.write(`APITypeGen 命令行工具
 
 用法:
-  apitypegen [gen] [--type <page|openapi|config>] [--url <url>] [--method <method>] [--path <api-path>] [--service <name>] [--refresh] [--copy] [--format <ts|json>]
-  apitypegen search --keyword <text> [--type <page|openapi|config>] [--url <url>] [--service <name>] [--limit <1-100>] [--refresh] [--format <text|json>]
+  apitypegen [gen] [--type <page|openapi|swagger-config>] [--url <url>] [--method <method>] [--path <api-path>] [--service <name>] [--refresh] [--copy] [--format <ts|json>]
+  apitypegen search --keyword <text> [--type <page|openapi|swagger-config>] [--url <url>] [--service <name>] [--limit <1-100>] [--refresh] [--format <text|json>]
   apitypegen mcp
 
 来源类型:
   page     接口文档页面（Swagger UI / Knife4j），读取页面真实发出的 GET 响应
   openapi  直接读取 OpenAPI / Swagger JSON
-  config   多服务配置 JSON（swagger-config）
+  swagger-config  多服务文档配置 JSON
 
 说明:
   - 不写命令时默认执行 gen；交互终端会引导选择来源和 API
@@ -386,7 +386,7 @@ function sourceTypeLabel(type: SwaggerSourceType): string {
   const labels: Record<SwaggerSourceType, string> = {
     page: "接口文档页面（Swagger UI / Knife4j）",
     openapi: "OpenAPI JSON",
-    config: "多服务配置 JSON（swagger-config）",
+    "swagger-config": "多服务文档配置 JSON（swagger-config）",
   };
   return labels[type];
 }
@@ -394,7 +394,7 @@ function sourceTypeLabel(type: SwaggerSourceType): string {
 function sourceUrlPrompt(type: SwaggerSourceType): string {
   if (type === "page") return "请输入接口文档页面地址（Swagger UI / Knife4j）";
   if (type === "openapi") return "请输入 OpenAPI JSON 地址";
-  return "请输入多服务配置 JSON 地址（swagger-config）";
+  return "请输入多服务文档配置 JSON 地址（swagger-config）";
 }
 
 async function askSwaggerSource(

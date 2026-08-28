@@ -78,7 +78,7 @@ test("帮助信息只展示 type/url 三种来源", () => {
   const result = runCli(["--help"]);
 
   assert.equal(result.status, 0);
-  assert.match(result.stdout, /--type <page\|openapi\|config>/);
+  assert.match(result.stdout, /--type <page\|openapi\|swagger-config>/);
   assert.match(result.stdout, /不写命令时默认执行 gen/);
   assert.doesNotMatch(result.stdout, /apitypegen services/);
   assert.doesNotMatch(result.stdout, /--host/);
@@ -100,7 +100,7 @@ test("旧 host 参数返回迁移提示", () => {
 
   assert.equal(result.status, 1);
   assert.match(result.stderr, /参数 --host 已删除/);
-  assert.match(result.stderr, /--type config --url/);
+  assert.match(result.stderr, /--type swagger-config --url/);
 });
 
 test("host 不再是合法来源类型", () => {
@@ -129,11 +129,26 @@ test("旧 ui 来源类型已替换为 page", () => {
 
   assert.equal(result.status, 1);
   assert.match(result.stderr, /无效的 --type "ui"/);
-  assert.match(result.stderr, /page, openapi, config/);
+  assert.match(result.stderr, /page, openapi, swagger-config/);
+});
+
+test("旧 config 来源类型已替换为 swagger-config", () => {
+  const result = runCli([
+    "gen",
+    "--type",
+    "config",
+    "--url",
+    "http://localhost:9999/swagger-config",
+    "--no-interactive",
+  ]);
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /无效的 --type "config"/);
+  assert.match(result.stderr, /page, openapi, swagger-config/);
 });
 
 test("非交互模式要求 type 和 url 成对提供", () => {
-  const result = runCli(["gen", "--type", "config", "--no-interactive"]);
+  const result = runCli(["gen", "--type", "swagger-config", "--no-interactive"]);
 
   assert.equal(result.status, 1);
   assert.match(result.stderr, /--type 和 --url 必须同时提供/);
@@ -288,7 +303,13 @@ test("多服务默认全部加载，--service 仅作为过滤器", async () => {
   try {
     const address = await listen(server);
     baseUrl = `http://127.0.0.1:${address.port}`;
-    const commonArgs = ["--type", "config", "--url", `${baseUrl}/config`, "--no-interactive"];
+    const commonArgs = [
+      "--type",
+      "swagger-config",
+      "--url",
+      `${baseUrl}/config`,
+      "--no-interactive",
+    ];
 
     const searchResult = await runCliAsync([
       "search",
@@ -472,7 +493,7 @@ test("多服务默认全部加载，--service 仅作为过滤器", async () => {
 
     const partialArgs = [
       "--type",
-      "config",
+      "swagger-config",
       "--url",
       `${baseUrl}/partial-config`,
       "--no-interactive",
@@ -534,7 +555,7 @@ test("多服务默认全部加载，--service 仅作为过滤器", async () => {
     const allFailedSearchResult = await runCliAsync([
       "search",
       "--type",
-      "config",
+      "swagger-config",
       "--url",
       `${baseUrl}/failed-config`,
       "--keyword",
@@ -617,7 +638,7 @@ test("多服务默认全部加载，--service 仅作为过滤器", async () => {
     const redactedRecoveryResult = await runCliAsync([
       "gen",
       "--type",
-      "config",
+      "swagger-config",
       "--url",
       `${baseUrl}/config?access_token=secret-value`,
       "--method",

@@ -16,9 +16,9 @@ import { readPackageVersion } from "../package-metadata.js";
  *
  * - `page`：加载 Swagger UI 或 Knife4j 接口文档页面产生的真实网络响应。
  * - `openapi`：直接读取 OpenAPI 或 Swagger JSON。
- * - `config`：直接读取 swagger-config JSON。
+ * - `swagger-config`：读取包含一个或多个 OpenAPI 文档地址的多服务配置 JSON。
  */
-export type McpSwaggerSourceType = "page" | "openapi" | "config";
+export type McpSwaggerSourceType = "page" | "openapi" | "swagger-config";
 
 /**
  * MCP 代码生成工具支持的 HTTP 方法。
@@ -104,8 +104,10 @@ const DEFAULT_GENERATOR_OPTIONS: Required<GeneratorOptions> = {
 
 const sourceSchema = z.object({
   type: z
-    .enum(["page", "openapi", "config"])
-    .describe("来源读取方式：page=接口文档页面，openapi=OpenAPI JSON，config=多服务配置 JSON"),
+    .enum(["page", "openapi", "swagger-config"])
+    .describe(
+      "来源读取方式：page=接口文档页面，openapi=OpenAPI JSON，swagger-config=多服务文档配置 JSON",
+    ),
   url: z
     .url()
     .refine((value) => /^https?:\/\//i.test(value), "来源地址只支持 http 或 https")
@@ -227,11 +229,11 @@ function createToolText(structuredContent: object): string {
 
 function validateToolSource(source: McpSwaggerSource, chromePath?: string): void {
   const sourceType = String(source.type);
-  if (!["page", "openapi", "config"].includes(sourceType)) {
+  if (!["page", "openapi", "swagger-config"].includes(sourceType)) {
     throw new CliProtocolError(
       "INVALID_ARGUMENT",
-      `无效的来源类型 "${sourceType}"。可选值: page, openapi, config`,
-      { sourceType, allowedValues: ["page", "openapi", "config"] },
+      `无效的来源类型 "${sourceType}"。可选值: page, openapi, swagger-config`,
+      { sourceType, allowedValues: ["page", "openapi", "swagger-config"] },
     );
   }
   if (!/^https?:\/\//i.test(source.url)) {
