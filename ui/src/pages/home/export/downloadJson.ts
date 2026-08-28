@@ -13,7 +13,7 @@ function sanitizeFilePart(value: string) {
 export function createExportFileName(payload: TsSwaggerExport) {
   const title = sanitizeFilePart(payload.source.title || "api-export") || "api-export";
   const date = payload.exportedAt.slice(0, 10);
-  return `ts-swagger-${title}-${date}.json`;
+  return `apitypegen-${title}-${date}.json`;
 }
 
 export function downloadJson(data: unknown, fileName: string) {

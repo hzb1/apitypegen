@@ -4,7 +4,7 @@ export const SHOW_JSON_IO = false;
 
 export const EXTENSION_URL =
   (import.meta.env.VITE_PROXY_EXTENSION_URL as string | undefined) ??
-  "https://swagger.huzhibin.top/downloads/ts-swagger-extension-dist-latest.zip";
+  "https://swagger.huzhibin.top/downloads/apitypegen-extension-dist-latest.zip";
 
 export const DEMO_DOC_PATH = "/demo/openapi.json";
 export const DEMO_SWAGGER_CONFIG_PATH = "/demo/swagger-config.json";

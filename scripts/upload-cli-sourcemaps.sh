@@ -14,7 +14,7 @@ if [[ -f "${ROOT_DIR}/.env.glitchtip.local" ]]; then
 fi
 
 CLI_VERSION="$(node -p "require('${ROOT_DIR}/cli/package.json').version")"
-RELEASE_NAME="ts-swagger@${CLI_VERSION}"
+RELEASE_NAME="apitypegen@${CLI_VERSION}"
 ORGANIZATION="${CLI_SENTRY_ORG:-ts-swagger}"
 PROJECT="${CLI_SENTRY_PROJECT:-cli}"
 URL_PREFIX="${CLI_SOURCEMAP_URL_PREFIX:-app:///dist}"

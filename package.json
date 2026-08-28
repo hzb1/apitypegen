@@ -1,5 +1,5 @@
 {
-  "name": "ts-swagger-monorepo",
+  "name": "apitypegen-monorepo",
   "private": true,
   "workspaces": [
     "cli",
@@ -7,21 +7,21 @@
     "extension"
   ],
   "scripts": {
-    "dev": "npm run dev --workspace=@ts-swagger/ui",
+    "dev": "npm run dev --workspace=@apitypegen/ui",
     "build": "npm run build --workspaces --if-present",
-    "build:cli": "npm run build --workspace=ts-swagger",
-    "build:ui": "npm run build --workspace=@ts-swagger/ui",
-    "build:extension": "npm run build --workspace=@ts-swagger/extension",
+    "build:cli": "npm run build --workspace=apitypegen",
+    "build:ui": "npm run build --workspace=@apitypegen/ui",
+    "build:extension": "npm run build --workspace=@apitypegen/extension",
     "build:glitchtip:cli": "npm run build:cli && npm run sourcemaps:upload:cli",
     "deploy:extension": "bash scripts/deploy-extension.sh",
     "deploy:ui": "bash scripts/deploy-ui.sh",
     "glitchtip:test:cli": "npm run build:cli && node ./scripts/send-cli-glitchtip-test.mjs",
-    "lint": "npm run lint --workspace=@ts-swagger/ui",
+    "lint": "npm run lint --workspace=@apitypegen/ui",
     "sourcemaps:upload:cli": "bash scripts/upload-cli-sourcemaps.sh",
-    "test": "npm run test --workspace=ts-swagger",
-    "test:browser": "npm run test:browser --workspace=ts-swagger",
-    "typecheck": "npm run typecheck --workspace=ts-swagger && npm run typecheck --workspace=@ts-swagger/ui",
-    "ts-swagger": "node ./cli/dist/cli/ts-swagger.js"
+    "test": "npm run test --workspace=apitypegen",
+    "test:browser": "npm run test:browser --workspace=apitypegen",
+    "typecheck": "npm run typecheck --workspace=apitypegen && npm run typecheck --workspace=@apitypegen/ui",
+    "apitypegen": "node ./cli/dist/cli/apitypegen.js"
   },
   "engines": {
     "node": "^20.19.0 || >=22.12.0"

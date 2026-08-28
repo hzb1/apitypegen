@@ -31,16 +31,16 @@ function getDocumentTitle(documentData: OpenAPI.Document, fileName: string) {
 
 function validateTsSwaggerExport(value: Record<string, unknown>): TsSwaggerExport {
   if (value.exportVersion !== "1.0") {
-    throw new Error("不是有效的 ts-swagger 导出文件：exportVersion 不支持");
+    throw new Error("不是有效的 APITypeGen 导出文件：exportVersion 不支持");
   }
   if (!isOpenApiDocument(value.openapi)) {
-    throw new Error("不是有效的 ts-swagger 导出文件：缺少 openapi 文档");
+    throw new Error("不是有效的 APITypeGen 导出文件：缺少 openapi 文档");
   }
   if (!isRecord(value.source)) {
-    throw new Error("不是有效的 ts-swagger 导出文件：缺少 source 信息");
+    throw new Error("不是有效的 APITypeGen 导出文件：缺少 source 信息");
   }
   if (!Array.isArray(value.groups) || !Array.isArray(value.apis)) {
-    throw new Error("不是有效的 ts-swagger 导出文件：缺少 groups/apis 数据");
+    throw new Error("不是有效的 APITypeGen 导出文件：缺少 groups/apis 数据");
   }
   const source = value.source;
 
@@ -142,5 +142,5 @@ export function parseImportedApiExport(
     };
   }
 
-  throw new Error("不支持的文件格式：请选择 ts-swagger 导出的 JSON，或普通 OpenAPI/Swagger JSON");
+  throw new Error("不支持的文件格式：请选择 APITypeGen 导出的 JSON，或普通 OpenAPI/Swagger JSON");
 }

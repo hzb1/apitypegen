@@ -175,7 +175,7 @@ export const requestDebugStore = {
     };
 
     if (snapshot.enabled) {
-      console.info("[ts-swagger:request]", formatConsolePayload(entry));
+      console.info("[apitypegen:request]", formatConsolePayload(entry));
     }
     pushEntry(entry);
     return entry.id;
@@ -257,8 +257,8 @@ export const requestDebugStore = {
 
     if (snapshot.enabled) {
       const tag = input.source === "auto-select-service"
-        ? "[ts-swagger:auto-select-service]"
-        : "[ts-swagger:request]";
+        ? "[apitypegen:auto-select-service]"
+        : "[apitypegen:request]";
       console.info(tag, formatConsolePayload(entry));
     }
     pushEntry(entry);

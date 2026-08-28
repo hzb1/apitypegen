@@ -56,7 +56,7 @@ export default function WelcomeView(props: WelcomeViewProps) {
       <section className="home-welcome-shell">
         <div className="home-welcome-copy">
           <div className="home-welcome-brandline">
-            <img src={logoUrl} alt="TS Swagger" className="home-welcome-logo" />
+            <img src={logoUrl} alt="APITypeGen" className="home-welcome-logo" />
             <Tag color={pluginEnabled ? "success" : "processing"}>{extensionText}</Tag>
           </div>
           <h1 className="home-welcome-title">接口文档工作台</h1>
@@ -153,7 +153,7 @@ export default function WelcomeView(props: WelcomeViewProps) {
           </div>
         </div>
 
-        <div className="home-product-preview" aria-label="TS Swagger 工作台预览">
+        <div className="home-product-preview" aria-label="APITypeGen 工作台预览">
           <div className="home-product-preview-bar">
             <span />
             <span />

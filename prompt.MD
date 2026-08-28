@@ -41,7 +41,7 @@ Header 下方为左右两栏布局：
 ### 三、顶部 Header 设计
 
 * 左侧：
-  * 应用标题文本：“TS Swagger UI”
+  * 应用标题文本：“APITypeGen”
 
 * 中间区域：
   * Swagger 地址输入/选择框

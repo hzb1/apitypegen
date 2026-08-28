@@ -117,7 +117,7 @@ export default function LocalApiLibrary(props: LocalApiLibraryProps) {
         {SHOW_JSON_IO ? (
           <div className="local-library-modal-toolbar">
             <div>
-              <p>可以导入 ts-swagger 导出的 JSON，也可以导入普通 OpenAPI/Swagger JSON。</p>
+              <p>可以导入 APITypeGen 导出的 JSON，也可以导入普通 OpenAPI/Swagger JSON。</p>
             </div>
             <Button
               type="primary"

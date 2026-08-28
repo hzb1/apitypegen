@@ -42,7 +42,7 @@ require_cmd rsync
 require_cmd ssh
 
 SSH_TARGET="${DEPLOY_USER}@${DEPLOY_HOST}"
-SSH_CONTROL_PATH="/tmp/ts-swagger-ssh-${UID:-user}-%C"
+SSH_CONTROL_PATH="/tmp/apitypegen-ssh-${UID:-user}-%C"
 SSH_OPTS=(
   -p "${DEPLOY_PORT}"
   -o ControlMaster=auto
@@ -59,7 +59,7 @@ if [[ "${SKIP_INSTALL:-}" == "1" ]]; then
   log "Skipping npm ci because SKIP_INSTALL=1"
 else
   log "Installing extension dependencies"
-  (cd "${ROOT_DIR}" && npm ci --workspace=@ts-swagger/extension)
+  (cd "${ROOT_DIR}" && npm ci --workspace=@apitypegen/extension)
 fi
 
 log "Verifying extension version"
@@ -73,8 +73,8 @@ npm run build
 VERSION="$(node -p "require('./package.json').version")"
 [[ -n "${VERSION}" ]] || fail "Unable to read extension version"
 
-ZIP_NAME="ts-swagger-extension-dist-${VERSION}.zip"
-LATEST_NAME="ts-swagger-extension-dist-latest.zip"
+ZIP_NAME="apitypegen-extension-dist-${VERSION}.zip"
+LATEST_NAME="apitypegen-extension-dist-latest.zip"
 
 rm -rf "${RELEASE_DIR}"
 mkdir -p "${RELEASE_DIR}"

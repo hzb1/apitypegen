@@ -74,7 +74,7 @@ async function launchSystemChrome(chromePath?: string): Promise<Browser> {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(
-      `无法启动系统 Chrome。请确认已安装 Google Chrome，或使用 --chrome-path / TS_SWAGGER_CHROME_PATH 指定可执行文件。原始错误: ${message}`,
+      `无法启动系统 Chrome。请确认已安装 Google Chrome，或使用 --chrome-path / APITYPEGEN_CHROME_PATH 指定可执行文件。原始错误: ${message}`,
     );
   }
 }

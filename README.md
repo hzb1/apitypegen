@@ -1,8 +1,8 @@
-# ts-swagger
+# APITypeGen
 
 ## 1. 项目介绍
 
-这是一个 TS 和 Swagger 结合的接口文档，直接输出可用的 TypeScript 类型与请求结构
+从 OpenAPI / Swagger 接口文档生成可直接使用的 TypeScript 类型与请求结构。
 
 ## 2. 特点
 
@@ -13,7 +13,7 @@
 - 零门槛体验：v0.4.0 起内置本地 Demo，未安装扩展也能体验接口浏览、搜索和类型生成
 - 本地接口库：v0.5.0 起支持保存到浏览器本地库，也可导出完整 JSON 数据包
 - 无扩展引导：v0.5.1 起未安装扩展时会明确展示可用能力、安装入口和失败诊断
-- JSON 导入：v0.5.2 起可导入 ts-swagger 导出包或普通 OpenAPI/Swagger JSON 到本地接口库
+- JSON 导入：v0.5.2 起可导入 APITypeGen 导出包或普通 OpenAPI/Swagger JSON 到本地接口库
 
 ## 3. 3 分钟快速开始
 
@@ -41,14 +41,14 @@ npm run dev
 v0.5.0 增加了“本地接口库 + JSON 导出”闭环。v0.5.2 进一步支持从本地 JSON 文件导入到接口库。加载任意文档后，可以在顶部栏使用：
 
 - `保存到本地`：保存到当前浏览器当前站点的本地接口库。
-- `导出 JSON`：下载 `ts-swagger-{title}-{YYYY-MM-DD}.json` 文件。
+- `导出 JSON`：下载 `apitypegen-{title}-{YYYY-MM-DD}.json` 文件。
 
 导出的 JSON 数据包包含原始 OpenAPI 文档、接口分组、接口列表、完整 URL、TypeScript 代码片段、来源信息、生成配置和导出时间。适合备份、传给同事或后续导入/分析。
 
 本地接口库说明：
 
 - 首页提供“本地接口库”管理入口，支持导入、打开、再次导出和删除。
-- `导入 JSON` 支持 ts-swagger 导出的 JSON，也支持普通 OpenAPI/Swagger JSON；导入成功后会保存到 IndexedDB 并自动打开。
+- `导入 JSON` 支持 APITypeGen 导出的 JSON，也支持普通 OpenAPI/Swagger JSON；导入成功后会保存到 IndexedDB 并自动打开。
 - 打开本地记录时使用 `?local=<id>`，不请求后端，也不依赖浏览器扩展。
 - 保存范围按浏览器 origin 隔离，例如 `http://localhost:5173` 和 `https://example.com` 是两份不同数据。
 - 清理浏览器站点数据会删除本地接口库；它不会跨浏览器、跨设备同步。
@@ -121,17 +121,17 @@ nvm use
 
 ## 8. CLI（给 AI/脚本调用）
 
-`cli` workspace 是可独立发布的 `ts-swagger` npm 包，支持跨服务检索接口和按接口生成 TypeScript。
+`cli` workspace 是可独立发布的 `apitypegen` npm 包，支持跨服务检索接口和按接口生成 TypeScript。
 
 ### 8.1 安装 / 使用
 
 本项目内开发时可直接运行：
 
 ```bash
-npm run ts-swagger -- --help
-npm run ts-swagger
-npm run ts-swagger -- search --type config --url http://localhost:9999/v3/api-docs/swagger-config --keyword order
-npm run ts-swagger -- gen --type openapi --url http://localhost:9999/job/v3/api-docs --method post --path /api/order/create
+npm run apitypegen -- --help
+npm run apitypegen
+npm run apitypegen -- search --type config --url http://localhost:9999/v3/api-docs/swagger-config --keyword order
+npm run apitypegen -- gen --type openapi --url http://localhost:9999/job/v3/api-docs --method post --path /api/order/create
 ```
 
 本机日常使用可以通过 `npm link` 注册全局命令：
@@ -139,22 +139,22 @@ npm run ts-swagger -- gen --type openapi --url http://localhost:9999/job/v3/api-
 ```bash
 cd cli
 npm link
-ts-swagger --help
-ts-swagger
+apitypegen --help
+apitypegen
 ```
 
 发布到 npm 后，可通过全局安装使用：
 
 ```bash
-npm install -g ts-swagger
-ts-swagger gen --type ui --url http://localhost:9999/doc.html#/home
+npm install -g apitypegen
+apitypegen gen --type ui --url http://localhost:9999/doc.html#/home
 ```
 
 ### 8.2 可选配置
 
-`ts-swagger.config.json` 不是必需文件。它适合保存常用文档来源和生成偏好，已被 `.gitignore` 忽略。
+`apitypegen.config.json` 不是必需文件。它适合保存常用文档来源和生成偏好，已被 `.gitignore` 忽略；旧 `ts-swagger.config.json` 仍可兼容读取。
 
-可以参考 `cli/ts-swagger.config.example.json` 新建本地配置：
+可以参考 `cli/apitypegen.config.example.json` 新建本地配置：
 
 ```json
 {
@@ -165,43 +165,43 @@ ts-swagger gen --type ui --url http://localhost:9999/doc.html#/home
 }
 ```
 
-来源优先级：`--type/--url` > `TS_SWAGGER_TYPE/TS_SWAGGER_URL` > `ts-swagger.config.json.source`。
+来源优先级：`--type/--url` > `APITYPEGEN_TYPE/APITYPEGEN_URL` > `apitypegen.config.json.source`。旧 `TS_SWAGGER_TYPE/TS_SWAGGER_URL` 环境变量仍可兼容读取。
 如果均未提供，交互终端会先询问来源类型和地址，非交互终端会直接报错。
 
 也可以不用配置文件，改用环境变量：
 
 ```bash
-export TS_SWAGGER_TYPE=config
-export TS_SWAGGER_URL=http://localhost:9999/v3/api-docs/swagger-config
-ts-swagger
+export APITYPEGEN_TYPE=config
+export APITYPEGEN_URL=http://localhost:9999/v3/api-docs/swagger-config
+apitypegen
 ```
 
 ### 8.3 常用命令
 
 ```bash
 # 默认进入交互式生成（选择来源后，从全部服务中选择 API）
-npm run ts-swagger
+npm run apitypegen
 
 # 也可以显式使用 gen
-npm run ts-swagger -- gen --type ui --url http://localhost:9999/doc.html#/home
+npm run apitypegen -- gen --type ui --url http://localhost:9999/doc.html#/home
 
 # 从明确的 swagger-config 搜索全部服务
-npm run ts-swagger -- search --type config --url http://localhost:9999/v3/api-docs/swagger-config --keyword order
+npm run apitypegen -- search --type config --url http://localhost:9999/v3/api-docs/swagger-config --keyword order
 
 # 仅搜索指定服务
-npm run ts-swagger -- search --type config --url http://localhost:9999/v3/api-docs/swagger-config --keyword order --service 用户服务
+npm run apitypegen -- search --type config --url http://localhost:9999/v3/api-docs/swagger-config --keyword order --service 用户服务
 
 # 从明确的 OpenAPI JSON 生成 TS
-npm run ts-swagger -- gen --type openapi --url http://localhost:9999/job/v3/api-docs --method post --path /api/order/create
+npm run apitypegen -- gen --type openapi --url http://localhost:9999/job/v3/api-docs --method post --path /api/order/create
 
 # 生成 TS 并复制到剪切板
-npm run ts-swagger -- gen --type openapi --url http://localhost:9999/job/v3/api-docs --method post --path /api/order/create --copy
+npm run apitypegen -- gen --type openapi --url http://localhost:9999/job/v3/api-docs --method post --path /api/order/create --copy
 
 # 在 AI / CI 中禁用交互（缺参数直接报错）
-npm run ts-swagger -- gen --no-interactive --type openapi --url http://localhost:9999/job/v3/api-docs --method post --path /api/order/create
+npm run apitypegen -- gen --no-interactive --type openapi --url http://localhost:9999/job/v3/api-docs --method post --path /api/order/create
 
 # 忽略缓存有效期，立即向服务端重新校验文档
-npm run ts-swagger -- search --type config --url http://localhost:9999/v3/api-docs/swagger-config --keyword order --refresh
+npm run apitypegen -- search --type config --url http://localhost:9999/v3/api-docs/swagger-config --keyword order --refresh
 ```
 
 CLI 只支持三种明确来源：
@@ -210,14 +210,14 @@ CLI 只支持三种明确来源：
 - `openapi`：地址必须直接返回 OpenAPI / Swagger JSON。
 - `config`：地址必须直接返回 swagger-config JSON。
 
-CLI 不会枚举、探测或猜测 OpenAPI 地址。`ui` 模式需要系统 Chrome；非标准安装位置可使用 `--chrome-path` 或 `TS_SWAGGER_CHROME_PATH` 指定。
+CLI 不会枚举、探测或猜测 OpenAPI 地址。`ui` 模式需要系统 Chrome；非标准安装位置可使用 `--chrome-path` 或 `APITYPEGEN_CHROME_PATH` 指定。
 
 ### 8.4 面向 AI 的 JSON 协议
 
 `search` 和 `gen` 使用 `--format json` 时统一输出 `schemaVersion: 1` 的协议对象。成功和失败都写入 `stdout`，运行日志只写入 `stderr`；失败时进程退出码仍为 `1`。
 
 ```bash
-ts-swagger search --type config --url <url> --keyword order --limit 20 --format json
+apitypegen search --type config --url <url> --keyword order --limit 20 --format json
 ```
 
 成功响应：
@@ -313,13 +313,13 @@ ts-swagger search --type config --url <url> --keyword order --limit 20 --format 
 - 缓存过期后会优先使用 `ETag` 和 `Last-Modified` 发起条件请求；服务端返回 `304` 时继续使用本地文档。
 - `--refresh` 会跳过 5 分钟有效期并立即向服务端重新校验，但服务端支持条件请求时不必重新传输完整文档。
 - 多服务仍最多并发加载 4 个文档，加载进度和缓存状态只写入 `stderr`，`--format json` 的 `stdout` 保持为单一协议对象。
-- 默认缓存目录为 `$XDG_CACHE_HOME/ts-swagger/openapi`；未配置 `XDG_CACHE_HOME` 时使用 `~/.cache/ts-swagger/openapi`。
+- 默认缓存目录为 `$XDG_CACHE_HOME/apitypegen/openapi`；未配置 `XDG_CACHE_HOME` 时使用 `~/.cache/apitypegen/openapi`。
 - 缓存文件名只使用来源 URL 的 SHA-256 摘要，缓存元数据不保存原始来源 URL、请求头或鉴权信息；目录和文件权限分别限制为 `0700` 与 `0600`。
 - 缓存目录不可读写或缓存内容损坏时会退回网络加载，不影响 CLI 的正常功能。
 
 ### 8.7 gen 交互行为
 
-- 在交互终端中执行 `ts-swagger gen`，可不传 `--type` / `--url` / `--method` / `--path`，CLI 会逐步提问。
+- 在交互终端中执行 `apitypegen gen`，可不传 `--type` / `--url` / `--method` / `--path`，CLI 会逐步提问。
 - 先选择 `Swagger UI / Knife4j 页面`、`OpenAPI JSON` 或 `swagger-config JSON`，再输入对应地址。
 - UI 来源通过系统 Chrome 读取页面真实 GET 响应，不会检查页面源码或尝试候选路径。
 - 若来源包含多个服务，CLI 会加载全部服务，然后通过关键词筛选并选择带服务名的接口。
@@ -332,16 +332,16 @@ ts-swagger search --type config --url <url> --keyword order --limit 20 --format 
 CLI 的匿名错误上报默认关闭，显式开启后会发送至 GlitchTip 的 `ts-swagger/cli` 项目：
 
 ```bash
-TS_SWAGGER_TELEMETRY=1 ts-swagger gen \
+APITYPEGEN_TELEMETRY=1 apitypegen gen \
   --type openapi \
   --url https://example.com/openapi.json
 ```
 
-设置 `DO_NOT_TRACK=1` 会覆盖上述配置并禁止上报。私有部署或本地接收测试可以通过 `TS_SWAGGER_GLITCHTIP_DSN` 覆盖内置 DSN。CLI 只上报无法归类的 `UNKNOWN_ERROR`，不会上报参数错误、API 未找到、来源超时等预期失败；上报事件仅保留 CLI release、已知命令名、错误码、Node 主版本、操作系统、架构、脱敏堆栈、最多 3 层 cause，以及公开 `dist` 应用帧的前后源码行。Swagger URL、认证信息、OpenAPI 内容、生成结果、搜索关键词、用户目录、运行时变量、第三方源码上下文、请求、用户上下文、面包屑及额外数据不会发送。
+设置 `DO_NOT_TRACK=1` 会覆盖上述配置并禁止上报。私有部署或本地接收测试可以通过 `APITYPEGEN_GLITCHTIP_DSN` 覆盖内置 DSN；旧 `TS_SWAGGER_TELEMETRY` 和 `TS_SWAGGER_GLITCHTIP_DSN` 仍兼容读取。CLI 只上报无法归类的 `UNKNOWN_ERROR`，不会上报参数错误、API 未找到、来源超时等预期失败；上报事件仅保留 CLI release、已知命令名、错误码、Node 主版本、操作系统、架构、脱敏堆栈、最多 3 层 cause，以及公开 `dist` 应用帧的前后源码行。Swagger URL、认证信息、OpenAPI 内容、生成结果、搜索关键词、用户目录、运行时变量、第三方源码上下文、请求、用户上下文、面包屑及额外数据不会发送。
 
 GlitchTip SDK 仅在显式开启且发生未知异常时动态加载。事件发送失败或 750ms 内无法完成刷新时，不会改变 CLI 的 stdout、stderr 或退出码。DSN 只用于接收事件，不要把 `SENTRY_AUTH_TOKEN` 放入 CLI 环境或 npm 包；API Token 仍仅用于 CI/CD 上传 sourcemap。
 
-CLI release 使用 `cli/package.json` 的版本并标记为 `ts-swagger@<version>`。CLI 与 UI 使用不同的 GlitchTip 项目和 sourcemap 发布任务，避免 `cli/package.json` 与 `ui/package.json` 的版本及事件类型互相混淆。
+CLI release 使用 `cli/package.json` 的版本并标记为 `apitypegen@<version>`。CLI 与 UI 使用不同的 GlitchTip 项目和 sourcemap 发布任务，避免 `cli/package.json` 与 `ui/package.json` 的版本及事件类型互相混淆。
 
 需要验证真实函数名、cause 和源码上下文时，可以显式发送一条诊断测试事件。该命令会向真实 `cli` 项目写入一个 Issue，不属于普通本地测试：
 
@@ -359,7 +359,7 @@ CLI 构建会为 `cli/dist/**/*.js` 生成带内嵌 TypeScript 源码的 `.js.ma
 npm run build:glitchtip:cli
 ```
 
-该命令会先构建 CLI，再把 JavaScript 和 sourcemap 上传到默认组织 `ts-swagger`、项目 `cli`，release 为 `ts-swagger@<version>`，artifact 前缀为 `app:///dist`。私有部署可以分别通过 `CLI_SENTRY_ORG`、`CLI_SENTRY_PROJECT` 和 `CLI_SOURCEMAP_URL_PREFIX` 覆盖。
+该命令会先构建 CLI，再把 JavaScript 和 sourcemap 上传到默认组织 `ts-swagger`、项目 `cli`，release 为 `apitypegen@<version>`，artifact 前缀为 `app:///dist`。私有部署可以分别通过 `CLI_SENTRY_ORG`、`CLI_SENTRY_PROJECT` 和 `CLI_SOURCEMAP_URL_PREFIX` 覆盖。
 
 ### 9.3 UI sourcemap
 

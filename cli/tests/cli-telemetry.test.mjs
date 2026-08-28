@@ -33,18 +33,19 @@ function close(server) {
 
 test("CLI 遥测必须显式开启且允许用环境变量覆盖 DSN", () => {
   assert.equal(isCliTelemetryEnabled({}), false);
+  assert.equal(isCliTelemetryEnabled({ APITYPEGEN_TELEMETRY: "1" }), true);
   assert.equal(isCliTelemetryEnabled({ TS_SWAGGER_TELEMETRY: "1" }), true);
   assert.equal(
     isCliTelemetryEnabled({
-      TS_SWAGGER_TELEMETRY: "true",
-      TS_SWAGGER_GLITCHTIP_DSN: "https://public@example.com/1",
+      APITYPEGEN_TELEMETRY: "true",
+      APITYPEGEN_GLITCHTIP_DSN: "https://public@example.com/1",
     }),
     true,
   );
   assert.equal(
     isCliTelemetryEnabled({
-      TS_SWAGGER_TELEMETRY: "1",
-      TS_SWAGGER_GLITCHTIP_DSN: "https://public@example.com/1",
+      APITYPEGEN_TELEMETRY: "1",
+      APITYPEGEN_GLITCHTIP_DSN: "https://public@example.com/1",
       DO_NOT_TRACK: "1",
     }),
     false,
@@ -74,11 +75,11 @@ test("遥测文本会清理来源地址、认证信息和用户目录", () => {
 });
 
 test("GlitchTip 事件只保留允许字段并清理堆栈路径", () => {
-  const applicationFramePath = path.join(repositoryRoot, "dist/cli/ts-swagger.js");
+  const applicationFramePath = path.join(repositoryRoot, "dist/cli/apitypegen.js");
   const sanitized = sanitizeTelemetryEvent({
     type: undefined,
     event_id: "event-id",
-    release: "ts-swagger@0.6.0",
+    release: "apitypegen@0.6.0",
     environment: "production",
     request: { url: "https://private.example.com/openapi.json?token=secret" },
     user: { email: "user@example.com" },
@@ -129,7 +130,7 @@ test("GlitchTip 事件只保留允许字段并清理堆栈路径", () => {
   assert.equal(sanitized.exception?.values?.[0]?.value, "读取 <source-url> 失败");
   assert.equal(
     sanitized.exception?.values?.[0]?.stacktrace?.frames?.[0]?.filename,
-    "app:///dist/cli/ts-swagger.js",
+    "app:///dist/cli/apitypegen.js",
   );
   assert.equal(
     sanitized.exception?.values?.[0]?.stacktrace?.frames?.[0]?.context_line,
@@ -176,14 +177,14 @@ test("实际发送的 GlitchTip envelope 不包含敏感输入", async () => {
   try {
     const sent = await sendCliTelemetryTestEvent(
       {
-        TS_SWAGGER_GLITCHTIP_DSN: `http://public@127.0.0.1:${address.port}/1`,
+        APITYPEGEN_GLITCHTIP_DSN: `http://public@127.0.0.1:${address.port}/1`,
       },
     );
 
     assert.equal(sent, true);
     assert.equal(requests.length, 1);
     assert.match(requests[0].url, /^\/api\/1\/envelope\//);
-    assert.match(requests[0].body, new RegExp(`ts-swagger@${packageVersion.replaceAll(".", "\\.")}`));
+    assert.match(requests[0].body, new RegExp(`apitypegen@${packageVersion.replaceAll(".", "\\.")}`));
     assert.match(requests[0].body, /UNKNOWN_ERROR/);
     assert.match(requests[0].body, /CLI GlitchTip 诊断测试/);
     assert.match(requests[0].body, /CLI GlitchTip 测试 cause/);

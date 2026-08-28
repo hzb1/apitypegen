@@ -15,9 +15,15 @@ export type CliTelemetryContext = {
 /** 读取 CLI 遥测配置时使用的环境变量集合。 */
 export type CliTelemetryEnvironment = {
   /** 用户是否显式开启匿名错误上报。 */
-  TS_SWAGGER_TELEMETRY?: string;
+  APITYPEGEN_TELEMETRY?: string;
 
   /** 覆盖内置 GlitchTip CLI 项目接收地址的可选 DSN。 */
+  APITYPEGEN_GLITCHTIP_DSN?: string;
+
+  /** 兼容旧版命名的匿名错误上报开关。 */
+  TS_SWAGGER_TELEMETRY?: string;
+
+  /** 兼容旧版命名的 GlitchTip CLI 项目接收地址。 */
   TS_SWAGGER_GLITCHTIP_DSN?: string;
 
   /** 通用的禁止遥测标记。 */
@@ -57,7 +63,7 @@ function isEnabledValue(value: string | undefined): boolean {
 /** 判断 CLI 是否获得了发送匿名错误事件的显式授权。 */
 export function isCliTelemetryEnabled(environment: CliTelemetryEnvironment): boolean {
   if (isEnabledValue(environment.DO_NOT_TRACK)) return false;
-  return isEnabledValue(environment.TS_SWAGGER_TELEMETRY);
+  return isEnabledValue(environment.APITYPEGEN_TELEMETRY ?? environment.TS_SWAGGER_TELEMETRY);
 }
 
 /**
@@ -89,7 +95,7 @@ function normalizeLocalStackPath(value: string): string {
   }
 }
 
-/** 判断单个路径是否位于当前安装的 ts-swagger 编译目录中。 */
+/** 判断单个路径是否位于当前安装的 APITypeGen 编译目录中。 */
 function isCliApplicationPath(value: string | undefined): boolean {
   if (!value) return false;
 
@@ -235,10 +241,13 @@ export async function reportUnknownCliError(
     const version = readCliVersion();
 
     Sentry.initWithoutDefaultIntegrations({
-      dsn: environment.TS_SWAGGER_GLITCHTIP_DSN?.trim() || DEFAULT_GLITCHTIP_DSN,
+      dsn:
+        environment.APITYPEGEN_GLITCHTIP_DSN?.trim() ||
+        environment.TS_SWAGGER_GLITCHTIP_DSN?.trim() ||
+        DEFAULT_GLITCHTIP_DSN,
       enabled: true,
       environment: "production",
-      release: version ? `ts-swagger@${version}` : undefined,
+      release: version ? `apitypegen@${version}` : undefined,
       tracesSampleRate: 0,
       sendDefaultPii: false,
       skipOpenTelemetrySetup: true,
@@ -288,7 +297,7 @@ export async function sendCliTelemetryTestEvent(
     },
     {
       ...environment,
-      TS_SWAGGER_TELEMETRY: "1",
+      APITYPEGEN_TELEMETRY: "1",
     },
   );
 }

@@ -1,13 +1,13 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "TS Swagger Demo API",
-    "description": "A local demo OpenAPI document for trying TS Swagger without a browser extension.",
+    "title": "APITypeGen Demo API",
+    "description": "A local demo OpenAPI document for trying APITypeGen without a browser extension.",
     "version": "0.5.2"
   },
   "servers": [
     {
-      "url": "https://demo.ts-swagger.local/api",
+      "url": "https://demo.apitypegen.local/api",
       "description": "Demo server"
     }
   ],
@@ -497,7 +497,7 @@
           },
           "name": {
             "type": "string",
-            "example": "TS Swagger Pro License"
+            "example": "APITypeGen Pro License"
           },
           "quantity": {
             "type": "integer",

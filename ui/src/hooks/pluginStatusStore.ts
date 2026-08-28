@@ -45,7 +45,7 @@ function updateSnapshot(patch: Partial<PluginStatusSnapshot>) {
 
 function recordActualExtensionCheck(reason?: string) {
   const normalizedReason = reason || "检测浏览器扩展";
-  console.info("[ts-swagger:extension-check]", {
+  console.info("[apitypegen:extension-check]", {
     reason: normalizedReason,
     reasonLabel: normalizedReason,
     sourceLabel: "检测浏览器扩展",

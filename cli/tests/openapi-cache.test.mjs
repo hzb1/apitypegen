@@ -21,7 +21,7 @@ function close(server) {
 }
 
 test("OpenAPI 缓存支持命中、条件校验和强制刷新", async () => {
-  const cacheDir = await mkdtemp(path.join(tmpdir(), "ts-swagger-openapi-cache-"));
+  const cacheDir = await mkdtemp(path.join(tmpdir(), "apitypegen-openapi-cache-"));
   const requests = [];
   let revision = 1;
   const server = http.createServer((request, response) => {

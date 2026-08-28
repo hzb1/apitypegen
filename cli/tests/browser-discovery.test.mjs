@@ -9,9 +9,10 @@ import { fileURLToPath } from "node:url";
 import { discoverOpenApiFromBrowser } from "../dist/core/browser-openapi-discovery.js";
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const cliPath = path.join(repositoryRoot, "dist/cli/ts-swagger.js");
+const cliPath = path.join(repositoryRoot, "dist/cli/apitypegen.js");
 
 const chromeCandidates = [
+  process.env.APITYPEGEN_CHROME_PATH,
   process.env.TS_SWAGGER_CHROME_PATH,
   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
   "/usr/bin/google-chrome",
@@ -42,12 +43,14 @@ function close(server) {
 function runCliAsync(args) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [cliPath, ...args], {
-      cwd: mkdtempSync(path.join(tmpdir(), "ts-swagger-ui-cli-test-")),
+      cwd: mkdtempSync(path.join(tmpdir(), "apitypegen-ui-cli-test-")),
       env: {
         ...process.env,
+        APITYPEGEN_TYPE: "",
+        APITYPEGEN_URL: "",
         TS_SWAGGER_TYPE: "",
         TS_SWAGGER_URL: "",
-        XDG_CACHE_HOME: mkdtempSync(path.join(tmpdir(), "ts-swagger-ui-cache-test-")),
+        XDG_CACHE_HOME: mkdtempSync(path.join(tmpdir(), "apitypegen-ui-cache-test-")),
       },
       stdio: ["ignore", "pipe", "pipe"],
     });

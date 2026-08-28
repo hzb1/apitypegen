@@ -15,7 +15,7 @@ fi
 DEPLOY_PORT="${DEPLOY_PORT:-22}"
 DEPLOY_ROOT="${DEPLOY_ROOT:-/srv/projects/ts-swagger}"
 RELEASE_KEEP="${RELEASE_KEEP:-5}"
-VITE_PROXY_EXTENSION_URL="${VITE_PROXY_EXTENSION_URL:-/downloads/ts-swagger-extension-dist-latest.zip}"
+VITE_PROXY_EXTENSION_URL="${VITE_PROXY_EXTENSION_URL:-/downloads/apitypegen-extension-dist-latest.zip}"
 
 log() {
   printf '[deploy-ui] %s\n' "$*"
@@ -58,7 +58,7 @@ require_cmd rsync
 require_cmd ssh
 
 SSH_TARGET="${DEPLOY_USER}@${DEPLOY_HOST}"
-SSH_CONTROL_PATH="/tmp/ts-swagger-ssh-${UID:-user}-%C"
+SSH_CONTROL_PATH="/tmp/apitypegen-ssh-${UID:-user}-%C"
 SSH_OPTS=(
   -p "${DEPLOY_PORT}"
   -o ControlMaster=auto
@@ -78,7 +78,7 @@ if [[ "${SKIP_INSTALL:-}" == "1" ]]; then
   log "Skipping npm ci because SKIP_INSTALL=1"
 else
   log "Installing UI dependencies"
-  (cd "${ROOT_DIR}" && npm ci --workspace=@ts-swagger/ui)
+  (cd "${ROOT_DIR}" && npm ci --workspace=@apitypegen/ui)
 fi
 
 export PATH="${ROOT_DIR}/node_modules/.bin:${PATH}"

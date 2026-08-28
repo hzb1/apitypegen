@@ -378,7 +378,7 @@ export async function proxyFetch(
   const usePlugin = await checkPluginEnabled({ reason: '代理请求前确认扩展' })
 
   if (!usePlugin) {
-    console.warn('[ts-swagger:request]', {
+    console.warn('[apitypegen:request]', {
       url,
       transport: 'native',
       transportLabel: '浏览器直连',
@@ -390,7 +390,7 @@ export async function proxyFetch(
     return fetch(input, init)
   }
 
-  console.warn('[ts-swagger:request]', {
+  console.warn('[apitypegen:request]', {
     url,
     transport: 'proxy',
     transportLabel: '扩展代理',

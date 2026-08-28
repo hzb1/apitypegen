@@ -7,7 +7,7 @@
   },
   "servers": [
     {
-      "url": "https://demo.ts-swagger.local/order-api"
+      "url": "https://demo.apitypegen.local/order-api"
     }
   ],
   "tags": [

@@ -7,7 +7,7 @@
   },
   "servers": [
     {
-      "url": "https://demo.ts-swagger.local/inventory-api"
+      "url": "https://demo.apitypegen.local/inventory-api"
     }
   ],
   "tags": [

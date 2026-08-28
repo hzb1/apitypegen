@@ -8,6 +8,8 @@
 /extension/dist/
 /.idea/
 /.VSCodeCounter/
+/apitypegen.config.json
+/cli/apitypegen.config.json
 /ts-swagger.config.json
 /cli/ts-swagger.config.json
 /.claude/

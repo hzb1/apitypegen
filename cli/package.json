@@ -1,7 +1,7 @@
 {
-  "name": "ts-swagger",
+  "name": "apitypegen",
   "version": "0.7.0",
-  "description": "从 Swagger UI 或 OpenAPI 文档检索接口并生成 TypeScript 类型的命令行工具",
+  "description": "从 OpenAPI 或 Swagger 接口文档生成 TypeScript 类型的命令行工具",
   "private": false,
   "type": "module",
   "repository": {
@@ -14,17 +14,17 @@
     "url": "https://github.com/hzb1/ts-swagger/issues"
   },
   "bin": {
-    "ts-swagger": "./bin/ts-swagger.mjs"
+    "apitypegen": "./bin/apitypegen.mjs"
   },
   "scripts": {
     "clean": "rm -rf dist",
     "build": "npm run clean && tsc -p tsconfig.build.json",
-    "test": "npm run build && node --test tests/swagger-loader.test.mjs tests/openapi-cache.test.mjs tests/cli.test.mjs tests/cli-presenters.test.mjs tests/cli-telemetry.test.mjs",
+    "test": "npm run build && node --test tests/swagger-loader.test.mjs tests/openapi-cache.test.mjs tests/cli.test.mjs tests/cli-presenters.test.mjs tests/cli-telemetry.test.mjs tests/mcp.test.mjs",
     "test:browser": "npm run build && node --test tests/browser-discovery.test.mjs",
     "typecheck": "tsc -p tsconfig.build.json --noEmit",
     "prepare": "npm run build",
     "prepack": "npm run build",
-    "ts-swagger": "node ./dist/cli/ts-swagger.js"
+    "apitypegen": "node ./dist/cli/apitypegen.js"
   },
   "engines": {
     "node": "^20.19.0 || >=22.12.0"
@@ -33,14 +33,16 @@
     "bin",
     "dist",
     "README.md",
-    "ts-swagger.config.example.json"
+    "apitypegen.config.example.json"
   ],
   "devDependencies": {
     "@types/node": "^22.15.30",
     "typescript": "^5.8.3"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@sentry/node": "^10.71.0",
-    "playwright-core": "^1.62.1"
+    "playwright-core": "^1.62.1",
+    "zod": "^4.4.3"
   }
 }

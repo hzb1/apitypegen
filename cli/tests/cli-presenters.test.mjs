@@ -145,6 +145,6 @@ test("错误与进度展示保持 stdout 和 stderr 分离", () => {
   createProgressReporter(textOutput.writer).report("加载 1/2");
   assert.equal(textOutput.read().stdout, "");
   assert.match(textOutput.read().stderr, /修复建议: 指定服务后重试/);
-  assert.match(textOutput.read().stderr, /ts-swagger gen --service order-service/);
+  assert.match(textOutput.read().stderr, /apitypegen gen --service order-service/);
   assert.match(textOutput.read().stderr, /加载 1\/2/);
 });

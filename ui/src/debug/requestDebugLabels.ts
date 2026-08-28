@@ -144,7 +144,7 @@ export function createDebugReport(entries: RequestDebugEntry[]) {
     : 0;
 
   const lines = [
-    "TS Swagger 请求调试报告",
+    "APITypeGen 请求调试报告",
     "",
     `总记录数：${entries.length}`,
     `失败数：${failedEntries.length}`,

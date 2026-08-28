@@ -65,7 +65,7 @@ export default function DocumentTopbar(props: DocumentTopbarProps) {
         >
           <MenuOutlined />
         </button>
-        <img src={logoUrl} alt="TS Swagger" className="home-topbar-logo" />
+        <img src={logoUrl} alt="APITypeGen" className="home-topbar-logo" />
         <div className="home-topbar-copy">
           <div className="home-topbar-title-row">
             <div className="home-topbar-title" title={documentMeta.title}>

@@ -48,7 +48,7 @@ export function presentSearchResult(
   output: CliOutputWriter = processOutputWriter,
 ): void {
   result.warnings.forEach((warning) =>
-    output.writeStderr(`[ts-swagger] 警告: ${warning.message}\n`),
+    output.writeStderr(`[apitypegen] 警告: ${warning.message}\n`),
   );
 
   if (result.outputFormat === "json") {
@@ -100,12 +100,12 @@ export function presentTextFailure(
   error: CliProtocolError,
   output: CliOutputWriter = processOutputWriter,
 ): void {
-  output.writeStderr(`[ts-swagger] ${error.message}\n`);
+  output.writeStderr(`[apitypegen] ${error.message}\n`);
   if (!error.recovery) return;
 
-  output.writeStderr(`[ts-swagger] 修复建议: ${error.recovery.message}\n`);
+  output.writeStderr(`[apitypegen] 修复建议: ${error.recovery.message}\n`);
   error.recovery.commands?.forEach((command) => {
-    const commandText = ["ts-swagger", command.command, ...command.args]
+    const commandText = ["apitypegen", command.command, ...command.args]
       .map(formatRecoveryArgument)
       .join(" ");
     output.writeStderr(`  ${commandText}\n`);

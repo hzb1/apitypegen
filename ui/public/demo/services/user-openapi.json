@@ -7,7 +7,7 @@
   },
   "servers": [
     {
-      "url": "https://demo.ts-swagger.local/user-api"
+      "url": "https://demo.apitypegen.local/user-api"
     }
   ],
   "tags": [

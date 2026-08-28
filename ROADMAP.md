@@ -1,6 +1,6 @@
-# TS Swagger Version Roadmap
+# APITypeGen Version Roadmap
 
-本文档用于把 TS Swagger 从当前的开发者工具，逐步推进到可以稳定对外发布的产品。
+本文档用于把 APITypeGen 从当前的开发者工具，逐步推进到可以稳定对外发布的产品。
 
 ## 版本节奏
 
@@ -75,19 +75,19 @@
 
 ### 目标
 
-让用户可以导入 ts-swagger 导出的 JSON 或普通 OpenAPI/Swagger JSON，保存到浏览器本地接口库并离线打开。
+让用户可以导入 APITypeGen 导出的 JSON 或普通 OpenAPI/Swagger JSON，保存到浏览器本地接口库并离线打开。
 
 ### 范围
 
 - 首页使用独立“本地接口库”管理弹窗，承载导入、打开、导出和删除。
-- 导入 ts-swagger 导出包时保留原始数据包。
+- 导入 APITypeGen 导出包时保留原始数据包。
 - 导入普通 OpenAPI/Swagger JSON 时标准化为 `TsSwaggerExport` 后保存。
 - 导入成功后写入 IndexedDB，并自动跳转到 `?local=<id>`。
 - IndexedDB 仍沿用 fingerprint 去重策略，重复导入只更新记录。
 
 ### 验收标准
 
-- 合法 ts-swagger 导出包和普通 OpenAPI/Swagger JSON 都可导入并打开。
+- 合法 APITypeGen 导出包和普通 OpenAPI/Swagger JSON 都可导入并打开。
 - 非法 JSON 或非 OpenAPI JSON 会给出明确中文错误。
 - 未安装扩展时仍可导入并打开本地文档。
 
@@ -139,7 +139,7 @@
 
 ### 目标
 
-让 TS Swagger 从个人工具升级为团队内可共享、可复用的接口工作台。
+让 APITypeGen 从个人工具升级为团队内可共享、可复用的接口工作台。
 
 ### 范围
 
@@ -147,7 +147,7 @@
 - 支持项目级预设，包括 host、service、生成选项、命名策略。
 - 支持通过 URL 分享当前文档和 API 位置。
 - 最近访问文档支持分组、重命名、删除。
-- CLI 增加配置校验命令，例如 `ts-swagger config check`。
+- CLI 增加配置校验命令，例如 `apitypegen config check`。
 - README 增加团队使用建议。
 
 ### 验收标准

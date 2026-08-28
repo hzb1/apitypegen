@@ -8,10 +8,10 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const cliPath = path.join(repositoryRoot, "dist/cli/ts-swagger.js");
-const binPath = path.join(repositoryRoot, "bin/ts-swagger.mjs");
-const emptyCwd = mkdtempSync(path.join(tmpdir(), "ts-swagger-cli-test-"));
-const cacheRoot = mkdtempSync(path.join(tmpdir(), "ts-swagger-cli-cache-test-"));
+const cliPath = path.join(repositoryRoot, "dist/cli/apitypegen.js");
+const binPath = path.join(repositoryRoot, "bin/apitypegen.mjs");
+const emptyCwd = mkdtempSync(path.join(tmpdir(), "apitypegen-cli-test-"));
+const cacheRoot = mkdtempSync(path.join(tmpdir(), "apitypegen-cli-cache-test-"));
 
 function runCli(args) {
   return spawnSync(process.execPath, [cliPath, ...args], {
@@ -19,6 +19,8 @@ function runCli(args) {
     encoding: "utf8",
     env: {
       ...process.env,
+      APITYPEGEN_TYPE: "",
+      APITYPEGEN_URL: "",
       TS_SWAGGER_TYPE: "",
       TS_SWAGGER_URL: "",
       TS_SWAGGER_HOST: "",
@@ -33,6 +35,8 @@ function runCliAsync(args, overrides = {}) {
       cwd: overrides.cwd || emptyCwd,
       env: {
         ...process.env,
+        APITYPEGEN_TYPE: "",
+        APITYPEGEN_URL: "",
         TS_SWAGGER_TYPE: "",
         TS_SWAGGER_URL: "",
         TS_SWAGGER_HOST: "",
@@ -76,7 +80,7 @@ test("帮助信息只展示 type/url 三种来源", () => {
   assert.equal(result.status, 0);
   assert.match(result.stdout, /--type <ui\|openapi\|config>/);
   assert.match(result.stdout, /不写命令时默认执行 gen/);
-  assert.doesNotMatch(result.stdout, /ts-swagger services/);
+  assert.doesNotMatch(result.stdout, /apitypegen services/);
   assert.doesNotMatch(result.stdout, /--host/);
   assert.doesNotMatch(result.stdout, /--doc-url/);
 });
@@ -88,7 +92,7 @@ test("npm bin 入口可以正常启动 CLI", () => {
   });
 
   assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /ts-swagger 命令行工具/);
+  assert.match(result.stdout, /APITypeGen 命令行工具/);
 });
 
 test("旧 host 参数返回迁移提示", () => {
@@ -139,7 +143,7 @@ test("省略命令时默认执行 gen", () => {
 
   assert.equal(result.status, 1);
   assert.match(result.stderr, /缺少来源/);
-  assert.doesNotMatch(result.stdout, /ts-swagger 命令行工具/);
+  assert.doesNotMatch(result.stdout, /APITypeGen 命令行工具/);
 });
 
 test("JSON 模式使用版本化失败协议", () => {
@@ -386,9 +390,9 @@ test("多服务默认全部加载，--service 仅作为过滤器", async () => {
     assert.match(directOpenApiGenResult.stdout, /\/\/ 模型定义/);
     assert.doesNotMatch(directOpenApiGenResult.stdout, /"schemaVersion"/);
 
-    const configCwd = mkdtempSync(path.join(tmpdir(), "ts-swagger-config-source-test-"));
+    const configCwd = mkdtempSync(path.join(tmpdir(), "apitypegen-config-source-test-"));
     writeFileSync(
-      path.join(configCwd, "ts-swagger.config.json"),
+      path.join(configCwd, "apitypegen.config.json"),
       JSON.stringify({ source: { type: "openapi", url: `${baseUrl}/service-a` } }),
     );
     const configSourceResult = await runCliAsync(
@@ -398,12 +402,24 @@ test("多服务默认全部加载，--service 仅作为过滤器", async () => {
     assert.equal(configSourceResult.status, 0, configSourceResult.stderr);
     assert.equal(JSON.parse(configSourceResult.stdout).data.items[0].service, "Service A");
 
+    const legacyConfigCwd = mkdtempSync(path.join(tmpdir(), "apitypegen-legacy-config-test-"));
+    writeFileSync(
+      path.join(legacyConfigCwd, "ts-swagger.config.json"),
+      JSON.stringify({ source: { type: "openapi", url: `${baseUrl}/service-a` } }),
+    );
+    const legacyConfigResult = await runCliAsync(
+      ["search", "--keyword", "users", "--no-interactive", "--format", "json"],
+      { cwd: legacyConfigCwd },
+    );
+    assert.equal(legacyConfigResult.status, 0, legacyConfigResult.stderr);
+    assert.equal(JSON.parse(legacyConfigResult.stdout).data.items[0].service, "Service A");
+
     const environmentSourceResult = await runCliAsync(
       ["search", "--keyword", "orders", "--no-interactive", "--format", "json"],
       {
         env: {
-          TS_SWAGGER_TYPE: "openapi",
-          TS_SWAGGER_URL: `${baseUrl}/service-b`,
+          APITYPEGEN_TYPE: "openapi",
+          APITYPEGEN_URL: `${baseUrl}/service-b`,
         },
       },
     );
@@ -619,7 +635,7 @@ test("多服务默认全部加载，--service 仅作为过滤器", async () => {
     assert.equal(textRecoveryResult.status, 1);
     assert.equal(textRecoveryResult.stdout, "");
     assert.match(textRecoveryResult.stderr, /修复建议/);
-    assert.match(textRecoveryResult.stderr, /ts-swagger gen .*--service service-a/);
+    assert.match(textRecoveryResult.stderr, /apitypegen gen .*--service service-a/);
 
     requests.length = 0;
     const filteredResult = await runCliAsync([

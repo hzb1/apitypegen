@@ -62,7 +62,7 @@ const DEFAULT_TIMEOUT_MS = 15000;
 /** 返回默认的 OpenAPI 文档缓存目录。 */
 export function defaultOpenApiCacheDir(): string {
   const cacheRoot = process.env.XDG_CACHE_HOME || path.join(os.homedir(), ".cache");
-  return path.join(cacheRoot, "ts-swagger", "openapi");
+  return path.join(cacheRoot, "apitypegen", "openapi");
 }
 
 function cacheFilePath(cacheDir: string, documentUrl: string): string {

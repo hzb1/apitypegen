@@ -27,7 +27,7 @@ jobs:
         run: npm ci
 
       - name: Verify version
-        run: npm run verify:version --workspace=@ts-swagger/extension
+        run: npm run verify:version --workspace=@apitypegen/extension
         env:
           TAG_VERSION: ${{ github.ref_name }}
 
@@ -46,8 +46,8 @@ jobs:
       - name: Package dist
         run: |
           VERSION=$(node -p "require('./extension/package.json').version")
-          ZIP_NAME="ts-swagger-extension-dist-${VERSION}.zip"
-          LATEST_NAME="ts-swagger-extension-dist-latest.zip"
+          ZIP_NAME="apitypegen-extension-dist-${VERSION}.zip"
+          LATEST_NAME="apitypegen-extension-dist-latest.zip"
           cd extension/dist
           zip -r "../${ZIP_NAME}" .
           cd ..
