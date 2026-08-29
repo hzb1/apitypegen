@@ -149,6 +149,10 @@ inspect_source（类型未知时）→ search_apis → generate_typescript → �
 `error.recovery` 会返回可直接继续调用的 MCP 工具和参数，或明确要求询问用户、停止重试。
 APITypeGen 只返回查询结果和代码，不会自行修改项目文件。
 
+`search_apis` 返回 `confirmationRequired: true`。AI 必须先向用户展示候选接口并取得明确确认，
+然后在调用 `generate_typescript` 时传入 `confirmed: true`。未确认时生成工具会返回
+`CONFIRMATION_REQUIRED`，不会读取文档或生成代码。
+
 ## 常见问题
 
 ### 找不到 npm 包

@@ -90,6 +90,9 @@ export type SearchCommandData = {
   /** 本次搜索使用的最大结果数。 */
   limit: number;
 
+  /** 是否要求调用方先向用户确认接口，再执行代码生成。 */
+  confirmationRequired: true;
+
   /** 按稳定顺序返回的 API 列表。 */
   items: SearchResultItem[];
 };

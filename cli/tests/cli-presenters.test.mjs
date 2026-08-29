@@ -38,6 +38,7 @@ function createSearchResult(outputFormat) {
       total: 1,
       returned: 1,
       limit: 20,
+      confirmationRequired: true,
       items: [
         {
           service: "order-service",

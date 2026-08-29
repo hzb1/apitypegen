@@ -35,6 +35,12 @@ apitypegen gen \
   --path /api/order/create
 ```
 
+查看当前安装版本：
+
+```bash
+apitypegen --version
+```
+
 ### MCP Server
 
 Codex：

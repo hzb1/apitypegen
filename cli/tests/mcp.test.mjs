@@ -84,6 +84,11 @@ test("MCP stdio 暴露识别、搜索和生成工具并返回结构化结果", a
       ["generate_typescript", "inspect_source", "search_apis"],
     );
     assert.ok(tools.tools.every((tool) => tool.outputSchema));
+    assert.ok(
+      tools.tools
+        .find((tool) => tool.name === "generate_typescript")
+        .outputSchema.properties.error,
+    );
     assert.deepEqual(
       tools.tools.find((tool) => tool.name === "search_apis")
         .inputSchema.properties.source.properties.type.enum,
@@ -123,6 +128,7 @@ test("MCP stdio 暴露识别、搜索和生成工具并返回结构化结果", a
         source: { type: "openapi", url: documentUrl },
         method: "get",
         path: "/orders/{id}",
+        confirmed: true,
       },
     });
     assert.equal(generateResult.isError, undefined);
@@ -138,6 +144,7 @@ test("MCP stdio 暴露识别、搜索和生成工具并返回结构化结果", a
         source: { type: "openapi", url: documentUrl },
         method: "post",
         path: "/orders/{id}",
+        confirmed: true,
       },
     });
     assert.equal(recoveryResult.isError, true);
@@ -167,6 +174,7 @@ test("MCP 工具把可修复执行错误返回为 isError", async () => {
     source: { type: "openapi", url: "http://127.0.0.1:1/not-available" },
     method: "get",
     path: "/missing",
+    confirmed: true,
     timeoutMs: 1000,
   });
 
@@ -174,6 +182,20 @@ test("MCP 工具把可修复执行错误返回为 isError", async () => {
   assert.equal(result.structuredContent.ok, false);
   assert.equal(typeof result.structuredContent.error.code, "string");
   assert.equal(typeof result.structuredContent.error.message, "string");
+});
+
+test("MCP 生成工具在用户未确认接口时拒绝生成", async () => {
+  const { executeGenerateTypescriptTool } = await import("../dist/mcp/server.js");
+  const result = await executeGenerateTypescriptTool({
+    source: { type: "openapi", url: "http://127.0.0.1:1/not-requested" },
+    method: "get",
+    path: "/missing",
+    confirmed: false,
+  });
+
+  assert.equal(result.isError, true);
+  assert.equal(result.structuredContent.error.code, "CONFIRMATION_REQUIRED");
+  assert.equal(result.structuredContent.error.recovery.action, "ask_user");
 });
 
 test("MCP 工具拒绝非 HTTP 来源且不尝试读取本地文件", async () => {

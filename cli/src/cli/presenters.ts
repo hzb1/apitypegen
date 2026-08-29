@@ -89,6 +89,9 @@ export function presentSearchResult(
     output.writeStdout(`加载失败服务: ${result.data.failedServices.length}\n`);
   }
   output.writeStdout(`匹配结果: ${result.data.total}，显示: ${result.data.returned}\n`);
+  if (result.data.confirmationRequired) {
+    output.writeStdout("请先向用户确认接口，再执行 gen。\n");
+  }
   if (result.data.total === 0) {
     output.writeStdout("未匹配到 API。\n");
     return;

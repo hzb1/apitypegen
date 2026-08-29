@@ -15,6 +15,7 @@ export type CliCommand = "inspect" | "search" | "gen";
  *
  * - `INVALID_COMMAND`：命令不存在或已经删除。
  * - `INVALID_ARGUMENT`：命令参数缺失、冲突或取值无效。
+ * - `CONFIRMATION_REQUIRED`：生成代码前尚未获得用户对接口的明确确认。
  * - `SOURCE_LOAD_FAILED`：无法读取用户指定的文档来源。
  * - `SOURCE_TIMEOUT`：读取文档来源或浏览器发现超时。
  * - `SOURCE_TYPE_UNKNOWN`：响应内容无法识别为支持的接口文档来源。
@@ -32,6 +33,7 @@ export type CliCommand = "inspect" | "search" | "gen";
 export type CliErrorCode =
   | "INVALID_COMMAND"
   | "INVALID_ARGUMENT"
+  | "CONFIRMATION_REQUIRED"
   | "SOURCE_LOAD_FAILED"
   | "SOURCE_TIMEOUT"
   | "SOURCE_TYPE_UNKNOWN"
@@ -339,7 +341,7 @@ export function normalizeProtocolError(error: unknown): CliProtocolError {
   ) {
     return new CliProtocolError("INVALID_ARGUMENT", message);
   }
-  if (/HTTP \d+|页面已加载|读取 .*失败/.test(message)) {
+  if (/HTTP \d+|页面已加载|读取 .*失败|fetch failed|ECONNREFUSED|ENOTFOUND|网络连接失败/.test(message)) {
     return new CliProtocolError("SOURCE_LOAD_FAILED", message);
   }
   return new CliProtocolError("UNKNOWN_ERROR", message);

@@ -93,6 +93,9 @@ export type GenerateTypescriptToolInput = {
   /** API 在 OpenAPI 文档中的路径。 */
   path: string;
 
+  /** 是否已经向用户展示并获得该接口的明确确认；缺省按未确认处理。 */
+  confirmed?: boolean;
+
   /** 是否立即向服务端重新校验本地缓存。 */
   refresh?: boolean;
 
@@ -178,11 +181,14 @@ const DEFAULT_SEARCH_LIMIT = 20;
 /** MCP 客户端可读取的服务级使用说明。 */
 export const MCP_INSTRUCTIONS = `APITypeGen 用于从用户提供的接口文档地址查找 API 并生成 TypeScript 类型。
 1. 用户只提供地址且来源类型不明确时，先调用 inspect_source。
-2. 已知来源类型后，先调用 search_apis 查找接口，再原样使用返回的 selector 调用 generate_typescript。
-3. 不要猜测、拼接或探测 OpenAPI、swagger-config 地址。
-4. 多服务来源默认加载全部服务；同名接口必须使用 selector.service 消除歧义。
-5. 工具失败时优先遵循 error.recovery 中可直接调用的工具和参数；ask_user 时询问用户，stop 时停止重试。
-6. generate_typescript 只返回代码和结构化类型，不写入用户文件。`;
+2. 已知来源类型后，先调用 search_apis 查找接口。
+3. search_apis 返回候选结果后，必须把 service、method、path、summary 展示给用户并请求确认。
+4. 用户明确确认前，不得调用 generate_typescript；不得默认选择第一个结果或根据相似路径猜测。
+5. 用户确认后，原样使用已确认的 selector 调用 generate_typescript，并传入 confirmed=true。
+6. 不要猜测、拼接或探测 OpenAPI、swagger-config 地址。
+7. 多服务来源默认加载全部服务；同名接口必须使用 selector.service 消除歧义。
+8. 工具失败时优先遵循 error.recovery 中可直接调用的工具和参数；ask_user 时询问用户，stop 时停止重试。
+9. generate_typescript 只返回代码和结构化类型，不写入用户文件。`;
 
 const DEFAULT_GENERATOR_OPTIONS: Required<GeneratorOptions> = {
   indent: 2,
@@ -257,6 +263,7 @@ const searchDataSchema = z.object({
   total: z.number().int().nonnegative(),
   returned: z.number().int().nonnegative(),
   limit: z.number().int().positive(),
+  confirmationRequired: z.literal(true),
   items: z.array(
     apiItemSchema.extend({
       service: z.string(),
@@ -287,7 +294,40 @@ const errorSchema = z.object({
   code: z.string(),
   message: z.string(),
   details: z.unknown().optional(),
-  recovery: z.unknown().optional(),
+});
+
+const mcpToolCallSchema = z.object({
+  tool: z.enum(["inspect_source", "search_apis", "generate_typescript"]),
+  arguments: z.record(z.string(), z.unknown()),
+});
+
+const mcpRecoverySchema = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("call_tool"),
+    message: z.string(),
+    next: mcpToolCallSchema,
+  }),
+  z.object({
+    action: z.literal("select_tool_call"),
+    message: z.string(),
+    candidates: z.array(
+      mcpToolCallSchema.extend({
+        summary: z.string(),
+      }),
+    ),
+  }),
+  z.object({
+    action: z.literal("ask_user"),
+    message: z.string(),
+  }),
+  z.object({
+    action: z.literal("stop"),
+    message: z.string(),
+  }),
+]);
+
+const errorOutputSchema = errorSchema.extend({
+  recovery: mcpRecoverySchema,
 });
 
 const inspectOutputSchema = {
@@ -296,7 +336,7 @@ const inspectOutputSchema = {
   command: z.literal("inspect_source").describe("实际执行的 MCP 工具"),
   data: inspectDataSchema.optional().describe("来源识别成功后的结构化数据"),
   warnings: z.array(warningSchema).optional().describe("不阻断识别成功的警告"),
-  error: errorSchema.optional().describe("来源识别失败后的稳定错误"),
+  error: errorOutputSchema.optional().describe("来源识别失败后的稳定错误"),
 };
 
 const searchOutputSchema = {
@@ -305,7 +345,7 @@ const searchOutputSchema = {
   command: z.literal("search_apis").describe("实际执行的 MCP 工具"),
   data: searchDataSchema.optional().describe("搜索成功后的结构化数据"),
   warnings: z.array(warningSchema).optional().describe("不阻断搜索成功的警告"),
-  error: errorSchema.optional().describe("搜索失败后的稳定错误"),
+  error: errorOutputSchema.optional().describe("搜索失败后的稳定错误"),
 };
 
 const generateOutputSchema = {
@@ -314,7 +354,7 @@ const generateOutputSchema = {
   command: z.literal("generate_typescript").describe("实际执行的 MCP 工具"),
   data: generateDataSchema.optional().describe("生成成功后的结构化数据"),
   warnings: z.array(warningSchema).optional().describe("不阻断生成成功的警告"),
-  error: errorSchema.optional().describe("生成失败后的稳定错误"),
+  error: errorOutputSchema.optional().describe("生成失败后的稳定错误"),
 };
 
 function createSettings(input: {
@@ -450,6 +490,23 @@ function validateToolSource(source: McpSwaggerSource, chromePath?: string): void
   }
 }
 
+function ensureUserConfirmation(confirmed?: boolean): void {
+  if (confirmed === true) return;
+  throw new CliProtocolError(
+    "CONFIRMATION_REQUIRED",
+    "生成代码前必须先向用户展示并确认接口",
+    { required: "confirmed", expected: true },
+    {
+      action: "retry",
+      message: "请先向用户展示搜索结果并获得明确确认。",
+      intent: {
+        action: "ask-user",
+        message: "请先向用户展示候选接口，并确认要生成的 service、method 和 path。",
+      },
+    },
+  );
+}
+
 /** 执行 inspect_source，不依赖 MCP 传输层，便于契约测试和其他适配器复用。 */
 export async function executeInspectSourceTool(input: InspectSourceToolInput) {
   try {
@@ -506,6 +563,7 @@ export async function executeSearchApisTool(input: SearchApisToolInput) {
 /** 执行 generate_typescript，不依赖 MCP 传输层，便于契约测试和其他适配器复用。 */
 export async function executeGenerateTypescriptTool(input: GenerateTypescriptToolInput) {
   try {
+    ensureUserConfirmation(input.confirmed);
     validateToolSource(input.source, input.chromePath);
     const context = await createSwaggerCommandContext({
       source: input.source,
@@ -609,6 +667,11 @@ export function createApiTypeGenMcpServer(): McpServer {
         service: z.string().trim().min(1).optional().describe("API 所属服务名称"),
         method: z.enum(["get", "post", "put", "delete", "patch"]).describe("HTTP 方法"),
         path: z.string().trim().min(1).startsWith("/").describe("OpenAPI 路径"),
+        confirmed: z
+          .boolean()
+          .optional()
+          .default(false)
+          .describe("用户已经确认 search_apis 返回的接口；缺省为未确认"),
         refresh: z.boolean().optional().describe("是否立即重新校验 OpenAPI 缓存"),
         timeoutMs: z.number().int().min(1000).max(120000).optional().describe("请求超时时间，单位毫秒"),
         chromePath: z.string().min(1).optional().describe("page 来源使用的系统 Chrome 路径"),

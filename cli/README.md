@@ -11,6 +11,7 @@ CLI 支持从 Swagger UI、OpenAPI JSON 或 `swagger-config` 中搜索接口并�
 ```bash
 npm install -g @hzb1/apitypegen
 apitypegen --help
+apitypegen --version
 ```
 
 仓库内开发：
@@ -83,6 +84,8 @@ apitypegen search \
 ```
 
 `--format json` 使用 `schemaVersion: 1` 的稳定协议：结果写入 `stdout`，日志写入 `stderr`，失败退出码为 `1`。
+搜索结果会标记 `confirmationRequired: true`；请先向用户展示并确认接口，再使用精确的
+`service`、`method`、`path` 执行生成。
 
 ## 关键参数
 

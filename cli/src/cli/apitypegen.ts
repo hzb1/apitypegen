@@ -41,6 +41,7 @@ import {
   CliProtocolError,
   type CliCommand,
 } from "./protocol.js";
+import { readPackageVersion } from "../package-metadata.js";
 import { reportUnknownCliError } from "./telemetry.js";
 
 /** CLI 参数解析结果中的选项集合。 */
@@ -181,6 +182,7 @@ function printHelp(): void {
 
 用法:
   apitypegen inspect --url <url> [--timeout <ms>] [--format <text|json>]
+  apitypegen --version
   apitypegen [gen] [--type <page|openapi|swagger-config>] [--url <url>] [--method <method>] [--path <api-path>] [--service <name>] [--refresh] [--copy] [--format <ts|json>]
   apitypegen search --keyword <text> [--type <page|openapi|swagger-config>] [--url <url>] [--service <name>] [--limit <1-100>] [--refresh] [--format <text|json>]
   apitypegen mcp
@@ -205,6 +207,10 @@ function printHelp(): void {
   - CLI 不会探测或猜测任何 OpenAPI / swagger-config 地址
   - mcp 通过 stdio 启动 MCP Server，提供 inspect_source、search_apis 和 generate_typescript 工具
 `);
+}
+
+function printVersion(): void {
+  process.stdout.write(`${readPackageVersion()}\n`);
 }
 
 function parseArgv(argv: string[]): ParsedArgs {
@@ -763,6 +769,10 @@ async function executeGenCommand(
 }
 
 async function main(argv: string[]): Promise<void> {
+  if (argv.length === 1 && (argv[0] === "--version" || argv[0] === "-v")) {
+    printVersion();
+    return;
+  }
   if (argv[0] === "mcp") {
     if (argv.length > 1) {
       throw new CliProtocolError("INVALID_ARGUMENT", "mcp 命令不接受额外参数");

@@ -456,6 +456,7 @@ export function searchSwaggerApis(
       total: results.length,
       returned: returnedResults.length,
       limit: input.limit,
+      confirmationRequired: true,
       items: returnedResults.map(toSearchResultItem),
     },
     warnings: createServiceFailureWarnings(context.failures),

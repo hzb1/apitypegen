@@ -133,6 +133,14 @@ test("npm bin 入口可以正常启动 CLI", () => {
   assert.match(result.stdout, /APITypeGen 命令行工具/);
 });
 
+test("--version 输出当前 CLI 包版本", () => {
+  const result = runCli(["--version"]);
+
+  assert.equal(result.status, 0);
+  assert.match(result.stdout.trim(), /^0\.8\.2$/);
+  assert.equal(result.stderr, "");
+});
+
 test("旧 host 参数返回迁移提示", () => {
   const result = runCli(["gen", "--host", "http://localhost:9999"]);
 
