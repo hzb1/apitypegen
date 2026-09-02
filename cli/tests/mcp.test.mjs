@@ -75,13 +75,13 @@ test("MCP stdio 暴露识别、搜索和生成工具并返回结构化结果", a
     await client.connect(transport);
 
     assert.equal(client.getServerVersion()?.version, packageVersion);
-    assert.match(client.getInstructions(), /先调用 inspect_source/);
+    assert.match(client.getInstructions(), /先调用 resolve_source/);
     assert.match(client.getInstructions(), /不要猜测、拼接或探测/);
 
     const tools = await client.listTools();
     assert.deepEqual(
       tools.tools.map((tool) => tool.name).sort(),
-      ["generate_typescript", "inspect_source", "search_apis"],
+      ["generate_typescript", "inspect_source", "resolve_source", "search_apis"],
     );
     assert.ok(tools.tools.every((tool) => tool.outputSchema));
     assert.ok(
@@ -232,4 +232,112 @@ test("MCP 工具拒绝旧 config 来源类型", async () => {
   assert.equal(result.isError, true);
   assert.equal(result.structuredContent.error.code, "INVALID_ARGUMENT");
   assert.match(result.structuredContent.error.message, /page, openapi, swagger-config/);
+});
+
+test("resolve_source 在客户端不支持 Elicitation 时返回 ask_user fallback", async () => {
+  const { executeResolveSourceTool } = await import("../dist/mcp/server.js");
+  const result = await executeResolveSourceTool({});
+
+  assert.equal(result.isError, true);
+  assert.equal(result.structuredContent.command, "resolve_source");
+  assert.equal(result.structuredContent.error.code, "INVALID_ARGUMENT");
+  assert.equal(result.structuredContent.error.recovery.action, "ask_user");
+});
+
+test("resolve_source 用户取消 Elicitation 时返回 USER_INPUT_CANCELLED", async () => {
+  const { executeResolveSourceTool } = await import("../dist/mcp/server.js");
+  const fakeServer = {
+    server: {
+      getClientCapabilities: () => ({ elicitation: { form: {} } }),
+      elicitInput: async () => ({ action: "cancel" }),
+    },
+  };
+  const result = await executeResolveSourceTool({}, fakeServer);
+
+  assert.equal(result.isError, true);
+  assert.equal(result.structuredContent.command, "resolve_source");
+  assert.equal(result.structuredContent.error.code, "USER_INPUT_CANCELLED");
+  assert.equal(result.structuredContent.error.recovery.action, "stop");
+  assert.equal(
+    result.structuredContent.error.recovery.message,
+    "请提供接口文档类型和完整 URL 后重试。",
+  );
+});
+
+test("resolve_source 接受 Elicitation 后返回已确认的 OpenAPI 来源", async () => {
+  const { executeResolveSourceTool } = await import("../dist/mcp/server.js");
+  const originalFetch = globalThis.fetch;
+  let elicitationRequest;
+  globalThis.fetch = async () =>
+    new Response(JSON.stringify({ openapi: "3.0.0", paths: {} }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+
+  const fakeServer = {
+    server: {
+      getClientCapabilities: () => ({ elicitation: { form: {} } }),
+      elicitInput: async (request) => {
+        elicitationRequest = request;
+        return {
+          action: "accept",
+          content: {
+            sourceType: "openapi",
+            url: "https://example.test/openapi.json",
+          },
+        };
+      },
+    },
+  };
+
+  try {
+    const result = await executeResolveSourceTool({}, fakeServer);
+    assert.equal(result.isError, undefined);
+    assert.equal(result.structuredContent.ok, true);
+    assert.deepEqual(result.structuredContent.data.source, {
+      type: "openapi",
+      url: "https://example.test/openapi.json",
+    });
+    assert.equal(elicitationRequest.mode, "form");
+    assert.deepEqual(elicitationRequest.requestedSchema.required, ["sourceType", "url"]);
+    assert.ok(
+      elicitationRequest.requestedSchema.properties.sourceType.oneOf.some(
+        (option) => option.const === "openapi",
+      ),
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("resolve_source 选择类型与实际响应不一致时返回稳定错误", async () => {
+  const { executeResolveSourceTool } = await import("../dist/mcp/server.js");
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () =>
+    new Response("<!doctype html><html></html>", {
+      status: 200,
+      headers: { "content-type": "text/html" },
+    });
+
+  const fakeServer = {
+    server: {
+      getClientCapabilities: () => ({ elicitation: { form: {} } }),
+      elicitInput: async () => ({
+        action: "accept",
+        content: {
+          sourceType: "openapi",
+          url: "https://example.test/swagger-ui/",
+        },
+      }),
+    },
+  };
+
+  try {
+    const result = await executeResolveSourceTool({}, fakeServer);
+    assert.equal(result.isError, true);
+    assert.equal(result.structuredContent.error.code, "INVALID_ARGUMENT");
+    assert.match(result.structuredContent.error.message, /实际响应识别为 page/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });

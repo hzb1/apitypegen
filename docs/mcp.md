@@ -130,11 +130,12 @@ http://localhost:9999/doc.html#/home
 
 APITypeGen 不会猜测文档地址。
 
-如果用户只提供了地址、不确定来源类型，不需要让用户先研究文档结构；MCP 会先用
-`inspect_source` 读取这个准确地址并按响应内容识别类型。
+如果用户没有提供可靠的来源类型和地址，MCP 会先调用 `resolve_source`，通过原生
+Elicitation 让用户确认类型并输入完整 URL；已有明确来源时才直接进入搜索。
 
 ## MCP 工具
 
+- `resolve_source`：在来源不明确时通过用户输入收集类型和完整 URL；
 - `inspect_source`：识别用户明确提供的 URL 属于 `page`、`openapi` 还是 `swagger-config`；
 - `search_apis`：搜索接口并返回精确的接口选择器；
 - `generate_typescript`：生成该接口的模型、查询参数、请求体和响应类型。
@@ -142,10 +143,10 @@ APITypeGen 不会猜测文档地址。
 AI 的标准调用流程是：
 
 ```text
-inspect_source（类型未知时）→ search_apis → generate_typescript → 写入当前项目
+resolve_source（来源未知时）→ search_apis → generate_typescript（仅返回代码）
 ```
 
-三个工具均为只读工具。所有 MCP 结果使用 `schemaVersion: 1`。失败结果中的
+四个工具均为只读工具。所有 MCP 结果使用 `schemaVersion: 1`。失败结果中的
 `error.recovery` 会返回可直接继续调用的 MCP 工具和参数，或明确要求询问用户、停止重试。
 APITypeGen 只返回查询结果和代码，不会自行修改项目文件。
 

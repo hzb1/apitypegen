@@ -55,6 +55,12 @@ export type InspectSourceToolInput = {
   timeoutMs?: number;
 };
 
+/** resolve_source 工具的调用参数。 */
+export type ResolveSourceToolInput = {
+  /** 用户已经提供的候选地址；存在时仍要求用户确认来源类型。 */
+  url?: string;
+};
+
 /** search_apis 工具的调用参数。 */
 export type SearchApisToolInput = {
   /** Swagger 或 OpenAPI 来源。 */
@@ -109,11 +115,16 @@ export type GenerateTypescriptToolInput = {
 /**
  * MCP 稳定协议中的工具名称。
  *
+ * - `resolve_source`：通过用户输入确认来源类型和地址。
  * - `inspect_source`：识别来源类型。
  * - `search_apis`：搜索接口。
  * - `generate_typescript`：生成 TypeScript 类型。
  */
-export type McpToolName = "inspect_source" | "search_apis" | "generate_typescript";
+export type McpToolName =
+  | "resolve_source"
+  | "inspect_source"
+  | "search_apis"
+  | "generate_typescript";
 
 /** MCP 恢复建议中的单次工具调用。 */
 export type McpRecoveryToolCall = {
@@ -180,16 +191,17 @@ const DEFAULT_SEARCH_LIMIT = 20;
 
 /** MCP 客户端可读取的服务级使用说明。 */
 export const MCP_INSTRUCTIONS = `APITypeGen 用于从用户提供的接口文档地址查找 API 并生成 TypeScript 类型。
-1. 用户只提供地址且来源类型不明确时，先调用 inspect_source。
-2. 已知来源类型后，先调用 search_apis 查找接口。
-3. search_apis 返回候选结果后，必须把 service、method、path、summary 展示给用户并请求确认。
-4. 用户明确确认前，不得调用 generate_typescript；不得默认选择第一个结果或根据相似路径猜测。
-5. 用户确认后，原样使用已确认的 selector 调用 generate_typescript，并传入 confirmed=true。
-6. 不要猜测、拼接或探测 OpenAPI、swagger-config 地址。
-7. 多服务来源默认加载全部服务；同名接口必须使用 selector.service 消除歧义。
-8. 工具失败时优先遵循 error.recovery 中可直接调用的工具和参数；ask_user 时询问用户，stop 时停止重试。
-9. 页面来源未捕获到文档时，必须在对话中询问用户选择 openapi 或 swagger-config，并索要实际 JSON 文档完整 URL；不要只总结失败后结束。
-10. generate_typescript 只返回代码和结构化类型，不写入用户文件。`;
+1. 用户没有明确的接口文档来源时，先调用 resolve_source。
+2. 用户只提供 URL 但未说明类型时，也先调用 resolve_source，而不是猜测类型。
+3. resolve_source 返回 source 后，再调用 search_apis；已有明确 source.type 和 source.url 时可直接调用 search_apis。
+4. search_apis 返回候选结果后，必须把 service、method、path、summary 展示给用户并请求确认。
+5. 用户明确确认前，不得调用 generate_typescript；不得默认选择第一个结果或根据相似路径猜测。
+6. 用户确认后，原样使用已确认的 selector 调用 generate_typescript，并传入 confirmed=true。
+7. 不要猜测、拼接或探测 OpenAPI、swagger-config 地址。
+8. 多服务来源默认加载全部服务；同名接口必须使用 selector.service 消除歧义。
+9. 工具失败时优先遵循 error.recovery 中可直接调用的工具和参数；ask_user 时询问用户，stop 时停止重试。
+10. 页面来源未捕获到文档时，若收到 Elicitation 请求，必须让用户补充 openapi 或 swagger-config 的完整 URL；不要只总结失败后结束。
+11. generate_typescript 只返回代码和结构化类型，不写入用户文件。`;
 
 const DEFAULT_GENERATOR_OPTIONS: Required<GeneratorOptions> = {
   indent: 2,
@@ -214,6 +226,14 @@ const sourceSchema = z.object({
 });
 
 const inspectDataSchema = z.object({
+  source: sourceSchema,
+  resolvedUrl: z.string(),
+  status: z.number().int(),
+  contentType: z.string(),
+  reason: z.string(),
+});
+
+const resolveSourceDataSchema = z.object({
   source: sourceSchema,
   resolvedUrl: z.string(),
   status: z.number().int(),
@@ -298,7 +318,7 @@ const errorSchema = z.object({
 });
 
 const mcpToolCallSchema = z.object({
-  tool: z.enum(["inspect_source", "search_apis", "generate_typescript"]),
+  tool: z.enum(["resolve_source", "inspect_source", "search_apis", "generate_typescript"]),
   arguments: z.record(z.string(), z.unknown()),
 });
 
@@ -338,6 +358,15 @@ const inspectOutputSchema = {
   data: inspectDataSchema.optional().describe("来源识别成功后的结构化数据"),
   warnings: z.array(warningSchema).optional().describe("不阻断识别成功的警告"),
   error: errorOutputSchema.optional().describe("来源识别失败后的稳定错误"),
+};
+
+const resolveSourceOutputSchema = {
+  schemaVersion: z.literal(PROTOCOL_SCHEMA_VERSION).describe("稳定协议版本"),
+  ok: z.boolean().describe("工具是否执行成功"),
+  command: z.literal("resolve_source").describe("实际执行的 MCP 工具"),
+  data: resolveSourceDataSchema.optional().describe("来源确认成功后的结构化数据"),
+  warnings: z.array(warningSchema).optional().describe("不阻断确认成功的警告"),
+  error: errorOutputSchema.optional().describe("来源确认失败后的稳定错误"),
 };
 
 const searchOutputSchema = {
@@ -380,6 +409,52 @@ function createSettings(input: {
 function createToolText(structuredContent: object): string {
   return JSON.stringify(structuredContent, null, 2);
 }
+
+const resolveSourceContentSchema = z.object({
+  sourceType: z.enum(["page", "openapi", "swagger-config"]),
+  url: z.url().refine((value) => /^https?:\/\//i.test(value), "来源地址只支持 http 或 https"),
+});
+
+const searchRecoveryContentSchema = z.object({
+  sourceType: z.enum(["openapi", "swagger-config"]),
+  url: z.url().refine((value) => /^https?:\/\//i.test(value), "来源地址只支持 http 或 https"),
+});
+
+const resolveSourceElicitationSchema = {
+  type: "object" as const,
+  properties: {
+    sourceType: {
+      type: "string" as const,
+      title: "接口文档类型",
+      oneOf: [
+        { const: "page", title: "Swagger UI / Knife4j 页面" },
+        { const: "openapi", title: "OpenAPI JSON" },
+        { const: "swagger-config", title: "Swagger Config JSON" },
+      ],
+    },
+    url: {
+      type: "string" as const,
+      title: "接口文档地址",
+      format: "uri" as const,
+      description: "请输入完整且可访问的 URL",
+    },
+  },
+  required: ["sourceType", "url"],
+};
+
+const searchRecoveryElicitationSchema = {
+  ...resolveSourceElicitationSchema,
+  properties: {
+    ...resolveSourceElicitationSchema.properties,
+    sourceType: {
+      ...resolveSourceElicitationSchema.properties.sourceType,
+      oneOf: [
+        { const: "openapi", title: "OpenAPI JSON" },
+        { const: "swagger-config", title: "Swagger Config JSON" },
+      ],
+    },
+  },
+};
 
 function recoveryFromIntent(intent: RecoveryIntent): McpRecovery {
   if (
@@ -433,17 +508,23 @@ function recoveryFromIntent(intent: RecoveryIntent): McpRecovery {
   };
 }
 
-function createMcpFailure(command: McpToolName, error: unknown) {
+function createMcpFailure(
+  command: McpToolName,
+  error: unknown,
+  recoveryOverride?: McpRecovery,
+) {
   const normalizedError = normalizeProtocolError(error);
-  const recovery = normalizedError.recovery?.intent
-    ? recoveryFromIntent(normalizedError.recovery.intent)
-    : {
-        action: normalizedError.code === "INVALID_ARGUMENT" ? "ask_user" as const : "stop" as const,
-        message:
-          normalizedError.code === "INVALID_ARGUMENT"
-            ? "请根据错误信息补充或修正工具参数。"
-            : "当前错误没有可安全自动执行的恢复步骤，请检查来源可访问性后重试。",
-      };
+  const recovery =
+    recoveryOverride ??
+    (normalizedError.recovery?.intent
+      ? recoveryFromIntent(normalizedError.recovery.intent)
+      : {
+          action: normalizedError.code === "INVALID_ARGUMENT" ? "ask_user" as const : "stop" as const,
+          message:
+            normalizedError.code === "INVALID_ARGUMENT"
+              ? "请根据错误信息补充或修正工具参数。"
+              : "当前错误没有可安全自动执行的恢复步骤，请检查来源可访问性后重试。",
+        });
   return {
     schemaVersion: PROTOCOL_SCHEMA_VERSION,
     ok: false as const,
@@ -529,35 +610,151 @@ export async function executeInspectSourceTool(input: InspectSourceToolInput) {
   }
 }
 
+function toToolResult(structuredContent: Record<string, unknown>, isError = false) {
+  return {
+    content: [{ type: "text" as const, text: createToolText(structuredContent) }],
+    structuredContent,
+    ...(isError ? { isError: true } : {}),
+  };
+}
+
+function isPageDiscoveryFailure(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /页面已加载，但未捕获到有效的 OpenAPI 或 swagger-config GET 响应/.test(message);
+}
+
+function createCancelledSourceResult(command: McpToolName) {
+  const structuredContent = createMcpFailure(
+    command,
+    new CliProtocolError("USER_INPUT_CANCELLED", "用户取消了接口文档来源输入"),
+    {
+      action: "stop",
+      message: "请提供接口文档类型和完整 URL 后重试。",
+    },
+  );
+  return toToolResult(structuredContent, true);
+}
+
+async function requestSourceElicitation(
+  server: McpServer,
+  input: ResolveSourceToolInput,
+  pageRecovery = false,
+) {
+  const supportsForm = server.server.getClientCapabilities()?.elicitation?.form !== undefined;
+  if (!supportsForm) return undefined;
+  const schema = pageRecovery ? searchRecoveryElicitationSchema : resolveSourceElicitationSchema;
+  const result = await server.server.elicitInput({
+    mode: "form",
+    message: pageRecovery
+      ? "未能从 Swagger 页面捕获接口文档，请选择 openapi 或 swagger-config，并提供实际 JSON 文档完整 URL。"
+      : "请选择接口文档类型，并提供完整且可访问的 URL。",
+    requestedSchema: schema,
+  });
+  if (result.action !== "accept" || !result.content) return null;
+  const parsed = (pageRecovery ? searchRecoveryContentSchema : resolveSourceContentSchema).safeParse(
+    result.content,
+  );
+  if (!parsed.success) {
+    throw new CliProtocolError("INVALID_ARGUMENT", "用户输入的接口文档类型或 URL 无效");
+  }
+  return parsed.data;
+}
+
+/** 执行 resolve_source，负责通过 MCP Elicitation 收集并确认来源。 */
+export async function executeResolveSourceTool(
+  input: ResolveSourceToolInput,
+  server?: McpServer,
+) {
+  if (!server || server.server.getClientCapabilities()?.elicitation?.form === undefined) {
+    const structuredContent = createMcpFailure(
+      "resolve_source",
+      new CliProtocolError(
+        "INVALID_ARGUMENT",
+        "当前 MCP 客户端不支持来源输入表单，请直接提供 source.type 和 source.url。",
+      ),
+      {
+        action: "ask_user",
+        message: "当前客户端不支持原生输入表单，请在下一次调用中直接提供 source.type 和完整 source.url。",
+      },
+    );
+    return toToolResult(structuredContent, true);
+  }
+  try {
+    const elicited = await requestSourceElicitation(server, input);
+    if (!elicited) return createCancelledSourceResult("resolve_source");
+    const inspection = await inspectSwaggerSource(elicited.url, {
+      timeoutMs: DEFAULT_TIMEOUT_MS,
+    });
+    if (inspection.source.type !== elicited.sourceType) {
+      throw new CliProtocolError(
+        "INVALID_ARGUMENT",
+        `用户选择的来源类型为 ${elicited.sourceType}，实际响应识别为 ${inspection.source.type}`,
+        { expected: elicited.sourceType, detected: inspection.source.type },
+      );
+    }
+    return toToolResult(
+      createMcpSuccess("resolve_source", {
+        source: { type: elicited.sourceType, url: elicited.url },
+        resolvedUrl: inspection.resolvedUrl,
+        status: inspection.status,
+        contentType: inspection.contentType,
+        reason: inspection.reason,
+      }),
+    );
+  } catch (error) {
+    return toToolResult(createMcpFailure("resolve_source", error), true);
+  }
+}
+
 /** 执行 search_apis，不依赖 MCP 传输层，便于契约测试和其他适配器复用。 */
 export async function executeSearchApisTool(input: SearchApisToolInput) {
   try {
-    validateToolSource(input.source, input.chromePath);
-    const context = await createSwaggerCommandContext({
-      source: input.source,
-      settings: createSettings(input),
-      service: input.service,
-    });
-    const result = searchSwaggerApis(context, {
-      keyword: input.keyword,
-      limit: input.limit ?? DEFAULT_SEARCH_LIMIT,
-    });
-    const structuredContent = createMcpSuccess(
-      "search_apis",
-      result.data,
-      result.warnings,
-    );
-    return {
-      content: [{ type: "text" as const, text: createToolText(structuredContent) }],
-      structuredContent,
-    };
+    return await executeSearchApisWithSource(input);
   } catch (error) {
-    const structuredContent = createMcpFailure("search_apis", error);
-    return {
-      content: [{ type: "text" as const, text: createToolText(structuredContent) }],
-      structuredContent,
-      isError: true,
-    };
+    return toToolResult(createMcpFailure("search_apis", error), true);
+  }
+}
+
+async function executeSearchApisWithSource(input: SearchApisToolInput) {
+  validateToolSource(input.source, input.chromePath);
+  const context = await createSwaggerCommandContext({
+    source: input.source,
+    settings: createSettings(input),
+    service: input.service,
+  });
+  const result = searchSwaggerApis(context, {
+    keyword: input.keyword,
+    limit: input.limit ?? DEFAULT_SEARCH_LIMIT,
+  });
+  return toToolResult(
+    createMcpSuccess("search_apis", result.data, result.warnings),
+  );
+}
+
+async function executeSearchApisWithRecovery(input: SearchApisToolInput, server: McpServer) {
+  try {
+    return await executeSearchApisWithSource(input);
+  } catch (error) {
+    if (input.source.type === "page" && isPageDiscoveryFailure(error)) {
+      try {
+        const elicited = await requestSourceElicitation(server, {}, true);
+        if (elicited) {
+          try {
+            return await executeSearchApisWithSource({
+              ...input,
+              source: { type: elicited.sourceType, url: elicited.url },
+              chromePath: undefined,
+            });
+          } catch (retryError) {
+            return toToolResult(createMcpFailure("search_apis", retryError), true);
+          }
+        }
+        if (elicited === null) return createCancelledSourceResult("search_apis");
+      } catch {
+        // Elicitation 失败时继续返回原始页面发现错误和 fallback recovery。
+      }
+    }
+    return toToolResult(createMcpFailure("search_apis", error), true);
   }
 }
 
@@ -599,6 +796,30 @@ export function createApiTypeGenMcpServer(): McpServer {
       version: readPackageVersion(),
     },
     { instructions: MCP_INSTRUCTIONS },
+  );
+
+  server.registerTool(
+    "resolve_source",
+    {
+      title: "收集接口文档来源",
+      description:
+        "当用户没有明确提供 source.type 和 source.url 时，通过用户输入表单收集来源类型与完整 URL。不会猜测或探测文档地址。",
+      inputSchema: {
+        url: z
+          .url()
+          .refine((value) => /^https?:\/\//i.test(value), "来源地址只支持 http 或 https")
+          .optional()
+          .describe("用户已经提供的候选地址；仍会要求确认来源类型"),
+      },
+      outputSchema: resolveSourceOutputSchema,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    async (input) => executeResolveSourceTool(input, server),
   );
 
   server.registerTool(
@@ -654,7 +875,7 @@ export function createApiTypeGenMcpServer(): McpServer {
         openWorldHint: true,
       },
     },
-    executeSearchApisTool,
+    async (input) => executeSearchApisWithRecovery(input, server),
   );
 
   server.registerTool(

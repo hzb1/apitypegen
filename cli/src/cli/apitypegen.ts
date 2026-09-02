@@ -222,7 +222,7 @@ function printHelp(): void {
   - --no-interactive 可在 AI/CI 脚本中禁用所有交互
   - page 模式需要系统 Chrome，可用 --chrome-path 或 APITYPEGEN_CHROME_PATH 指定路径
   - CLI 不会探测或猜测任何 OpenAPI / swagger-config 地址
-  - mcp 通过 stdio 启动 MCP Server，提供 inspect_source、search_apis 和 generate_typescript 工具
+  - mcp 通过 stdio 启动 MCP Server，提供 resolve_source、inspect_source、search_apis 和 generate_typescript 工具
   - doctor 检查 Node.js、配置文件、缓存目录；--mcp 额外检查 MCP Server
 `);
 }

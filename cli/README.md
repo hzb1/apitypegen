@@ -143,7 +143,7 @@ codex mcp get apitypegen
 https://example.com/openapi.json
 ```
 
-MCP 提供只读的 `inspect_source`、`search_apis` 和 `generate_typescript` 工具。完整说明见
+MCP 提供只读的 `resolve_source`、`inspect_source`、`search_apis` 和 `generate_typescript` 工具。完整说明见
 [MCP 指南](../docs/mcp.md)。匿名错误上报默认关闭；`APITYPEGEN_TELEMETRY=1`
 
 ## 自检
