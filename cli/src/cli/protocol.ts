@@ -314,6 +314,17 @@ export function normalizeProtocolError(error: unknown): CliProtocolError {
       },
     });
   }
+  if (/页面已加载，但未捕获到有效的 OpenAPI 或 swagger-config GET 响应/.test(message)) {
+    return new CliProtocolError("SOURCE_TYPE_UNKNOWN", message, undefined, {
+      action: "retry",
+      message: "请用户选择 openapi 或 swagger-config，并提供该 JSON 文档的完整 URL。",
+      intent: {
+        action: "ask-user",
+        message:
+          "未能从页面捕获接口文档。请用户选择来源类型（openapi 或 swagger-config），并提供实际发出的 JSON 文档完整 URL；不要根据页面地址猜测路径。",
+      },
+    });
+  }
   if (/不是有效的 OpenAPI\/Swagger JSON/.test(message)) {
     return new CliProtocolError("OPENAPI_INVALID", message);
   }

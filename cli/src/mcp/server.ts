@@ -188,7 +188,8 @@ export const MCP_INSTRUCTIONS = `APITypeGen 用于从用户提供的接口文档
 6. 不要猜测、拼接或探测 OpenAPI、swagger-config 地址。
 7. 多服务来源默认加载全部服务；同名接口必须使用 selector.service 消除歧义。
 8. 工具失败时优先遵循 error.recovery 中可直接调用的工具和参数；ask_user 时询问用户，stop 时停止重试。
-9. generate_typescript 只返回代码和结构化类型，不写入用户文件。`;
+9. 页面来源未捕获到文档时，必须在对话中询问用户选择 openapi 或 swagger-config，并索要实际 JSON 文档完整 URL；不要只总结失败后结束。
+10. generate_typescript 只返回代码和结构化类型，不写入用户文件。`;
 
 const DEFAULT_GENERATOR_OPTIONS: Required<GeneratorOptions> = {
   indent: 2,
