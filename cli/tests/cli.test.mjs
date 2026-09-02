@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import http from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -10,6 +10,9 @@ import { fileURLToPath } from "node:url";
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const cliPath = path.join(repositoryRoot, "dist/cli/apitypegen.js");
 const binPath = path.join(repositoryRoot, "bin/apitypegen.mjs");
+const packageVersion = JSON.parse(
+  readFileSync(path.join(repositoryRoot, "package.json"), "utf8"),
+).version;
 const emptyCwd = mkdtempSync(path.join(tmpdir(), "apitypegen-cli-test-"));
 const cacheRoot = mkdtempSync(path.join(tmpdir(), "apitypegen-cli-cache-test-"));
 
@@ -137,7 +140,7 @@ test("--version 输出当前 CLI 包版本", () => {
   const result = runCli(["--version"]);
 
   assert.equal(result.status, 0);
-  assert.match(result.stdout.trim(), /^0\.8\.2$/);
+  assert.equal(result.stdout.trim(), packageVersion);
   assert.equal(result.stderr, "");
 });
 
