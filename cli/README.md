@@ -145,4 +145,18 @@ https://example.com/openapi.json
 
 MCP 提供只读的 `inspect_source`、`search_apis` 和 `generate_typescript` 工具。完整说明见
 [MCP 指南](../docs/mcp.md)。匿名错误上报默认关闭；`APITYPEGEN_TELEMETRY=1`
+
+## 自检
+
+检查本机 Node.js、配置文件、缓存目录以及（可选的）MCP Server：
+
+```bash
+apitypegen doctor
+apitypegen doctor --url https://example.com/openapi.json
+apitypegen doctor --mcp
+apitypegen doctor --format json
+```
+
+`doctor` 默认只检查本地环境，不访问远程接口。存在失败项时退出码为 `1`；JSON
+输出使用 `schemaVersion: 1`，可用于脚本和 CI。
 开启，`DO_NOT_TRACK=1` 强制关闭。

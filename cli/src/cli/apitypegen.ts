@@ -44,6 +44,21 @@ import {
 import { readPackageVersion } from "../package-metadata.js";
 import { reportUnknownCliError } from "./telemetry.js";
 
+/** 自检结果中的单项状态。 */
+type DoctorStatus = "pass" | "warn" | "fail";
+
+/** doctor 命令返回的单项检查结果。 */
+type DoctorCheck = {
+  /** 检查项的稳定标识。 */
+  id: string;
+  /** 检查项的状态。 */
+  status: DoctorStatus;
+  /** 面向用户的检查结果。 */
+  message: string;
+  /** 可选的修复建议。 */
+  recovery?: string;
+};
+
 /** CLI 参数解析结果中的选项集合。 */
 type CliOptions = {
   /** 未归属到选项的普通参数。 */
@@ -155,6 +170,7 @@ const COMMAND_OPTIONS: Record<CliCommand, Set<string>> = {
   inspect: new Set(["url", "timeout", "no-interactive", "format"]),
   search: new Set([...COMMON_OPTIONS, "keyword", "service", "limit"]),
   gen: new Set([...COMMON_OPTIONS, "method", "path", "service", "copy"]),
+  doctor: new Set(["format", "mcp", "url", "timeout"]),
 };
 const REMOVED_OPTIONS: Record<string, string> = {
   "source-url": "--type page --url <Swagger-UI-URL>",
@@ -185,6 +201,7 @@ function printHelp(): void {
   apitypegen --version
   apitypegen [gen] [--type <page|openapi|swagger-config>] [--url <url>] [--method <method>] [--path <api-path>] [--service <name>] [--refresh] [--copy] [--format <ts|json>]
   apitypegen search --keyword <text> [--type <page|openapi|swagger-config>] [--url <url>] [--service <name>] [--limit <1-100>] [--refresh] [--format <text|json>]
+  apitypegen doctor [--url <url>] [--mcp] [--format <text|json>]
   apitypegen mcp
 
 来源类型:
@@ -206,6 +223,7 @@ function printHelp(): void {
   - page 模式需要系统 Chrome，可用 --chrome-path 或 APITYPEGEN_CHROME_PATH 指定路径
   - CLI 不会探测或猜测任何 OpenAPI / swagger-config 地址
   - mcp 通过 stdio 启动 MCP Server，提供 inspect_source、search_apis 和 generate_typescript 工具
+  - doctor 检查 Node.js、配置文件、缓存目录；--mcp 额外检查 MCP Server
 `);
 }
 
@@ -256,11 +274,86 @@ function parseArgv(argv: string[]): ParsedArgs {
 }
 
 function ensureCommand(command: string): CliCommand {
-  if (command === "inspect" || command === "search" || command === "gen") return command;
+  if (command === "inspect" || command === "search" || command === "gen" || command === "doctor") return command;
   if (command === "services") {
     throw new Error("命令 services 已删除；search/gen 会默认加载全部服务");
   }
   throw new Error(`未知命令 "${command}"`);
+}
+
+async function executeDoctorCommand(checkMcp: boolean, url: string, timeoutMs: number): Promise<{ checks: DoctorCheck[]; ok: boolean }> {
+  const checks: DoctorCheck[] = [];
+  const major = Number.parseInt(process.versions.node.split(".")[0] || "0", 10);
+  checks.push(major >= 20
+    ? { id: "node-version", status: "pass", message: `Node.js ${process.versions.node}` }
+    : { id: "node-version", status: "fail", message: `Node.js ${process.versions.node} 版本过低`, recovery: "升级到 Node.js 20 或更高版本" });
+  checks.push({ id: "apitypegen-version", status: "pass", message: `APITypeGen ${readPackageVersion()}` });
+
+  const configPath = path.join(process.cwd(), CONFIG_FILENAME);
+  const legacyPath = path.join(process.cwd(), LEGACY_CONFIG_FILENAME);
+  const selectedConfig = fs.existsSync(configPath) ? configPath : legacyPath;
+  if (!fs.existsSync(selectedConfig)) {
+    checks.push({ id: "config", status: "pass", message: "未发现配置文件，将使用默认配置" });
+  } else {
+    try {
+      JSON.parse(await fsp.readFile(selectedConfig, "utf8"));
+      checks.push({ id: "config", status: "pass", message: `配置文件有效：${path.basename(selectedConfig)}` });
+    } catch (error) {
+      checks.push({ id: "config", status: "fail", message: `配置文件无法解析：${path.basename(selectedConfig)}`, recovery: error instanceof Error ? error.message : String(error) });
+    }
+  }
+
+  const cacheRoot = process.env.XDG_CACHE_HOME || path.join(process.env.HOME || process.cwd(), ".cache");
+  try {
+    await fsp.mkdir(path.join(cacheRoot, "apitypegen"), { recursive: true });
+    await fsp.access(path.join(cacheRoot, "apitypegen"), fs.constants.W_OK);
+    checks.push({ id: "cache", status: "pass", message: `缓存目录可写：${path.join(cacheRoot, "apitypegen")}` });
+  } catch {
+    checks.push({ id: "cache", status: "fail", message: "缓存目录不可写", recovery: "检查 XDG_CACHE_HOME 或用户目录权限" });
+  }
+
+  if (checkMcp) {
+    try {
+      const { createApiTypeGenMcpServer } = await import("../mcp/server.js");
+      createApiTypeGenMcpServer();
+      checks.push({ id: "mcp-server", status: "pass", message: "MCP Server 可创建，stdio 配置正常" });
+    } catch (error) {
+      checks.push({ id: "mcp-server", status: "fail", message: "MCP Server 创建失败", recovery: error instanceof Error ? error.message : String(error) });
+    }
+  }
+  if (url) {
+    try {
+      const inspection = await inspectSwaggerSource(url, { timeoutMs });
+      checks.push({ id: "source-inspection", status: "pass", message: `来源识别成功：${inspection.source.type}（HTTP ${inspection.status}）` });
+      const context = await createSwaggerCommandContext({
+        source: inspection.source,
+        settings: {
+          timeoutMs,
+          generator: { ...DEFAULT_CONFIG.generator, typeNameMapper: (rawName: string) => rawName },
+          cacheTtlMs: OPENAPI_CACHE_TTL_MS,
+          refreshCache: false,
+        },
+      });
+      checks.push({ id: "source-load", status: "pass", message: `文档加载成功：${context.documents.length} 个服务` });
+    } catch (error) {
+      checks.push({ id: "source", status: "fail", message: "接口文档自检失败", recovery: error instanceof Error ? error.message : String(error) });
+    }
+  }
+  return { checks, ok: checks.every((check) => check.status !== "fail") };
+}
+
+async function presentDoctorResult(checkMcp: boolean, url: string, timeoutMs: number, format: string): Promise<void> {
+  const result = await executeDoctorCommand(checkMcp, url, timeoutMs);
+  if (format === "json") {
+    process.stdout.write(`${JSON.stringify({ schemaVersion: 1, ok: result.ok, command: "doctor", data: { checks: result.checks } }, null, 2)}\n`);
+    if (!result.ok) process.exitCode = 1;
+    return;
+  }
+  for (const check of result.checks) {
+    const label = check.status === "pass" ? "PASS" : check.status === "warn" ? "WARN" : "FAIL";
+    process.stdout.write(`${label.padEnd(4)} ${check.message}${check.recovery ? `（${check.recovery}）` : ""}\n`);
+  }
+  if (!result.ok) process.exitCode = 1;
 }
 
 function validateCommandOptions(command: CliCommand, options: CliOptions): void {
@@ -796,6 +889,19 @@ async function main(argv: string[]): Promise<void> {
   const reporter = createProgressReporter();
 
   try {
+    if (command === "doctor") {
+      const format = getStringOption(options, "format") || "text";
+      if (format !== "text" && format !== "json") {
+        throw new CliProtocolError("INVALID_ARGUMENT", "doctor 的 --format 仅支持 text 或 json");
+      }
+      await presentDoctorResult(
+        getBooleanOption(options, "mcp"),
+        getStringOption(options, "url"),
+        toInt(getStringOption(options, "timeout"), 15000),
+        format,
+      );
+      return;
+    }
     if (command === "inspect") {
       const result = await executeInspectCommand(options, prompt, settings.timeoutMs);
       presentInspectResult(result);

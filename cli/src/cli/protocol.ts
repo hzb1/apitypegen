@@ -7,8 +7,9 @@ import type { SwaggerSource } from "../core/swagger-source.js";
  * - `inspect`：识别用户明确提供的接口文档地址。
  * - `search`：按关键词检索 API。
  * - `gen`：为指定 API 生成 TypeScript 类型。
+ * - `doctor`：检查本地运行环境与 MCP 能力。
  */
-export type CliCommand = "inspect" | "search" | "gen";
+export type CliCommand = "inspect" | "search" | "gen" | "doctor";
 
 /**
  * CLI JSON 协议使用的稳定错误码。
