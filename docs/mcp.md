@@ -131,7 +131,7 @@ http://localhost:9999/doc.html#/home
 APITypeGen 不会猜测文档地址。
 
 如果用户没有提供可靠的来源类型和地址，MCP 会先调用 `resolve_source`，通过原生
-Elicitation 让用户确认类型并输入完整 URL；已有明确来源时才直接进入搜索。
+Elicitation 先让用户单选来源类型，再输入该类型对应的完整 URL；类型选定后不会在同一轮输入中切换到其他类型。已有明确来源时才直接进入搜索。
 
 ## MCP 工具
 

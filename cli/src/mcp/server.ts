@@ -410,17 +410,7 @@ function createToolText(structuredContent: object): string {
   return JSON.stringify(structuredContent, null, 2);
 }
 
-const resolveSourceContentSchema = z.object({
-  sourceType: z.enum(["page", "openapi", "swagger-config"]),
-  url: z.url().refine((value) => /^https?:\/\//i.test(value), "来源地址只支持 http 或 https"),
-});
-
-const searchRecoveryContentSchema = z.object({
-  sourceType: z.enum(["openapi", "swagger-config"]),
-  url: z.url().refine((value) => /^https?:\/\//i.test(value), "来源地址只支持 http 或 https"),
-});
-
-const resolveSourceElicitationSchema = {
+const resolveSourceTypeElicitationSchema = {
   type: "object" as const,
   properties: {
     sourceType: {
@@ -432,6 +422,26 @@ const resolveSourceElicitationSchema = {
         { const: "swagger-config", title: "Swagger Config JSON" },
       ],
     },
+  },
+  required: ["sourceType"],
+};
+
+const searchRecoveryTypeElicitationSchema = {
+  ...resolveSourceTypeElicitationSchema,
+  properties: {
+    sourceType: {
+      ...resolveSourceTypeElicitationSchema.properties.sourceType,
+      oneOf: [
+        { const: "openapi", title: "OpenAPI JSON" },
+        { const: "swagger-config", title: "Swagger Config JSON" },
+      ],
+    },
+  },
+};
+
+const sourceUrlElicitationSchema = {
+  type: "object" as const,
+  properties: {
     url: {
       type: "string" as const,
       title: "接口文档地址",
@@ -439,21 +449,7 @@ const resolveSourceElicitationSchema = {
       description: "请输入完整且可访问的 URL",
     },
   },
-  required: ["sourceType", "url"],
-};
-
-const searchRecoveryElicitationSchema = {
-  ...resolveSourceElicitationSchema,
-  properties: {
-    ...resolveSourceElicitationSchema.properties,
-    sourceType: {
-      ...resolveSourceElicitationSchema.properties.sourceType,
-      oneOf: [
-        { const: "openapi", title: "OpenAPI JSON" },
-        { const: "swagger-config", title: "Swagger Config JSON" },
-      ],
-    },
-  },
+  required: ["url"],
 };
 
 function recoveryFromIntent(intent: RecoveryIntent): McpRecovery {
@@ -639,32 +635,47 @@ function createCancelledSourceResult(command: McpToolName) {
 
 async function requestSourceElicitation(
   server: McpServer,
-  input: ResolveSourceToolInput,
   pageRecovery = false,
 ) {
   const supportsForm = server.server.getClientCapabilities()?.elicitation?.form !== undefined;
   if (!supportsForm) return undefined;
-  const schema = pageRecovery ? searchRecoveryElicitationSchema : resolveSourceElicitationSchema;
-  const result = await server.server.elicitInput({
+  const typeResult = await server.server.elicitInput({
     mode: "form",
     message: pageRecovery
-      ? "未能从 Swagger 页面捕获接口文档，请选择 openapi 或 swagger-config，并提供实际 JSON 文档完整 URL。"
-      : "请选择接口文档类型，并提供完整且可访问的 URL。",
-    requestedSchema: schema,
+      ? "未能从 Swagger 页面捕获接口文档，请先选择来源类型。"
+      : "请选择接口文档类型。",
+    requestedSchema: pageRecovery
+      ? searchRecoveryTypeElicitationSchema
+      : resolveSourceTypeElicitationSchema,
   });
-  if (result.action !== "accept" || !result.content) return null;
-  const parsed = (pageRecovery ? searchRecoveryContentSchema : resolveSourceContentSchema).safeParse(
-    result.content,
-  );
-  if (!parsed.success) {
-    throw new CliProtocolError("INVALID_ARGUMENT", "用户输入的接口文档类型或 URL 无效");
+  if (typeResult.action !== "accept" || !typeResult.content) return null;
+  const parsedType = (pageRecovery
+    ? z.object({ sourceType: z.enum(["openapi", "swagger-config"]) })
+    : z.object({ sourceType: z.enum(["page", "openapi", "swagger-config"]) })
+  ).safeParse(typeResult.content);
+  if (!parsedType.success) {
+    throw new CliProtocolError("INVALID_ARGUMENT", "用户选择的接口文档类型无效");
   }
-  return parsed.data;
+  const urlResult = await server.server.elicitInput({
+    mode: "form",
+    message: `请输入 ${parsedType.data.sourceType} 类型的完整且可访问 URL。`,
+    requestedSchema: sourceUrlElicitationSchema,
+  });
+  if (urlResult.action !== "accept" || !urlResult.content) return null;
+  const parsedUrl = z
+    .object({
+      url: z.url().refine((value) => /^https?:\/\//i.test(value), "来源地址只支持 http 或 https"),
+    })
+    .safeParse(urlResult.content);
+  if (!parsedUrl.success) {
+    throw new CliProtocolError("INVALID_ARGUMENT", "用户输入的接口文档 URL 无效");
+  }
+  return { sourceType: parsedType.data.sourceType, url: parsedUrl.data.url };
 }
 
 /** 执行 resolve_source，负责通过 MCP Elicitation 收集并确认来源。 */
 export async function executeResolveSourceTool(
-  input: ResolveSourceToolInput,
+  _input: ResolveSourceToolInput,
   server?: McpServer,
 ) {
   if (!server || server.server.getClientCapabilities()?.elicitation?.form === undefined) {
@@ -682,7 +693,7 @@ export async function executeResolveSourceTool(
     return toToolResult(structuredContent, true);
   }
   try {
-    const elicited = await requestSourceElicitation(server, input);
+    const elicited = await requestSourceElicitation(server);
     if (!elicited) return createCancelledSourceResult("resolve_source");
     const inspection = await inspectSwaggerSource(elicited.url, {
       timeoutMs: DEFAULT_TIMEOUT_MS,
@@ -739,7 +750,7 @@ async function executeSearchApisWithRecovery(input: SearchApisToolInput, server:
   } catch (error) {
     if (isSourceRecoveryError(error)) {
       try {
-        const elicited = await requestSourceElicitation(server, {}, true);
+        const elicited = await requestSourceElicitation(server, true);
         if (elicited) {
           try {
             return await executeSearchApisWithSource({

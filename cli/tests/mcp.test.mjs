@@ -269,7 +269,7 @@ test("resolve_source 用户取消 Elicitation 时返回 USER_INPUT_CANCELLED", a
 test("resolve_source 接受 Elicitation 后返回已确认的 OpenAPI 来源", async () => {
   const { executeResolveSourceTool } = await import("../dist/mcp/server.js");
   const originalFetch = globalThis.fetch;
-  let elicitationRequest;
+  const elicitationRequests = [];
   globalThis.fetch = async () =>
     new Response(JSON.stringify({ openapi: "3.0.0", paths: {} }), {
       status: 200,
@@ -280,13 +280,13 @@ test("resolve_source 接受 Elicitation 后返回已确认的 OpenAPI 来源", a
     server: {
       getClientCapabilities: () => ({ elicitation: { form: {} } }),
       elicitInput: async (request) => {
-        elicitationRequest = request;
+        elicitationRequests.push(request);
+        if (request.requestedSchema.properties.sourceType) {
+          return { action: "accept", content: { sourceType: "openapi" } };
+        }
         return {
           action: "accept",
-          content: {
-            sourceType: "openapi",
-            url: "https://example.test/openapi.json",
-          },
+          content: { url: "https://example.test/openapi.json" },
         };
       },
     },
@@ -300,13 +300,15 @@ test("resolve_source 接受 Elicitation 后返回已确认的 OpenAPI 来源", a
       type: "openapi",
       url: "https://example.test/openapi.json",
     });
-    assert.equal(elicitationRequest.mode, "form");
-    assert.deepEqual(elicitationRequest.requestedSchema.required, ["sourceType", "url"]);
+    assert.equal(elicitationRequests.length, 2);
+    assert.equal(elicitationRequests[0].mode, "form");
+    assert.deepEqual(elicitationRequests[0].requestedSchema.required, ["sourceType"]);
     assert.ok(
-      elicitationRequest.requestedSchema.properties.sourceType.oneOf.some(
+      elicitationRequests[0].requestedSchema.properties.sourceType.oneOf.some(
         (option) => option.const === "openapi",
       ),
     );
+    assert.deepEqual(elicitationRequests[1].requestedSchema.required, ["url"]);
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -324,13 +326,10 @@ test("resolve_source 选择类型与实际响应不一致时返回稳定错误",
   const fakeServer = {
     server: {
       getClientCapabilities: () => ({ elicitation: { form: {} } }),
-      elicitInput: async () => ({
-        action: "accept",
-        content: {
-          sourceType: "openapi",
-          url: "https://example.test/swagger-ui/",
-        },
-      }),
+      elicitInput: async (request) =>
+        request.requestedSchema.properties.sourceType
+          ? { action: "accept", content: { sourceType: "openapi" } }
+          : { action: "accept", content: { url: "https://example.test/swagger-ui/" } },
     },
   };
 
@@ -402,16 +401,12 @@ test("search_apis 遇到 HTML 来源类型错误时触发 Elicitation 并自动�
     { capabilities: { elicitation: { form: {} } } },
   );
   const server = createApiTypeGenMcpServer();
-  let elicitationRequest;
+  const elicitationRequests = [];
   client.setRequestHandler(ElicitRequestSchema, async (request) => {
-    elicitationRequest = request;
-    return {
-      action: "accept",
-      content: {
-        sourceType: "openapi",
-        url: "https://example.test/openapi.json",
-      },
-    };
+    elicitationRequests.push(request);
+    return request.params.requestedSchema.properties.sourceType
+      ? { action: "accept", content: { sourceType: "openapi" } }
+      : { action: "accept", content: { url: "https://example.test/openapi.json" } };
   });
 
   try {
@@ -428,9 +423,10 @@ test("search_apis 遇到 HTML 来源类型错误时触发 Elicitation 并自动�
       },
     });
 
-    assert.equal(elicitationRequest.method, "elicitation/create");
+    assert.equal(elicitationRequests.length, 2);
+    assert.equal(elicitationRequests[0].method, "elicitation/create");
     assert.deepEqual(
-      elicitationRequest.params.requestedSchema.properties.sourceType.oneOf.map(
+      elicitationRequests[0].params.requestedSchema.properties.sourceType.oneOf.map(
         (option) => option.const,
       ),
       ["openapi", "swagger-config"],
