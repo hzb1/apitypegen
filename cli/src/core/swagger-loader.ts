@@ -86,6 +86,25 @@ export function isSwaggerConfigLike(data: unknown): data is SwaggerConfig {
   return hasSingleUrl || hasServiceUrls;
 }
 
+function isHtmlResponse(contentType: string, body: string): boolean {
+  if (/\btext\/html\b/i.test(contentType)) return true;
+  const prefix = body.trimStart().slice(0, 256);
+  return /^(?:<!doctype\s+html\b|<html\b)/i.test(prefix);
+}
+
+/** 读取 HTTP 响应，并在 HTML 被误作 JSON 时返回稳定的来源类型错误。 */
+export async function parseJsonResponse<T = unknown>(
+  response: Response,
+  url: string,
+): Promise<T> {
+  const body = await response.text();
+  const contentType = response.headers.get("content-type") || "";
+  if (isHtmlResponse(contentType, body)) {
+    throw new Error(`来源类型不匹配：当前地址返回 HTML 文档页面，不是 JSON：${url}`);
+  }
+  return JSON.parse(body) as T;
+}
+
 /** 使用超时控制请求并解析 JSON 响应。 */
 export async function fetchJson<T = unknown>(url: string, timeoutMs = 15000): Promise<T> {
   const controller = new AbortController();
@@ -96,7 +115,7 @@ export async function fetchJson<T = unknown>(url: string, timeoutMs = 15000): Pr
     if (!response.ok) {
       throw new Error(`HTTP ${response.status} (${response.statusText})`);
     }
-    return (await response.json()) as T;
+    return await parseJsonResponse<T>(response, url);
   } catch (error: unknown) {
     if (error && typeof error === "object" && "name" in error && error.name === "AbortError") {
       throw new Error(`请求超时（${timeoutMs}ms）：${url}`);

@@ -1,6 +1,6 @@
 {
   "name": "@hzb1/apitypegen",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "description": "从 API 文档生成可靠的 TypeScript 类型",
   "keywords": [
     "openapi",

@@ -2,7 +2,11 @@ import { createHash } from "node:crypto";
 import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { isOpenApiLike, type OpenApiDocument } from "./swagger-loader.js";
+import {
+  isOpenApiLike,
+  parseJsonResponse,
+  type OpenApiDocument,
+} from "./swagger-loader.js";
 
 /**
  * OpenAPI 文档缓存的读取状态。
@@ -146,7 +150,7 @@ export async function loadOpenApiDocumentWithCache(
       throw new Error(`HTTP ${response.status} (${response.statusText})`);
     }
 
-    const document = (await response.json()) as unknown;
+    const document = await parseJsonResponse(response, documentUrl);
     if (!isOpenApiLike(document)) {
       throw new Error(`${documentUrl} 不是有效的 OpenAPI/Swagger JSON`);
     }

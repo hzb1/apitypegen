@@ -306,6 +306,17 @@ export function normalizeProtocolError(error: unknown): CliProtocolError {
   if (/请求超时|超时/.test(message)) {
     return new CliProtocolError("SOURCE_TIMEOUT", message);
   }
+  if (/来源类型不匹配：当前地址返回 HTML 文档页面，不是 JSON/.test(message)) {
+    return new CliProtocolError("SOURCE_TYPE_UNKNOWN", message, undefined, {
+      action: "retry",
+      message: "当前地址是文档页面，不是 OpenAPI JSON。请补充实际 JSON 文档的完整 URL。",
+      intent: {
+        action: "ask-user",
+        message:
+          "当前地址是文档页面，不是 OpenAPI JSON。请选择 openapi 或 swagger-config，并提供实际 JSON 文档完整 URL。",
+      },
+    });
+  }
   if (/无法识别接口文档来源/.test(message)) {
     return new CliProtocolError("SOURCE_TYPE_UNKNOWN", message, undefined, {
       action: "retry",

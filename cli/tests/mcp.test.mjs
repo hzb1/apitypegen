@@ -6,6 +6,8 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { ElicitRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 
 const cliRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const cliPath = path.join(cliRoot, "dist/cli/apitypegen.js");
@@ -338,6 +340,107 @@ test("resolve_source 选择类型与实际响应不一致时返回稳定错误",
     assert.equal(result.structuredContent.error.code, "INVALID_ARGUMENT");
     assert.match(result.structuredContent.error.message, /实际响应识别为 page/);
   } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("search_apis 将误作 OpenAPI 的 HTML 响应归类为来源类型错误", async () => {
+  const { executeSearchApisTool } = await import("../dist/mcp/server.js");
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () =>
+    new Response("\n<!DOCTYPE html><html></html>", {
+      status: 200,
+      headers: { "content-type": "text/html; charset=utf-8" },
+    });
+
+  try {
+    const result = await executeSearchApisTool({
+      source: { type: "openapi", url: "https://example.test/swagger-ui/" },
+      keyword: "登录",
+      refresh: true,
+    });
+    assert.equal(result.isError, true);
+    assert.equal(result.structuredContent.error.code, "SOURCE_TYPE_UNKNOWN");
+    assert.equal(result.structuredContent.error.recovery.action, "ask_user");
+    assert.match(result.structuredContent.error.message, /返回 HTML 文档页面/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("search_apis 遇到 HTML 来源类型错误时触发 Elicitation 并自动重试", async () => {
+  const { createApiTypeGenMcpServer } = await import("../dist/mcp/server.js");
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    if (url.endsWith("/openapi.json")) {
+      return new Response(
+        JSON.stringify({
+          openapi: "3.0.0",
+          info: { title: "Auth Service" },
+          paths: {
+            "/login": {
+              post: {
+                summary: "用户登录",
+                responses: { 200: { description: "ok" } },
+              },
+            },
+          },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    }
+    return new Response("<!doctype html><html></html>", {
+      status: 200,
+      headers: { "content-type": "text/html" },
+    });
+  };
+
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  const client = new Client(
+    { name: "apitypegen-elicitation-test", version: "1.0.0" },
+    { capabilities: { elicitation: { form: {} } } },
+  );
+  const server = createApiTypeGenMcpServer();
+  let elicitationRequest;
+  client.setRequestHandler(ElicitRequestSchema, async (request) => {
+    elicitationRequest = request;
+    return {
+      action: "accept",
+      content: {
+        sourceType: "openapi",
+        url: "https://example.test/openapi.json",
+      },
+    };
+  });
+
+  try {
+    await Promise.all([
+      server.connect(serverTransport),
+      client.connect(clientTransport),
+    ]);
+    const result = await client.callTool({
+      name: "search_apis",
+      arguments: {
+        source: { type: "openapi", url: "https://example.test/swagger-ui/" },
+        keyword: "登录",
+        refresh: true,
+      },
+    });
+
+    assert.equal(elicitationRequest.method, "elicitation/create");
+    assert.deepEqual(
+      elicitationRequest.params.requestedSchema.properties.sourceType.oneOf.map(
+        (option) => option.const,
+      ),
+      ["openapi", "swagger-config"],
+    );
+    assert.equal(result.structuredContent.ok, true);
+    assert.equal(result.structuredContent.data.returned, 1);
+    assert.equal(result.structuredContent.data.items[0].selector.path, "/login");
+  } finally {
+    await client.close();
+    await server.close();
     globalThis.fetch = originalFetch;
   }
 });

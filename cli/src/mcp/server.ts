@@ -618,9 +618,11 @@ function toToolResult(structuredContent: Record<string, unknown>, isError = fals
   };
 }
 
-function isPageDiscoveryFailure(error: unknown): boolean {
+function isSourceRecoveryError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
-  return /页面已加载，但未捕获到有效的 OpenAPI 或 swagger-config GET 响应/.test(message);
+  return /页面已加载，但未捕获到有效的 OpenAPI 或 swagger-config GET 响应|来源类型不匹配：当前地址返回 HTML 文档页面，不是 JSON/.test(
+    message,
+  );
 }
 
 function createCancelledSourceResult(command: McpToolName) {
@@ -735,7 +737,7 @@ async function executeSearchApisWithRecovery(input: SearchApisToolInput, server:
   try {
     return await executeSearchApisWithSource(input);
   } catch (error) {
-    if (input.source.type === "page" && isPageDiscoveryFailure(error)) {
+    if (isSourceRecoveryError(error)) {
       try {
         const elicited = await requestSourceElicitation(server, {}, true);
         if (elicited) {
