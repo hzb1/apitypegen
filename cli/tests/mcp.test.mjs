@@ -110,7 +110,7 @@ test("MCP stdio 暴露识别、搜索和生成工具并返回结构化结果", a
       name: "search_apis",
       arguments: {
         source: { type: "openapi", url: documentUrl },
-        keyword: "订单详情",
+        keyword: "请帮我查询订单详情接口",
       },
     });
     assert.equal(searchResult.isError, undefined);

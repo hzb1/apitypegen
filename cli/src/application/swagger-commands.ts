@@ -1,4 +1,10 @@
-import { collectApis, findApiByPathAndMethod, searchApis, type ApiItem } from "../core/api-index.js";
+import {
+  collectApis,
+  findApiByPathAndMethod,
+  scoreApiMatch,
+  searchApis,
+  type ApiItem,
+} from "../core/api-index.js";
 import {
   loadOpenApiDocumentWithCache,
   type OpenApiCacheStatus,
@@ -373,25 +379,6 @@ function compareText(left: string, right: string): number {
   return left < right ? -1 : 1;
 }
 
-function apiSearchScore(api: ApiItem, keyword: string): number {
-  const query = keyword.trim().toLowerCase();
-  const pathValue = api.path.toLowerCase();
-  const operationId = api.operationId.toLowerCase();
-  const summary = api.summary.toLowerCase();
-  const description = api.description.toLowerCase();
-  const tags = api.tags.join(" ").toLowerCase();
-
-  if (pathValue === query) return 1000;
-  if (operationId === query) return 900;
-  if (summary === query) return 800;
-  if (pathValue.includes(query)) return 600;
-  if (operationId.includes(query)) return 500;
-  if (summary.includes(query)) return 400;
-  if (tags.includes(query)) return 300;
-  if (description.includes(query)) return 200;
-  return 0;
-}
-
 function collectServiceApis(documents: ServiceDocumentContext[]): ServiceApiCandidate[] {
   return documents.flatMap((context) =>
     collectApis(context.document).map((api) => ({ context, api })),
@@ -408,7 +395,7 @@ function searchServiceApis(
       )
     : collectServiceApis(documents);
   return candidates.sort((left, right) => {
-    const scoreDifference = apiSearchScore(right.api, keyword) - apiSearchScore(left.api, keyword);
+    const scoreDifference = scoreApiMatch(right.api, keyword) - scoreApiMatch(left.api, keyword);
     if (scoreDifference !== 0) return scoreDifference;
     return (
       compareText(serviceDocumentLabel(left.context), serviceDocumentLabel(right.context)) ||

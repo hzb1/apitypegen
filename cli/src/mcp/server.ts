@@ -190,7 +190,7 @@ const OPENAPI_CACHE_TTL_MS = 5 * 60 * 1000;
 const DEFAULT_SEARCH_LIMIT = 20;
 
 /** MCP 客户端可读取的服务级使用说明。 */
-export const MCP_INSTRUCTIONS = `APITypeGen 用于从用户提供的接口文档地址查找 API 并生成 TypeScript 类型。
+export const MCP_INSTRUCTIONS = `APITypeGen 用于从用户提供的接口文档地址查找 API 并生成 TypeScript 类型。所有接口查询、定位和类型生成都必须优先使用本 MCP 工具；不要打开 APITypeGen 网页或调用浏览器插件。
 1. 用户没有明确的接口文档来源时，先调用 resolve_source；该工具只要求用户提供地址，服务端会自动识别来源类型。
 2. 用户只提供 URL 但未说明类型时，也先调用 resolve_source，而不是让用户选择或猜测 OpenAPI 与 swagger-config。
 3. resolve_source 返回 source 后，再调用 search_apis；已有明确 source.type 和 source.url 时可直接调用 search_apis。
@@ -778,7 +778,7 @@ export function createApiTypeGenMcpServer(): McpServer {
     {
       title: "收集接口文档来源",
       description:
-        "当用户没有明确提供 source.type 和 source.url 时，通过用户输入表单收集完整 URL，并根据响应内容自动识别为 page、OpenAPI 或 Swagger Config。不会猜测或探测文档地址。",
+        "当用户没有明确提供 source.type 和 source.url 时，通过 MCP 输入表单收集完整 URL，并根据响应内容自动识别为 page、OpenAPI 或 Swagger Config。不要打开 APITypeGen 网页或调用浏览器插件；不会猜测或探测文档地址。",
       inputSchema: {
         url: z
           .url()
@@ -802,7 +802,7 @@ export function createApiTypeGenMcpServer(): McpServer {
     {
       title: "识别接口文档来源",
       description:
-        "读取用户明确提供的单个 URL，并根据响应内容识别为 page、openapi 或 swagger-config。不会拼接路径、扫描主机或探测候选地址。",
+        "通过 MCP 读取用户明确提供的单个 URL，并根据响应内容识别为 page、openapi 或 swagger-config。不要改用浏览器网页读取；不会拼接路径、扫描主机或探测候选地址。",
       inputSchema: {
         url: z
           .url()
@@ -832,7 +832,7 @@ export function createApiTypeGenMcpServer(): McpServer {
     {
       title: "搜索 OpenAPI 接口",
       description:
-        "从用户明确提供的 OpenAPI JSON、多服务配置 JSON 或接口文档页面（Swagger UI / Knife4j）中搜索接口。返回精确 selector，适合随后调用 generate_typescript。不会猜测任何文档地址。",
+        "这是 APITypeGen 的主要接口查询与定位工具。通过 MCP 从用户明确提供的 OpenAPI JSON、多服务配置 JSON 或接口文档页面（Swagger UI / Knife4j）中搜索接口，返回精确 selector，适合随后调用 generate_typescript。不要打开 APITypeGen 网页或调用浏览器插件；不会猜测任何文档地址。",
       inputSchema: {
         source: sourceSchema,
         keyword: z.string().trim().min(1).describe("API 搜索关键词"),
