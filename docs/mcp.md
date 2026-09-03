@@ -131,11 +131,12 @@ http://localhost:9999/doc.html#/home
 APITypeGen 不会猜测文档地址。
 
 如果用户没有提供可靠的来源类型和地址，MCP 会先调用 `resolve_source`，通过原生
-Elicitation 先让用户单选来源类型，再输入该类型对应的完整 URL；类型选定后不会在同一轮输入中切换到其他类型。已有明确来源时才直接进入搜索。
+Elicitation 让用户输入完整 URL。服务端会根据响应内容自动识别为 `page`、`openapi` 或
+`swagger-config`，用户不需要了解或选择 JSON 文档的具体类型。已有明确来源时才直接进入搜索。
 
 ## MCP 工具
 
-- `resolve_source`：在来源不明确时通过用户输入收集类型和完整 URL；
+- `resolve_source`：在来源不明确时通过用户输入收集完整 URL，并自动识别来源类型；
 - `inspect_source`：识别用户明确提供的 URL 属于 `page`、`openapi` 还是 `swagger-config`；
 - `search_apis`：搜索接口并返回精确的接口选择器；
 - `generate_typescript`：生成该接口的模型、查询参数、请求体和响应类型。

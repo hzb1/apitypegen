@@ -309,11 +309,11 @@ export function normalizeProtocolError(error: unknown): CliProtocolError {
   if (/来源类型不匹配：当前地址返回 HTML 文档页面，不是 JSON/.test(message)) {
     return new CliProtocolError("SOURCE_TYPE_UNKNOWN", message, undefined, {
       action: "retry",
-      message: "当前地址是文档页面，不是 OpenAPI JSON。请补充实际 JSON 文档的完整 URL。",
+      message: "当前地址是文档页面，不是接口文档 JSON。请补充实际 JSON 文档的完整 URL，服务端会自动识别类型。",
       intent: {
         action: "ask-user",
         message:
-          "当前地址是文档页面，不是 OpenAPI JSON。请选择 openapi 或 swagger-config，并提供实际 JSON 文档完整 URL。",
+          "当前地址是文档页面，不是接口文档 JSON。请提供页面实际加载的 JSON 文档完整 URL，服务端会自动识别是 OpenAPI 还是 swagger-config。",
       },
     });
   }
@@ -330,11 +330,11 @@ export function normalizeProtocolError(error: unknown): CliProtocolError {
   if (/页面已加载，但未捕获到有效的 OpenAPI 或 swagger-config GET 响应/.test(message)) {
     return new CliProtocolError("SOURCE_TYPE_UNKNOWN", message, undefined, {
       action: "retry",
-      message: "请用户选择 openapi 或 swagger-config，并提供该 JSON 文档的完整 URL。",
+      message: "请用户提供该 JSON 文档的完整 URL，服务端会自动识别是 OpenAPI 还是 swagger-config。",
       intent: {
         action: "ask-user",
         message:
-          "未能从页面捕获接口文档。请用户选择来源类型（openapi 或 swagger-config），并提供实际发出的 JSON 文档完整 URL；不要根据页面地址猜测路径。",
+          "未能从页面捕获接口文档。请用户提供实际发出的 JSON 文档完整 URL；服务端会自动识别类型，不要根据页面地址猜测路径。",
       },
     });
   }

@@ -262,7 +262,7 @@ test("resolve_source 用户取消 Elicitation 时返回 USER_INPUT_CANCELLED", a
   assert.equal(result.structuredContent.error.recovery.action, "stop");
   assert.equal(
     result.structuredContent.error.recovery.message,
-    "请提供接口文档类型和完整 URL 后重试。",
+    "请提供接口文档完整 URL 后重试，服务端会自动识别来源类型。",
   );
 });
 
@@ -281,9 +281,6 @@ test("resolve_source 接受 Elicitation 后返回已确认的 OpenAPI 来源", a
       getClientCapabilities: () => ({ elicitation: { form: {} } }),
       elicitInput: async (request) => {
         elicitationRequests.push(request);
-        if (request.requestedSchema.properties.sourceType) {
-          return { action: "accept", content: { sourceType: "openapi" } };
-        }
         return {
           action: "accept",
           content: { url: "https://example.test/openapi.json" },
@@ -300,21 +297,19 @@ test("resolve_source 接受 Elicitation 后返回已确认的 OpenAPI 来源", a
       type: "openapi",
       url: "https://example.test/openapi.json",
     });
-    assert.equal(elicitationRequests.length, 2);
+    assert.equal(elicitationRequests.length, 1);
     assert.equal(elicitationRequests[0].mode, "form");
-    assert.deepEqual(elicitationRequests[0].requestedSchema.required, ["sourceType"]);
-    assert.ok(
-      elicitationRequests[0].requestedSchema.properties.sourceType.oneOf.some(
-        (option) => option.const === "openapi",
-      ),
+    assert.deepEqual(elicitationRequests[0].requestedSchema.required, ["url"]);
+    assert.match(
+      elicitationRequests[0].requestedSchema.properties.url.description,
+      /自动识别文档类型/,
     );
-    assert.deepEqual(elicitationRequests[1].requestedSchema.required, ["url"]);
   } finally {
     globalThis.fetch = originalFetch;
   }
 });
 
-test("resolve_source 选择类型与实际响应不一致时返回稳定错误", async () => {
+test("resolve_source 根据实际响应自动识别 page 来源", async () => {
   const { executeResolveSourceTool } = await import("../dist/mcp/server.js");
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () =>
@@ -326,18 +321,21 @@ test("resolve_source 选择类型与实际响应不一致时返回稳定错误",
   const fakeServer = {
     server: {
       getClientCapabilities: () => ({ elicitation: { form: {} } }),
-      elicitInput: async (request) =>
-        request.requestedSchema.properties.sourceType
-          ? { action: "accept", content: { sourceType: "openapi" } }
-          : { action: "accept", content: { url: "https://example.test/swagger-ui/" } },
+      elicitInput: async () => ({
+        action: "accept",
+        content: { url: "https://example.test/swagger-ui/" },
+      }),
     },
   };
 
   try {
     const result = await executeResolveSourceTool({}, fakeServer);
-    assert.equal(result.isError, true);
-    assert.equal(result.structuredContent.error.code, "INVALID_ARGUMENT");
-    assert.match(result.structuredContent.error.message, /实际响应识别为 page/);
+    assert.equal(result.isError, undefined);
+    assert.equal(result.structuredContent.ok, true);
+    assert.deepEqual(result.structuredContent.data.source, {
+      type: "page",
+      url: "https://example.test/swagger-ui/",
+    });
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -404,9 +402,7 @@ test("search_apis 遇到 HTML 来源类型错误时触发 Elicitation 并自动�
   const elicitationRequests = [];
   client.setRequestHandler(ElicitRequestSchema, async (request) => {
     elicitationRequests.push(request);
-    return request.params.requestedSchema.properties.sourceType
-      ? { action: "accept", content: { sourceType: "openapi" } }
-      : { action: "accept", content: { url: "https://example.test/openapi.json" } };
+    return { action: "accept", content: { url: "https://example.test/openapi.json" } };
   });
 
   try {
@@ -423,14 +419,9 @@ test("search_apis 遇到 HTML 来源类型错误时触发 Elicitation 并自动�
       },
     });
 
-    assert.equal(elicitationRequests.length, 2);
+    assert.equal(elicitationRequests.length, 1);
     assert.equal(elicitationRequests[0].method, "elicitation/create");
-    assert.deepEqual(
-      elicitationRequests[0].params.requestedSchema.properties.sourceType.oneOf.map(
-        (option) => option.const,
-      ),
-      ["openapi", "swagger-config"],
-    );
+    assert.deepEqual(elicitationRequests[0].params.requestedSchema.required, ["url"]);
     assert.equal(result.structuredContent.ok, true);
     assert.equal(result.structuredContent.data.returned, 1);
     assert.equal(result.structuredContent.data.items[0].selector.path, "/login");
