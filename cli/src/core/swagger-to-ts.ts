@@ -12,7 +12,19 @@ export interface GeneratedTypes {
   queryParams: string;
   requestBody: string;
   responseData: string;
+  /** 按 HTTP 状态码拆分的响应类型。 */
+  responses: GeneratedResponse[];
   models: string;
+}
+
+/** 单个 HTTP 响应的生成结果。 */
+export interface GeneratedResponse {
+  /** 响应状态码或 default。 */
+  status: string;
+  /** OpenAPI 响应描述。 */
+  description: string;
+  /** 响应数据类型代码。 */
+  code: string;
 }
 
 type SwaggerSchema = {
@@ -46,6 +58,7 @@ type SwaggerRequestBody = {
 };
 
 type SwaggerResponse = {
+  description?: string;
   content?: Record<string, SwaggerMediaType | undefined>;
   schema?: SwaggerSchema;
 };
@@ -143,6 +156,21 @@ export class SwaggerToTS {
       return this.resolveRef(schema.$ref).name;
     }
 
+    if (schema.nullable === true) {
+      const base = this.getTSType({ ...schema, nullable: undefined }, depth);
+      return `${base} | null`;
+    }
+
+    if (Array.isArray(schema.oneOf) && schema.oneOf.length) {
+      return schema.oneOf.map((item) => this.getTSType(item as SwaggerSchema, depth)).join(" | ");
+    }
+    if (Array.isArray(schema.anyOf) && schema.anyOf.length) {
+      return schema.anyOf.map((item) => this.getTSType(item as SwaggerSchema, depth)).join(" | ");
+    }
+    if (Array.isArray(schema.allOf) && schema.allOf.length) {
+      return schema.allOf.map((item) => this.getTSType(item as SwaggerSchema, depth)).join(" & ");
+    }
+
     if (schema.enum && Array.isArray(schema.enum)) {
       return schema.enum
         .map((value) => (typeof value === "string" ? `'${value}'` : String(value)))
@@ -156,7 +184,10 @@ export class SwaggerToTS {
     if (schema.type === "object" || schema.properties) {
       const properties = schema.properties || {};
       const entries = Object.entries(properties);
-      if (entries.length === 0) return "Record<string, any>";
+      if (entries.length === 0 && schema.additionalProperties && typeof schema.additionalProperties === "object") {
+        return `Record<string, ${this.getTSType(schema.additionalProperties as SwaggerSchema, depth)}>`;
+      }
+      if (entries.length === 0) return "Record<string, unknown>";
 
       let objectString = "{\n";
       const requiredSet = new Set(Array.isArray(schema.required) ? schema.required : []);
@@ -248,6 +279,14 @@ export class SwaggerToTS {
       : `${this.exp}type ResponseData = any${this.semi}`;
   }
 
+  private generateResponses(operation: SwaggerOperation): GeneratedResponse[] {
+    const responses = operation.responses || {};
+    return Object.entries(responses).map(([status, response]) => {
+      const code = response ? this.generateResponse({ responses: { [status]: response } }) : `${this.exp}type ResponseData = unknown${this.semi}`;
+      return { status, description: response?.description || "", code };
+    });
+  }
+
   getStructuredTypes(path: string, method: string): GeneratedTypes {
     this.usedDefinitions.clear();
 
@@ -256,12 +295,13 @@ export class SwaggerToTS {
       pathItem && typeof pathItem === "object" ? pathItem[String(method).toLowerCase()] : undefined;
 
     if (!operation) {
-      return { queryParams: "", requestBody: "", responseData: "", models: "" };
+      return { queryParams: "", requestBody: "", responseData: "", responses: [], models: "" };
     }
 
     const queryParams = this.generateQueryParams(operation);
     const requestBody = this.generateRequestBody(operation);
     const responseData = this.generateResponse(operation);
+    const responses = this.generateResponses(operation);
 
     let models = "";
     for (const [name, schema] of this.usedDefinitions.entries()) {
@@ -271,7 +311,7 @@ export class SwaggerToTS {
       )}\n\n`;
     }
 
-    return { queryParams, requestBody, responseData, models };
+    return { queryParams, requestBody, responseData, responses, models };
   }
 }
 
