@@ -342,7 +342,10 @@ export class SwaggerToTS {
     for (const [name, schema] of this.usedDefinitions.entries()) {
       models += this.formatJSDoc(schema);
       const schemaType = this.getTSType(schema);
-      const needsTypeAlias = Boolean(schema.enum || schema.oneOf || schema.anyOf || schema.allOf);
+      const isObjectSchema = schema.type === "object" || Boolean(schema.properties);
+      const needsTypeAlias = Boolean(
+        schema.enum || schema.oneOf || schema.anyOf || schema.allOf || !isObjectSchema,
+      );
       const declaration = this.options.useInterface && !needsTypeAlias ? "interface" : "type";
       models += declaration === "interface"
         ? `${this.exp}interface ${name} ${schemaType}\n\n`

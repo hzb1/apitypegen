@@ -100,4 +100,8 @@ test("解析 components 中的请求体、响应引用并将枚举声明为合�
   assert.match(generated.responses.find((item) => item.status === "200")?.code || "", /AuthenticatedResponse/);
   assert.match(generated.models, /export type AuthenticatorType =/);
   assert.doesNotMatch(generated.models, /interface AuthenticatorType/);
+  assert.match(generated.models, /export type Timestamp = number/);
+  assert.match(generated.models, /export type ProviderID = string/);
+  assert.match(generated.models, /export type ProviderAccountID = string/);
+  assert.doesNotMatch(generated.models, /interface (Timestamp|ProviderID|ProviderAccountID)/);
 });
