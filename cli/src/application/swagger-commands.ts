@@ -535,11 +535,14 @@ function createApiRecoveryCandidate(candidate: ServiceApiCandidate): CliRecovery
 }
 
 function formatTsOutput(parts: GeneratedTypes): string {
+  const responseSections = parts.responses?.length
+    ? parts.responses.map((response) => ({ title: `响应 ${response.status}${response.description ? `：${response.description}` : ""}`, value: response.code }))
+    : [{ title: "响应数据", value: parts.responseData || "// 无响应数据" }];
   return [
     { title: "模型定义", value: parts.models || "// 无模型定义" },
     { title: "查询参数", value: parts.queryParams || "// 无查询参数" },
     { title: "请求体", value: parts.requestBody || "// 无请求体" },
-    { title: "响应数据", value: parts.responseData || "// 无响应数据" },
+    ...responseSections,
   ]
     .map((section) => `// ${section.title}\n${section.value.trim()}`)
     .join("\n\n");
