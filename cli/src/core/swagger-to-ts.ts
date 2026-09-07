@@ -25,6 +25,8 @@ export interface GeneratedResponse {
   description: string;
   /** 响应数据类型代码。 */
   code: string;
+  /** 请求参数、请求体与本状态响应实际依赖的模型代码，包含传递引用。 */
+  models: string;
 }
 
 type SwaggerSchema = {
@@ -54,10 +56,12 @@ type SwaggerMediaType = {
 };
 
 type SwaggerRequestBody = {
+  $ref?: string;
   content?: Record<string, SwaggerMediaType | undefined>;
 };
 
 type SwaggerResponse = {
+  $ref?: string;
   description?: string;
   content?: Record<string, SwaggerMediaType | undefined>;
   schema?: SwaggerSchema;
@@ -71,6 +75,7 @@ type SwaggerOperation = {
 
 type SwaggerDocument = {
   paths?: Record<string, unknown>;
+  components?: Record<string, Record<string, unknown> | undefined>;
 };
 
 const DEFAULT_OPTIONS: Required<GeneratorOptions> = {
@@ -127,6 +132,15 @@ export class SwaggerToTS {
     }
 
     return { schema, name: mappedName };
+  }
+
+  private resolveComponent<T extends object>(value: T | undefined): T | undefined {
+    if (!value || typeof value !== "object" || !("$ref" in value)) return value;
+    const ref = String((value as { $ref?: string }).$ref || "");
+    if (!ref.startsWith("#/components/")) return value;
+    const [, , section, name] = ref.split("/");
+    const resolved = this.doc.components?.[section]?.[name];
+    return resolved && typeof resolved === "object" ? resolved as T : value;
   }
 
   private formatJSDoc(doc: SwaggerSchema, indentDepth = 0): string {
@@ -238,8 +252,9 @@ export class SwaggerToTS {
 
   private generateRequestBody(operation: SwaggerOperation): string {
     let schema: SwaggerSchema | undefined;
-    if (operation?.requestBody && operation.requestBody.content) {
-      const content = operation.requestBody.content;
+    const requestBody = this.resolveComponent(operation?.requestBody);
+    if (requestBody && requestBody.content) {
+      const content = requestBody.content;
       schema = content["application/json"]?.schema;
       if (!schema) {
         const firstContent = Object.values(content).find((item) => item?.schema);
@@ -260,8 +275,9 @@ export class SwaggerToTS {
       operation && typeof operation.responses === "object" && operation.responses
         ? operation.responses
         : {};
-    const response =
-      responses["200"] || responses["201"] || responses.default || Object.values(responses)[0];
+    const response = this.resolveComponent(
+      responses["200"] || responses["201"] || responses.default || Object.values(responses)[0],
+    );
 
     if (!response) return `${this.exp}type ResponseData = any${this.semi}`;
 
@@ -281,10 +297,24 @@ export class SwaggerToTS {
 
   private generateResponses(operation: SwaggerOperation): GeneratedResponse[] {
     const responses = operation.responses || {};
-    return Object.entries(responses).map(([status, response]) => {
-      const code = response ? this.generateResponse({ responses: { [status]: response } }) : `${this.exp}type ResponseData = unknown${this.semi}`;
-      return { status, description: response?.description || "", code };
+    // 请求参数和请求体始终显示；每个响应从这份公共依赖开始，避免混入其他状态的模型。
+    const sharedDefinitions = new Map(this.usedDefinitions);
+    const allDefinitions = new Map(sharedDefinitions);
+    const generated = Object.entries(responses).map(([status, response]) => {
+      this.usedDefinitions.clear();
+      for (const [name, schema] of sharedDefinitions) this.usedDefinitions.set(name, schema);
+
+      const code = response
+        ? this.generateResponse({ responses: { [status]: response } })
+        : `${this.exp}type ResponseData = unknown${this.semi}`;
+      const models = this.generateModels();
+      for (const [name, schema] of this.usedDefinitions) allDefinitions.set(name, schema);
+      return { status, description: response?.description || "", code, models };
     });
+
+    this.usedDefinitions.clear();
+    for (const [name, schema] of allDefinitions) this.usedDefinitions.set(name, schema);
+    return generated;
   }
 
   getStructuredTypes(path: string, method: string): GeneratedTypes {
@@ -300,18 +330,26 @@ export class SwaggerToTS {
 
     const queryParams = this.generateQueryParams(operation);
     const requestBody = this.generateRequestBody(operation);
-    const responseData = this.generateResponse(operation);
     const responses = this.generateResponses(operation);
+    const responseData = this.generateResponse(operation);
+    const models = this.generateModels();
 
+    return { queryParams, requestBody, responseData, responses, models };
+  }
+
+  private generateModels(): string {
     let models = "";
     for (const [name, schema] of this.usedDefinitions.entries()) {
       models += this.formatJSDoc(schema);
-      models += `${this.exp}${this.options.useInterface ? "interface" : "type"} ${name} ${this.getTSType(
-        schema,
-      )}\n\n`;
+      const schemaType = this.getTSType(schema);
+      const needsTypeAlias = Boolean(schema.enum || schema.oneOf || schema.anyOf || schema.allOf);
+      const declaration = this.options.useInterface && !needsTypeAlias ? "interface" : "type";
+      models += declaration === "interface"
+        ? `${this.exp}interface ${name} ${schemaType}\n\n`
+        : `${this.exp}type ${name} = ${schemaType}${this.semi}\n\n`;
     }
 
-    return { queryParams, requestBody, responseData, responses, models };
+    return models;
   }
 }
 

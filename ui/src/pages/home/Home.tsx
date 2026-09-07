@@ -83,6 +83,7 @@ const Home: React.FC = () => {
     handleCommitIp,
     handleTryDemo,
     handleTryMultiServiceDemo,
+    handleTryComplexDemo,
     handleOpenLocalExport,
     handleServiceChange,
   } = useHomeDocumentState();
@@ -711,6 +712,7 @@ const Home: React.FC = () => {
           handleCommitIp={handleCommitIp}
           handleTryDemo={handleTryDemo}
           handleTryMultiServiceDemo={handleTryMultiServiceDemo}
+          handleTryComplexDemo={handleTryComplexDemo}
           loading={loading}
           loadingFeedback={loadingFeedback}
           checking={checking}

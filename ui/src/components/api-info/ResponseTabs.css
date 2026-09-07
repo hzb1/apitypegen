@@ -1,0 +1,31 @@
+.response-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+
+  .response-tabs__button {
+    max-width: 100%;
+    padding: 5px 9px;
+    border: 1px solid var(--ts-line-strong);
+    border-radius: var(--ts-radius-xs);
+    font-size: 12px;
+    text-align: left;
+    overflow-wrap: anywhere;
+    background: var(--ts-surface-overlay);
+    color: var(--ts-text-secondary);
+    cursor: pointer;
+
+    &:hover,
+    &[aria-pressed="true"] {
+      border-color: var(--ts-brand);
+      background: var(--ts-brand-soft);
+      color: var(--ts-brand);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--ts-brand);
+      outline-offset: 2px;
+    }
+  }
+}

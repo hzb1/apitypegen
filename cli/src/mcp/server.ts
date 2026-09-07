@@ -298,7 +298,12 @@ const generatedPartsSchema = z.object({
   queryParams: z.string(),
   requestBody: z.string(),
   responseData: z.string(),
-  responses: z.array(z.object({ status: z.string(), description: z.string(), code: z.string() })),
+  responses: z.array(z.object({
+    status: z.string(),
+    description: z.string(),
+    code: z.string(),
+    models: z.string(),
+  })),
   models: z.string(),
 });
 

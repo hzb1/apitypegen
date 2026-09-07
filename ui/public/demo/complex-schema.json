@@ -1,0 +1,33 @@
+{
+  "openapi": "3.0.0",
+  "info": { "title": "Complex Schema Fixture", "version": "1.0.0" },
+  "paths": {
+    "/orders/{id}": {
+      "get": {
+        "summary": "查询订单",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Order" } } } },
+          "404": { "description": "不存在", "content": { "application/json": { "schema": { "type": "object", "properties": { "message": { "type": "string" } } } } } }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Order": {
+        "allOf": [
+          { "$ref": "#/components/schemas/Entity" },
+          { "type": "object", "properties": {
+            "status": { "oneOf": [{ "type": "string" }, { "type": "integer" }] },
+            "note": { "type": "string", "nullable": true },
+            "metadata": { "type": "object", "additionalProperties": { "type": "string" } },
+            "events": { "anyOf": [{ "type": "string" }, { "type": "array", "items": { "$ref": "#/components/schemas/Event" } }] }
+          } }
+        ]
+      },
+      "Entity": { "type": "object", "properties": { "id": { "type": "string" }, "parent": { "$ref": "#/components/schemas/Entity" } } },
+      "Event": { "type": "object", "properties": { "name": { "type": "string" } } }
+    }
+  }
+}

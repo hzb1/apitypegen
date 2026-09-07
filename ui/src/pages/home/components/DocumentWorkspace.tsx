@@ -1,9 +1,11 @@
 import { Alert, Button, Empty, Space, Spin } from "antd";
+import { useState } from "react";
 import { ApiOutlined, CodeOutlined, DatabaseOutlined } from "@ant-design/icons";
 import type { ReactNode } from "react";
 import SideBar, { type SideBarProps } from "@/components/sidebar/SideBar.tsx";
 import ApiInfo from "@/components/api-info/ApiInfo.tsx";
 import CodeCard from "@/components/code-card/CodeCard.tsx";
+import ResponseTabs from "@/components/api-info/ResponseTabs.tsx";
 import type { SwaggerErrorDetail } from "@/hooks/useSwagger.ts";
 import type { ApiDetail } from "../../../../types.ts";
 import type { ApiGroup } from "../utils.ts";
@@ -46,6 +48,14 @@ type DocumentWorkspaceProps = {
   onBackHome?: () => void;
 };
 
+/** 当前接口的响应选择；切换接口时不沿用旧状态。 */
+type ResponseSelection = {
+  /** 选择操作发生时的接口，用于隔离不同接口或文档的状态。 */
+  api: ApiDetail | null;
+  /** 状态码；all 表示全部响应。 */
+  status: string;
+};
+
 export default function DocumentWorkspace(props: DocumentWorkspaceProps) {
   const {
     error,
@@ -80,6 +90,17 @@ export default function DocumentWorkspace(props: DocumentWorkspaceProps) {
     onTryDemo,
     onBackHome,
   } = props;
+  const [responseSelection, setResponseSelection] = useState<ResponseSelection>({ api: null, status: "all" });
+  const selectedResponse = responseSelection.api === selectedApi
+    && tsCodeParts?.Responses?.some((response) => response.status === responseSelection.status)
+    ? responseSelection.status
+    : "all";
+  const handleResponseChange = (status: string) => {
+    setResponseSelection({ api: selectedApi, status });
+  };
+  const modelsCode = selectedResponse === "all"
+    ? tsCodeParts?.Models
+    : tsCodeParts?.Responses?.find((response) => response.status === selectedResponse)?.models;
   const apiCount = apiGroups.reduce((total, group) => total + group.children.length, 0);
 
   return (
@@ -168,10 +189,27 @@ export default function DocumentWorkspace(props: DocumentWorkspaceProps) {
           {!error && !contentLoading && selectedApi && (
             <div className="api-workspace-grid">
               <div className="left-main">
-                <ApiInfo api={selectedApi} codeMap={tsCodeParts} apiBaseUrl={apiBaseUrl} />
+                <ApiInfo
+                  api={selectedApi}
+                  codeMap={tsCodeParts}
+                  apiBaseUrl={apiBaseUrl}
+                  selectedResponse={selectedResponse}
+                  onResponseChange={handleResponseChange}
+                />
               </div>
               <div className="models-panel">
-                <CodeCard title="Models" code={tsCodeParts?.Models} />
+                {tsCodeParts?.Responses?.length ? (
+                  <ResponseTabs
+                    responses={tsCodeParts.Responses}
+                    value={selectedResponse}
+                    onChange={handleResponseChange}
+                    label="Models 响应状态选择"
+                  />
+                ) : null}
+                <CodeCard
+                  title={selectedResponse === "all" ? "Models · 全部响应" : `Models · ${selectedResponse}`}
+                  code={modelsCode || "// 当前请求与响应无需引用模型"}
+                />
               </div>
             </div>
           )}

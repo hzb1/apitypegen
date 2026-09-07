@@ -21,6 +21,7 @@ type WelcomeViewProps = {
   handleCommitIp: (value: string) => void;
   handleTryDemo: () => void;
   handleTryMultiServiceDemo: () => void;
+  handleTryComplexDemo: () => void;
   loading: boolean;
   loadingFeedback: LoadingFeedback;
   checking: boolean;
@@ -36,6 +37,7 @@ export default function WelcomeView(props: WelcomeViewProps) {
     handleCommitIp,
     handleTryDemo,
     handleTryMultiServiceDemo,
+    handleTryComplexDemo,
     loading,
     loadingFeedback,
     checking,
@@ -74,6 +76,10 @@ export default function WelcomeView(props: WelcomeViewProps) {
               <button type="button" className="home-welcome-inline-action" onClick={handleTryMultiServiceDemo}>
                 <ApiOutlined />
                 <span>多服务示例</span>
+              </button>
+              <button type="button" className="home-welcome-inline-action" onClick={handleTryComplexDemo}>
+                <CodeOutlined />
+                <span>复杂 Schema</span>
               </button>
             </div>
             <div className="home-welcome-composer">

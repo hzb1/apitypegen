@@ -38,6 +38,7 @@ export function useHomeTsCodeParts(params: {
         "Query Params": res.queryParams,
         "Request Body": res.requestBody,
         "Response Data": res.responseData,
+        Responses: res.responses,
       });
     };
 

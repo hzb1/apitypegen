@@ -6,19 +6,24 @@ import { useMemo, useState } from "react";
 import copyToClipboard from "../../utils/copyToClipboard/copyToClipboard.ts";
 import { CopyOutlined } from "@ant-design/icons";
 import { message, Tooltip } from "antd";
+import type { TsCodeParts } from "@/pages/home/home.types.ts";
+import ResponseTabs from "./ResponseTabs.tsx";
 
+/** 接口信息与请求、响应代码区域的输入。 */
 type ApiInfoProps = {
+  /** 当前查看的接口。 */
   api: ApiDetail;
+  /** 接口基础地址。 */
   apiBaseUrl?: string;
-  codeMap?: {
-    Models: string;
-    "Query Params": string;
-    "Request Body": string;
-    "Response Data": string;
-  };
+  /** 当前接口按区域拆分的生成结果。 */
+  codeMap?: TsCodeParts;
+  /** 工作台共享的响应状态；all 表示全部响应。 */
+  selectedResponse: string;
+  /** 切换响应状态，并同步右侧模型区域。 */
+  onResponseChange: (status: string) => void;
 };
 
-const ApiInfo = ({ api, apiBaseUrl, codeMap }: ApiInfoProps) => {
+const ApiInfo = ({ api, apiBaseUrl, codeMap, selectedResponse, onResponseChange }: ApiInfoProps) => {
   const title = api?.operation?.summary;
   const description = api?.operation?.description?.trim();
   const tags = api?.operation?.tags ?? [];
@@ -47,8 +52,13 @@ const ApiInfo = ({ api, apiBaseUrl, codeMap }: ApiInfoProps) => {
   const codeSections = useMemo(() => ([
     {key: "query", title: "Query Params", code: codeMap?.["Query Params"]},
     {key: "body", title: "Request Body", code: codeMap?.["Request Body"]},
-    {key: "response", title: "Response Data", code: codeMap?.["Response Data"]},
   ]), [codeMap]);
+
+  const responseCode = selectedResponse === "all"
+    ? codeMap?.Responses?.map((response) =>
+      `// 响应 ${response.status}${response.description ? `：${response.description}` : ""}\n${response.code.replaceAll("ResponseData", `Response${response.status}`)}`,
+    ).join("\n\n") || codeMap?.["Response Data"]
+    : codeMap?.Responses?.find((item) => item.status === selectedResponse)?.code;
 
   const handleCopyFullPath = async () => {
     const copied = await copyToClipboard(fullApiPath);
@@ -132,6 +142,23 @@ const ApiInfo = ({ api, apiBaseUrl, codeMap }: ApiInfoProps) => {
             styles={{body: {height: 220}}}
           />
         ))}
+        <section aria-label="响应代码">
+          {codeMap?.Responses?.length ? (
+            <ResponseTabs
+              responses={codeMap.Responses}
+              value={selectedResponse}
+              onChange={onResponseChange}
+              label="响应状态选择"
+            />
+          ) : null}
+          <CodeCard
+            title={codeMap?.Responses?.length
+              ? selectedResponse === "all" ? "全部响应" : `Response Data · ${selectedResponse}`
+              : "Response Data"}
+            code={responseCode}
+            styles={{body: {height: 220}}}
+          />
+        </section>
       </div>
     </div>
   );
