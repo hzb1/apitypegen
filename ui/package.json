@@ -1,7 +1,7 @@
 {
   "name": "@apitypegen/ui",
   "private": true,
-  "version": "0.8.2",
+  "version": "0.8.3",
   "type": "module",
   "engines": {
     "node": "^20.19.0 || >=22.12.0"
@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "test:browser": "node tests/real-document-regression.mjs",
     "build:glitchtip": "npm run build && npm run sourcemaps:upload",
     "sourcemaps:inject": "sentry-cli sourcemaps inject ./dist",
     "sourcemaps:upload": "npm run sourcemaps:inject && bash ../scripts/upload-ui-sourcemaps.sh",

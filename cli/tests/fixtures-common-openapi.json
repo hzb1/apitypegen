@@ -1,0 +1,73 @@
+{
+  "openapi": "3.1.0",
+  "info": { "title": "Common OpenAPI Structures", "version": "1.0.0" },
+  "paths": {
+    "/files/{file-id}": {
+      "parameters": [
+        { "$ref": "#/components/parameters/FileId" },
+        { "$ref": "#/components/parameters/TraceHeader" }
+      ],
+      "post": {
+        "parameters": [{ "$ref": "#/components/parameters/Expand" }],
+        "requestBody": { "$ref": "#/components/requestBodies/FileUpload" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/FileResult" }
+        }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "FileId": { "name": "file-id", "in": "path", "required": true, "schema": { "type": "string" } },
+      "TraceHeader": { "name": "x-trace", "in": "header", "schema": { "type": "string" } },
+      "Expand": { "name": "expand", "in": "query", "schema": { "type": ["string", "null"] } }
+    },
+    "requestBodies": {
+      "FileUpload": {
+        "content": {
+          "multipart/form-data": {
+            "schema": {
+              "type": "object",
+              "required": ["file"],
+              "properties": {
+                "file": { "type": "string", "format": "binary" },
+                "metadata": { "type": "object", "additionalProperties": true }
+              }
+            }
+          }
+        }
+      }
+    },
+    "responses": {
+      "FileResult": {
+        "description": "上传结果",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/FileResult" } } }
+      }
+    },
+    "schemas": {
+      "BaseRecord": {
+        "type": "object",
+        "required": ["id"],
+        "properties": { "id": { "type": "string" } }
+      },
+      "FileResult": {
+        "allOf": [
+          { "$ref": "#/components/schemas/BaseRecord" },
+          {
+            "type": "object",
+            "required": ["kind"],
+            "properties": {
+              "kind": { "const": "file" },
+              "coordinates": { "type": "array", "prefixItems": [{ "type": "number" }, { "type": "number" }] },
+              "labels": { "type": "object", "additionalProperties": { "type": "string" } },
+              "attributes": { "type": "object", "additionalProperties": true },
+              "closed": { "type": "object", "additionalProperties": false },
+              "values": { "type": "array", "items": { "oneOf": [{ "type": "string" }, { "type": "number" }] } },
+              "optional": { "type": ["boolean", "null"] }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

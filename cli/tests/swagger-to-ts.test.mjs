@@ -7,12 +7,13 @@ import ts from "typescript";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const fixture = JSON.parse(readFileSync(path.join(root, "tests/fixtures-complex-schema.json"), "utf8"));
+const commonFixture = JSON.parse(readFileSync(path.join(root, "tests/fixtures-common-openapi.json"), "utf8"));
 const { SwaggerToTS } = await import("../dist/core/swagger-to-ts.js");
 
 test("复杂 Schema 生成联合类型、可空字段和字典类型", () => {
   const generated = new SwaggerToTS(fixture).getStructuredTypes("/orders/{id}", "get");
   assert.match(generated.models, /Entity/);
-  assert.match(generated.models, /export type Order = Entity &/);
+  assert.match(generated.models, /export interface Order \{/);
   assert.doesNotMatch(generated.models, /interface Order Entity/);
   assert.match(generated.models, /string \| number/);
   assert.match(generated.models, /string \| null/);
@@ -38,7 +39,7 @@ test("不同状态只包含各自引用的模型，保留组合与循环引用�
   const success = generated.responses.find((item) => item.status === "200");
   const missing = generated.responses.find((item) => item.status === "404");
 
-  assert.match(success.models, /type Order = Entity &/);
+  assert.match(success.models, /interface Order \{/);
   assert.match(success.models, /interface Entity/);
   assert.match(success.models, /interface Event/);
   assert.match(success.models, /parent\?: Entity/);
@@ -66,10 +67,10 @@ test("响应模型隔离后仍保留公共请求依赖，单状态代码可以�
     assert.match(response.models, /interface Input/);
     assert.match(response.models, /interface Filter/);
     if (response.status === "200") {
-      assert.match(response.models, /type Order/);
+      assert.match(response.models, /interface Order/);
       assert.doesNotMatch(response.models, /interface ApiError/);
     } else {
-      assert.doesNotMatch(response.models, /type Order|interface Entity|interface Event/);
+      assert.doesNotMatch(response.models, /interface Order|interface Entity|interface Event/);
     }
     if (response.status === "404" || response.status === "default") {
       assert.match(response.models, /interface ApiError/);
@@ -87,21 +88,60 @@ test("响应模型隔离后仍保留公共请求依赖，单状态代码可以�
     assert.deepEqual(diagnostics.map((item) => ts.flattenDiagnosticMessageText(item.messageText, "\n")), [], response.status);
   }
 
-  assert.match(generated.models, /type Order/);
+  assert.match(generated.models, /interface Order/);
   assert.match(generated.models, /interface ApiError/);
   assert.equal((generated.models.match(/interface Input /g) || []).length, 1);
   assert.deepEqual(parser.getStructuredTypes("/orders/{id}", "get"), generated, "重复生成不残留上次的响应依赖");
 });
 
-test("解析 components 中的请求体、响应引用并将枚举声明为合法 type", async () => {
-  const document = JSON.parse(readFileSync("/tmp/apitypegen-allauth.json", "utf8"));
-  const generated = new SwaggerToTS(document).getStructuredTypes("/_allauth/browser/v1/auth/login", "post");
-  assert.match(generated.requestBody, /RequestBody = Login/);
-  assert.match(generated.responses.find((item) => item.status === "200")?.code || "", /AuthenticatedResponse/);
-  assert.match(generated.models, /export type AuthenticatorType =/);
-  assert.doesNotMatch(generated.models, /interface AuthenticatorType/);
-  assert.match(generated.models, /export type Timestamp = number/);
-  assert.match(generated.models, /export type ProviderID = string/);
-  assert.match(generated.models, /export type ProviderAccountID = string/);
-  assert.doesNotMatch(generated.models, /interface (Timestamp|ProviderID|ProviderAccountID)/);
+test("常见 OpenAPI 结构生成可编译的参数、上传请求体和响应模型", () => {
+  const generated = new SwaggerToTS(commonFixture).getStructuredTypes("/files/{file-id}", "post");
+  const success = generated.responses[0];
+
+  assert.match(generated.queryParams, /"file-id": string/);
+  assert.match(generated.queryParams, /expand\?: string \| null/);
+  assert.doesNotMatch(generated.queryParams, /x-trace/);
+  assert.match(generated.requestBody, /file: Blob/);
+  assert.match(generated.requestBody, /metadata\?: Record<string, unknown>/);
+  assert.match(success.code, /ResponseData = FileResult/);
+  assert.equal(success.description, "上传结果");
+  assert.match(success.models, /interface FileResult/);
+  assert.match(success.models, /id: string/);
+  assert.match(success.models, /kind: "file"/);
+  assert.match(success.models, /coordinates\?: \[number, number\]/);
+  assert.match(success.models, /labels\?: Record<string, string>/);
+  assert.match(success.models, /attributes\?: Record<string, unknown>/);
+  assert.match(success.models, /closed\?: Record<string, never>/);
+  assert.match(success.models, /values\?: \(string \| number\)\[\]/);
+  assert.match(success.models, /optional\?: boolean \| null/);
+
+  const fileName = path.join(root, "generated-common-openapi.ts");
+  const code = [success.models, generated.queryParams, generated.requestBody, success.code].join("\n\n");
+  const options = { noEmit: true, strict: true, skipLibCheck: true, types: [], target: ts.ScriptTarget.ESNext };
+  const host = ts.createCompilerHost(options);
+  const getSourceFile = host.getSourceFile.bind(host);
+  host.getSourceFile = (name, ...args) => name === fileName
+    ? ts.createSourceFile(name, code, ts.ScriptTarget.ESNext, true)
+    : getSourceFile(name, ...args);
+  const diagnostics = ts.getPreEmitDiagnostics(ts.createProgram([fileName], options, host));
+  assert.deepEqual(diagnostics.map((item) => ts.flattenDiagnosticMessageText(item.messageText, "\n")), []);
+});
+
+test("解析 components 中的请求体、响应引用并将枚举声明为合法 type", () => {
+  const document = structuredClone(fixture);
+  document.paths["/orders/{id}"].get.requestBody = { $ref: "#/components/requestBodies/OrderInput" };
+  document.paths["/orders/{id}"].get.responses["200"] = { $ref: "#/components/responses/OrderResponse" };
+  document.components.requestBodies = {
+    OrderInput: { content: { "application/json": { schema: { $ref: "#/components/schemas/Order" } } } },
+  };
+  document.components.responses = {
+    OrderResponse: { description: "订单", content: { "application/json": { schema: { $ref: "#/components/schemas/Order" } } } },
+  };
+  document.components.schemas.OrderStatus = { enum: ["created", "paid"], type: "string" };
+  document.components.responses.OrderResponse.content["application/json"].schema = { $ref: "#/components/schemas/OrderStatus" };
+  const generated = new SwaggerToTS(document).getStructuredTypes("/orders/{id}", "get");
+  assert.match(generated.requestBody, /RequestBody = Order/);
+  assert.match(generated.responses.find((item) => item.status === "200")?.code || "", /OrderStatus/);
+  assert.match(generated.models, /export type OrderStatus =/);
+  assert.doesNotMatch(generated.models, /interface OrderStatus/);
 });
