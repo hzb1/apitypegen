@@ -3,9 +3,13 @@ import type { OpenAPI } from "openapi-types";
 import type { ApiDetail } from "../../../../types.ts";
 import type { GeneratorOptions } from "@/utils/SwaggerParser.ts";
 import type { TsCodeParts } from "../home.types.ts";
+import {
+  mergeTypeScriptValidationResults,
+} from "../../../../../cli/src/core/typescript-validation.ts";
 import type {
   TypeScriptSyntaxDiagnostic,
   TypeScriptValidationInput,
+  TypeScriptValidationResult,
 } from "../../../../../cli/src/core/typescript-validation.ts";
 import { reportGeneratedTypeScriptError } from "@/telemetry/generatedTypeScript.ts";
 
@@ -93,7 +97,10 @@ export function useHomeTsCodeParts(
         .map(validateTypeScriptSyntax);
       const diagnostics = validationResults.flatMap((result) => result.diagnostics);
 
-      validationResults.forEach(reportGeneratedTypeScriptError);
+      const validationResult: TypeScriptValidationResult = mergeTypeScriptValidationResults(
+        validationResults,
+      );
+      reportGeneratedTypeScriptError(validationResult);
 
       // 用户快速切换接口时，丢弃旧请求的结果，避免代码片段闪回。
       if (cancelled) return;

@@ -68,6 +68,32 @@ export type TypeScriptValidationResult = {
   source: TypeScriptValidationSource;
 };
 
+/** 合并同一次接口生成中多个代码区域的校验结果。 */
+export function mergeTypeScriptValidationResults(
+  results: TypeScriptValidationResult[],
+): TypeScriptValidationResult {
+  const first = results[0];
+  if (!first) {
+    return {
+      valid: true,
+      diagnostics: [],
+      fingerprint: "web:valid",
+      source: "web",
+    };
+  }
+  const diagnostics = results.flatMap((result) => result.diagnostics);
+  const signature = diagnostics
+    .map((item) => `${item.area}:${item.responseStatus ?? "none"}:${item.code}:${item.line}:${item.column}`)
+    .sort()
+    .join("|");
+  return {
+    valid: diagnostics.length === 0,
+    diagnostics,
+    fingerprint: `${first.source}:${signature || "valid"}`,
+    source: first.source,
+  };
+}
+
 /** 根据诊断的稳定字段创建不包含生成代码的去重指纹。 */
 function createDiagnosticFingerprint(
   source: TypeScriptValidationSource,
