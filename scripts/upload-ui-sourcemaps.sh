@@ -18,6 +18,7 @@ ORGANIZATION="${UI_SENTRY_ORG:-ts-swagger}"
 PROJECT="${UI_SENTRY_PROJECT:-3}"
 URL_PREFIX="${UI_SOURCEMAP_URL_PREFIX:-https://swagger.huzhibin.top/assets/}"
 BATCH_FILE_COUNT="${SOURCEMAP_BATCH_FILE_COUNT:-4}"
+MAX_FILE_BYTES="${SOURCEMAP_MAX_FILE_BYTES:-10000000}"
 
 fail() {
   printf '[sourcemaps] ERROR: %s\n' "$*" >&2
@@ -34,17 +35,51 @@ if [[ "${BATCH_FILE_COUNT}" -lt 1 ]]; then
   fail "SOURCEMAP_BATCH_FILE_COUNT must be at least 1"
 fi
 
+case "${MAX_FILE_BYTES}" in
+  ''|*[!0-9]*)
+    fail "SOURCEMAP_MAX_FILE_BYTES must be a positive integer"
+    ;;
+esac
+
+if [[ "${MAX_FILE_BYTES}" -lt 1 ]]; then
+  fail "SOURCEMAP_MAX_FILE_BYTES must be at least 1"
+fi
+
 [[ -d "${ASSETS_DIR}" ]] || fail "Assets directory not found: ${ASSETS_DIR}"
 command -v sentry-cli >/dev/null 2>&1 || fail "sentry-cli is not available"
 [[ -n "${SENTRY_URL:-}" ]] || fail "SENTRY_URL is required; configure .env.glitchtip.local or the CI secret"
 [[ -n "${SENTRY_AUTH_TOKEN:-}" ]] || fail "SENTRY_AUTH_TOKEN is required; configure .env.glitchtip.local or the CI secret"
 
 files=()
+skipped_files=0
+
+file_size() {
+  if stat --version >/dev/null 2>&1; then
+    stat -c '%s' "$1"
+  else
+    stat -f '%z' "$1"
+  fi
+}
+
 for javascript_file in "${ASSETS_DIR}"/*.js; do
   [[ -f "${javascript_file}" ]] || continue
+  map_file="${javascript_file}.map"
+  javascript_size="$(file_size "${javascript_file}")"
+  map_size=0
+  [[ -f "${map_file}" ]] && map_size="$(file_size "${map_file}")"
+
+  # 第三方 TypeScript Compiler 的 source map 体积很大，且不包含应用源码；
+  # 超过 GlitchTip 单次请求限制时跳过整对文件，避免整次发布因 413 失败。
+  if [[ "${javascript_size}" -gt "${MAX_FILE_BYTES}" || "${map_size}" -gt "${MAX_FILE_BYTES}" ]]; then
+    printf '[sourcemaps] Skipping oversized sourcemap pair: %s (%s bytes, map %s bytes)\n' \
+      "$(basename "${javascript_file}")" "${javascript_size}" "${map_size}" >&2
+    skipped_files=$((skipped_files + 2))
+    continue
+  fi
+
   files+=("${javascript_file}")
-  if [[ -f "${javascript_file}.map" ]]; then
-    files+=("${javascript_file}.map")
+  if [[ -f "${map_file}" ]]; then
+    files+=("${map_file}")
   fi
 done
 
@@ -71,3 +106,7 @@ done
 
 printf '[sourcemaps] Uploaded %d file(s) in %d batch(es) for release %s\n' \
   "${total_files}" "${batch_number}" "${RELEASE_NAME}"
+if [[ "${skipped_files}" -gt 0 ]]; then
+  printf '[sourcemaps] Skipped %d oversized file(s); configure SOURCEMAP_MAX_FILE_BYTES to override\n' \
+    "${skipped_files}" >&2
+fi

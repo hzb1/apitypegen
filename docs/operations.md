@@ -39,6 +39,7 @@ npm run build:glitchtip:cli
 常用覆盖项：
 
 - UI：`UI_SENTRY_ORG`、`UI_SENTRY_PROJECT`、`UI_SOURCEMAP_URL_PREFIX`。
+- UI sourcemap：`SOURCEMAP_MAX_FILE_BYTES` 默认 `10000000`；超过限制的单个 JS/map 文件对会跳过，避免 GlitchTip 返回 HTTP 413。
 - CLI：`CLI_SENTRY_ORG`、`CLI_SENTRY_PROJECT`、`CLI_SOURCEMAP_URL_PREFIX`。
 
 CLI 匿名错误上报默认关闭，`APITYPEGEN_TELEMETRY=1` 开启，`DO_NOT_TRACK=1` 强制关闭。
