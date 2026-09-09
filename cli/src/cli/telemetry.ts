@@ -2,6 +2,10 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 import type { ErrorEvent, Event, Exception, StackFrame } from "@sentry/node";
 import { readPackageVersion } from "../package-metadata.js";
+import type {
+  TypeScriptSyntaxDiagnostic,
+  TypeScriptValidationSource,
+} from "../core/typescript-validation.js";
 
 /** CLI 遥测上报时允许附带的执行上下文。 */
 export type CliTelemetryContext = {
@@ -10,6 +14,18 @@ export type CliTelemetryContext = {
 
   /** 归一化后的稳定错误码。 */
   errorCode: string;
+};
+
+/** 生成代码语法错误的匿名上报上下文。 */
+export type GeneratedTypeScriptTelemetryContext = {
+  /** 发现错误的产品入口。 */
+  source: TypeScriptValidationSource;
+
+  /** 不包含代码内容和业务名称的语法诊断。 */
+  diagnostics: TypeScriptSyntaxDiagnostic[];
+
+  /** 由诊断稳定字段生成的去重指纹。 */
+  fingerprint: string;
 };
 
 /** 读取 CLI 遥测配置时使用的环境变量集合。 */
@@ -43,6 +59,11 @@ const ALLOWED_TAGS = new Set([
   "node_major",
   "platform",
   "arch",
+  "source",
+  "diagnostic_codes",
+  "code_areas",
+  "diagnostic_locations",
+  "response_statuses",
 ]);
 
 /**
@@ -189,6 +210,7 @@ export function sanitizeTelemetryEvent(event: ErrorEvent): ErrorEvent {
     release: event.release,
     environment: event.environment,
     message: event.message ? redactTelemetryText(event.message) : undefined,
+    fingerprint: event.fingerprint,
     exception: event.exception
       ? {
           values: event.exception.values?.map(sanitizeException),
@@ -259,6 +281,70 @@ export async function reportUnknownCliError(
     return await Sentry.flush(TELEMETRY_FLUSH_TIMEOUT_MS);
   } catch {
     // 遥测属于非关键路径，不得覆盖或污染原始 CLI 错误。
+    return false;
+  }
+}
+
+/**
+ * 匿名上报生成代码的 TypeScript 语法错误。
+ *
+ * 上报内容仅包含入口、诊断码和代码区域，不包含文档、接口地址、类型名称或生成代码。
+ */
+export async function reportGeneratedTypeScriptError(
+  context: GeneratedTypeScriptTelemetryContext,
+  environment: CliTelemetryEnvironment = process.env,
+): Promise<boolean> {
+  if (!isCliTelemetryEnabled(environment)) return false;
+
+  try {
+    const Sentry = await import("@sentry/node");
+    const version = readCliVersion();
+    const diagnosticCodes = [...new Set(context.diagnostics.map((item) => item.code))]
+      .sort((left, right) => left - right)
+      .join(",");
+    const codeAreas = [...new Set(context.diagnostics.map((item) => item.area))]
+      .sort()
+      .join(",");
+    const diagnosticLocations = context.diagnostics
+      .slice(0, 10)
+      .map((item) => `${item.area}:${item.responseStatus ?? "none"}:${item.line}:${item.column}`)
+      .join(",");
+    const responseStatuses = [...new Set(
+      context.diagnostics.flatMap((item) => item.responseStatus ? [item.responseStatus] : []),
+    )].sort().join(",");
+
+    Sentry.initWithoutDefaultIntegrations({
+      dsn:
+        environment.APITYPEGEN_GLITCHTIP_DSN?.trim() ||
+        environment.TS_SWAGGER_GLITCHTIP_DSN?.trim() ||
+        DEFAULT_GLITCHTIP_DSN,
+      enabled: true,
+      environment: "production",
+      release: version ? `apitypegen@${version}` : undefined,
+      tracesSampleRate: 0,
+      sendDefaultPii: false,
+      skipOpenTelemetrySetup: true,
+      beforeSend: sanitizeTelemetryEvent,
+    });
+    Sentry.captureMessage("生成的 TypeScript 未通过语法校验", {
+      level: "error",
+      fingerprint: ["generated-typescript-invalid", context.fingerprint],
+      tags: {
+        command: context.source === "mcp" ? "unknown" : "gen",
+        error_code: "GENERATED_TYPESCRIPT_INVALID",
+        source: context.source,
+        diagnostic_codes: diagnosticCodes || "unknown",
+        code_areas: codeAreas || "unknown",
+        diagnostic_locations: diagnosticLocations || "unknown",
+        response_statuses: responseStatuses || "none",
+        node_major: process.versions.node.split(".")[0] ?? "unknown",
+        platform: process.platform,
+        arch: process.arch,
+      },
+    });
+    return await Sentry.flush(TELEMETRY_FLUSH_TIMEOUT_MS);
+  } catch {
+    // 遥测属于非关键路径，不得覆盖或污染原始生成错误。
     return false;
   }
 }

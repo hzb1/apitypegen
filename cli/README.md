@@ -144,7 +144,8 @@ https://example.com/openapi.json
 ```
 
 MCP 提供只读的 `resolve_source`、`inspect_source`、`search_apis` 和 `generate_typescript` 工具。完整说明见
-[MCP 指南](../docs/mcp.md)。匿名错误上报默认关闭；`APITYPEGEN_TELEMETRY=1`
+[MCP 指南](../docs/mcp.md)。CLI 与 MCP 会在返回前校验生成代码的 TypeScript 语法；失败时返回
+`GENERATED_TYPESCRIPT_INVALID`。匿名错误上报默认关闭，设置 `APITYPEGEN_TELEMETRY=1` 后开启。
 
 ## 自检
 

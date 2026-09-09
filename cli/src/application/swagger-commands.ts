@@ -17,6 +17,10 @@ import {
   type SwaggerSource,
 } from "../core/swagger-source.js";
 import { SwaggerToTS, type GeneratedTypes, type GeneratorOptions } from "../core/swagger-to-ts.js";
+import {
+  validateTypeScriptSyntax,
+  type TypeScriptValidationSource,
+} from "../core/typescript-validation.js";
 import type {
   GenCommandData,
   SearchCommandData,
@@ -565,6 +569,7 @@ export function ensureApiMethod(method: string): ApiItem["method"] {
 export function generateSwaggerTypes(
   context: SwaggerCommandContext,
   selector: PartialApiSelector,
+  source: TypeScriptValidationSource = "cli",
 ): GenCommandData {
   const method = selector.method ? ensureApiMethod(selector.method) : "";
   const pathValue = String(selector.path || "").trim();
@@ -711,13 +716,34 @@ export function generateSwaggerTypes(
   const selectedCandidate = matchedCandidates[0] as ServiceApiCandidate;
   const parser = new SwaggerToTS(selectedCandidate.context.document, context.settings.generator);
   const generated = parser.getStructuredTypes(pathValue, method);
+  const code = formatTsOutput(generated);
+  const validation = validateTypeScriptSyntax({ code, area: "output", source });
+  if (!validation.valid) {
+    throw new CliProtocolError(
+      "GENERATED_TYPESCRIPT_INVALID",
+      "生成的 TypeScript 没有通过语法校验，请根据诊断信息检查后重试。",
+      {
+        source,
+        fingerprint: validation.fingerprint,
+        diagnostics: validation.diagnostics,
+      },
+      {
+        action: "retry",
+        message: "这是生成器输出错误，重复调用无法自动修复。请升级 APITypeGen 或提交诊断信息后重试。",
+        intent: {
+          action: "stop",
+          message: "生成代码存在 TypeScript 语法错误，请停止自动调用并向用户展示诊断信息。",
+        },
+      },
+    );
+  }
   return {
     host: sourceOrigin(context.source),
     service: selectedCandidate.context.service?.name || null,
     documentUrl: selectedCandidate.context.documentUrl,
     selector: createApiSelector(selectedCandidate),
     matchedApi: selectedCandidate.api,
-    code: formatTsOutput(generated),
+    code,
     parts: generated,
   };
 }

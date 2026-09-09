@@ -9,6 +9,30 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const fixture = JSON.parse(readFileSync(path.join(root, "tests/fixtures-complex-schema.json"), "utf8"));
 const commonFixture = JSON.parse(readFileSync(path.join(root, "tests/fixtures-common-openapi.json"), "utf8"));
 const { SwaggerToTS } = await import("../dist/core/swagger-to-ts.js");
+const { validateTypeScriptSyntax } = await import("../dist/core/typescript-validation.js");
+
+test("运行时校验器识别 TypeScript 语法错误且不返回代码内容", () => {
+  const valid = validateTypeScriptSyntax({
+    code: "export type Timestamp = number;",
+    area: "models",
+    source: "web",
+  });
+  const invalid = validateTypeScriptSyntax({
+    code: "export interface Timestamp number",
+    area: "models",
+    source: "mcp",
+    responseStatus: "200",
+  });
+
+  assert.equal(valid.valid, true);
+  assert.deepEqual(valid.diagnostics, []);
+  assert.equal(invalid.valid, false);
+  assert.equal(invalid.source, "mcp");
+  assert.equal(invalid.diagnostics[0].area, "models");
+  assert.equal(invalid.diagnostics[0].responseStatus, "200");
+  assert.equal(typeof invalid.diagnostics[0].code, "number");
+  assert.doesNotMatch(JSON.stringify(invalid), /Timestamp|interface/);
+});
 
 test("复杂 Schema 生成联合类型、可空字段和字典类型", () => {
   const generated = new SwaggerToTS(fixture).getStructuredTypes("/orders/{id}", "get");

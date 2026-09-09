@@ -42,6 +42,9 @@ npm run build:glitchtip:cli
 - CLI：`CLI_SENTRY_ORG`、`CLI_SENTRY_PROJECT`、`CLI_SOURCEMAP_URL_PREFIX`。
 
 CLI 匿名错误上报默认关闭，`APITYPEGEN_TELEMETRY=1` 开启，`DO_NOT_TRACK=1` 强制关闭。
+网页、CLI 和 MCP 的生成结果会执行 TypeScript 语法校验。上报事件使用 `web`、`cli`、`mcp`
+区分来源，仅发送版本、TypeScript 诊断码、代码区域、响应状态码和行列位置，不发送 OpenAPI
+内容、文档地址、接口路径、类型名称或完整生成代码。
 
 ## 发布前检查
 

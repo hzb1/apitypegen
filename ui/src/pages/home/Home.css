@@ -498,11 +498,24 @@
 }
 
 .content-scroll-area {
+  position: relative;
   flex: 1;
   min-height: 0;
   overflow: hidden;
   padding: 12px;
   display: flex;
+}
+
+/* 错误诊断悬浮在工作区上方，避免出现时改变代码双栏的尺寸和滚动位置。 */
+.views .typescript-syntax-alert {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  z-index: 30;
+  width: min(480px, calc(100% - 40px));
+  max-height: min(240px, calc(100% - 40px));
+  overflow: auto;
+  box-shadow: var(--ts-shadow-card);
 }
 
 .content-center-status {
@@ -1685,6 +1698,13 @@
 }
 
 @media (max-width: 720px) {
+  .views .typescript-syntax-alert {
+    top: 12px;
+    right: 12px;
+    width: calc(100% - 24px);
+    max-height: 180px;
+  }
+
   .home-topbar {
     padding: 10px 12px;
     gap: 10px;

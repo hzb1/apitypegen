@@ -42,7 +42,11 @@ import {
   type CliCommand,
 } from "./protocol.js";
 import { readPackageVersion } from "../package-metadata.js";
-import { reportUnknownCliError } from "./telemetry.js";
+import {
+  reportGeneratedTypeScriptError,
+  reportUnknownCliError,
+  type GeneratedTypeScriptTelemetryContext,
+} from "./telemetry.js";
 
 /** 自检结果中的单项状态。 */
 type DoctorStatus = "pass" | "warn" | "fail";
@@ -950,5 +954,8 @@ void main(cliArgv).catch(async (error: unknown) => {
       command: requestedCommand(cliArgv),
       errorCode: normalizedError.code,
     });
+  } else if (normalizedError.code === "GENERATED_TYPESCRIPT_INVALID") {
+    const details = normalizedError.details as GeneratedTypeScriptTelemetryContext;
+    await reportGeneratedTypeScriptError(details);
   }
 });

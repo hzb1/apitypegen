@@ -29,6 +29,7 @@ export type CliCommand = "inspect" | "search" | "gen" | "doctor";
  * - `API_NOT_FOUND`：已加载文档中不存在指定 API。
  * - `AMBIGUOUS_API`：多个服务中存在相同的 API 标识。
  * - `CLIPBOARD_FAILED`：生成结果无法写入系统剪贴板。
+ * - `GENERATED_TYPESCRIPT_INVALID`：生成代码没有通过 TypeScript 语法校验。
  * - `USER_INPUT_CANCELLED`：用户取消了 MCP 请求的补充输入。
  * - `UNKNOWN_ERROR`：无法归类的内部错误。
  */
@@ -48,6 +49,7 @@ export type CliErrorCode =
   | "API_NOT_FOUND"
   | "AMBIGUOUS_API"
   | "CLIPBOARD_FAILED"
+  | "GENERATED_TYPESCRIPT_INVALID"
   | "USER_INPUT_CANCELLED"
   | "UNKNOWN_ERROR";
 

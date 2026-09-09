@@ -78,6 +78,14 @@ const router = createBrowserRouter(
 );
 
 const isProduction = import.meta.env.MODE === "production";
+const GENERATED_TYPESCRIPT_ALLOWED_TAGS = new Set([
+  "error_code",
+  "source",
+  "diagnostic_codes",
+  "code_areas",
+  "diagnostic_locations",
+  "response_statuses",
+]);
 
 Sentry.init({
   dsn: import.meta.env.VITE_GLITCHTIP_DSN,
@@ -86,6 +94,16 @@ Sentry.init({
   enabled: isProduction,
   tracesSampleRate: 0,
   beforeSend(event) {
+    if (event.tags?.error_code === "GENERATED_TYPESCRIPT_INVALID") {
+      event.request = undefined;
+      event.user = undefined;
+      event.contexts = undefined;
+      event.breadcrumbs = undefined;
+      event.extra = undefined;
+      event.tags = Object.fromEntries(
+        Object.entries(event.tags).filter(([key]) => GENERATED_TYPESCRIPT_ALLOWED_TAGS.has(key)),
+      );
+    }
     const debugImages = buildSentryDebugImages();
     if (debugImages.length > 0) {
       event.debug_meta = {

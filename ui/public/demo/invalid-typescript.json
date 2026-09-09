@@ -1,0 +1,33 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "TypeScript syntax validation demo",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/invalid": {
+      "get": {
+        "summary": "Invalid type",
+        "responses": {
+          "200": {
+            "description": "Invalid model name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Bad-Model"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Bad-Model": {
+        "type": "string"
+      }
+    }
+  }
+}

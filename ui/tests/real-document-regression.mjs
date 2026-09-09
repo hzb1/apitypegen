@@ -65,6 +65,7 @@ test("真实 OpenAPI 文档的响应 tabs 与 Models 联动回归", async () => 
     const pageUrl = `${uiBaseUrl}/?doc=${encodeURIComponent(documentUrl)}&api=${encodeURIComponent(loginApi)}`;
     await page.goto(pageUrl, { waitUntil: "networkidle", timeout: 90_000 });
     await page.getByText("Login", { exact: true }).first().waitFor({ timeout: 30_000 });
+    assert.equal(await page.getByText("生成的 TypeScript 未通过语法校验", { exact: true }).count(), 0);
 
     const responseCode = page.locator('section[aria-label="响应代码"] .code-card-code');
     const modelsCode = page.locator(".models-panel .code-card-code");
@@ -120,6 +121,17 @@ test("真实 OpenAPI 文档的响应 tabs 与 Models 联动回归", async () => 
     await signupLink.click();
     await page.waitForFunction(() => document.querySelector(".api-doc-title-row")?.textContent?.includes("Signup"));
     assert.equal(await rightTabs.getByRole("button", { name: "全部响应", exact: true }).getAttribute("aria-pressed"), "true");
+
+    await page.goto(`${uiBaseUrl}/?doc=${encodeURIComponent("/demo/invalid-typescript.json")}&demo=1`);
+    await page.locator("aside").getByText("Default", { exact: true }).click();
+    await page.locator("aside").getByText("Invalid type", { exact: true }).click();
+    const syntaxAlert = page.getByText("生成的 TypeScript 未通过语法校验", { exact: true });
+    await syntaxAlert.waitFor();
+    const gridBeforeDismiss = await page.locator(".api-workspace-grid").boundingBox();
+    await page.locator(".typescript-syntax-alert .ant-alert-close-icon").click();
+    await syntaxAlert.waitFor({ state: "hidden" });
+    const gridAfterDismiss = await page.locator(".api-workspace-grid").boundingBox();
+    assert.deepEqual(gridBeforeDismiss, gridAfterDismiss, "语法错误提示不能改变代码工作区布局");
   } finally {
     await browser.close();
     server?.kill();

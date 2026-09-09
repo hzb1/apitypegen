@@ -16,6 +16,10 @@ import {
   type RecoveryIntent,
 } from "../cli/protocol.js";
 import { readPackageVersion } from "../package-metadata.js";
+import {
+  reportGeneratedTypeScriptError,
+  type GeneratedTypeScriptTelemetryContext,
+} from "../cli/telemetry.js";
 
 /**
  * MCP 工具支持的 Swagger 来源类型。
@@ -753,13 +757,19 @@ export async function executeGenerateTypescriptTool(input: GenerateTypescriptToo
       service: input.service,
       method: input.method,
       path: input.path,
-    });
+    }, "mcp");
     const structuredContent = createMcpSuccess("generate_typescript", data);
     return {
       content: [{ type: "text" as const, text: createToolText(structuredContent) }],
       structuredContent,
     };
   } catch (error) {
+    const normalizedError = normalizeProtocolError(error);
+    if (normalizedError.code === "GENERATED_TYPESCRIPT_INVALID") {
+      await reportGeneratedTypeScriptError(
+        normalizedError.details as GeneratedTypeScriptTelemetryContext,
+      );
+    }
     const structuredContent = createMcpFailure("generate_typescript", error);
     return {
       content: [{ type: "text" as const, text: createToolText(structuredContent) }],

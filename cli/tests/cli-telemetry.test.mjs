@@ -91,6 +91,11 @@ test("GlitchTip 事件只保留允许字段并清理堆栈路径", () => {
     tags: {
       command: "gen",
       error_code: "UNKNOWN_ERROR",
+      source: "mcp",
+      diagnostic_codes: "1005,1128",
+      code_areas: "models,response",
+      diagnostic_locations: "models:200:10:2",
+      response_statuses: "200",
       node_major: "22",
       platform: "darwin",
       arch: "arm64",
@@ -141,6 +146,9 @@ test("GlitchTip 事件只保留允许字段并清理堆栈路径", () => {
     undefined,
   );
   assert.equal(sanitized.tags?.private_tag, undefined);
+  assert.equal(sanitized.tags?.source, "mcp");
+  assert.equal(sanitized.tags?.diagnostic_codes, "1005,1128");
+  assert.equal(sanitized.tags?.diagnostic_locations, "models:200:10:2");
   assert.doesNotMatch(
     serialized,
     /private\.example|alice|user@example|breadcrumb|private context|OpenAPI document|developer-macbook|privateExternalValue|vars/,

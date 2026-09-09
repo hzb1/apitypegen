@@ -13,38 +13,73 @@ import type { LoadingFeedback, ScrollRequest, TsCodeParts } from "../home.types.
 import { EXTENSION_URL } from "../home.constants.ts";
 import ViewedApiTabs from "./ViewedApiTabs.tsx";
 import type { AllServiceSearchGroup, SearchResultSelectContext } from "@/components/sidebar/ApiSearchDialog.tsx";
+import type { TypeScriptSyntaxDiagnostic } from "../../../../../cli/src/core/typescript-validation.ts";
 
+/** 文档工作台的展示与操作输入。 */
 type DocumentWorkspaceProps = {
+  /** 文档加载失败时的用户提示。 */
   error: string | null;
+  /** 文档加载失败的结构化详情。 */
   errorDetail?: SwaggerErrorDetail | null;
+  /** 文档或接口内容是否正在加载。 */
   contentLoading: boolean;
+  /** 当前加载阶段的展示文案。 */
   loadingFeedback: LoadingFeedback;
+  /** 需要侧边栏执行的滚动定位请求。 */
   scrollRequest?: ScrollRequest;
+  /** 当前文档按标签整理的接口分组。 */
   apiGroups: ApiGroup[];
+  /** 用户从接口导航选择接口时的回调。 */
   onMenuSelect: (key: string) => void;
+  /** 用户切换接口分组展开状态时的回调。 */
   handleGroupTitleClick: (groupItem: SideBarProps["apis"][number]) => void;
+  /** 用户从搜索结果选择接口时的回调。 */
   handleToolbarSearchSelect: (key: string, context?: SearchResultSelectContext) => void;
+  /** 当前服务的展示名称。 */
   currentServiceLabel?: string;
+  /** 跨服务搜索可以使用的接口分组。 */
   allServiceGroups?: AllServiceSearchGroup[];
+  /** 按需加载跨服务接口分组的回调。 */
   loadAllServiceGroups?: () => Promise<AllServiceSearchGroup[]>;
+  /** 是否允许执行跨服务搜索。 */
   allServiceSearchEnabled?: boolean;
+  /** 跨服务接口仍在加载时的提示。 */
   allServiceLoadingText?: string;
+  /** 跨服务接口加载失败时的提示。 */
   allServiceError?: string;
+  /** 已查看接口按展示顺序排列的标识。 */
   orderedViewedApiKeys: string[];
+  /** 当前选中接口的标识。 */
   selectedApiKey: string | null;
+  /** 接口标识到接口详情的索引。 */
   apiMap: Map<string, ApiDetail>;
+  /** 已固定在查看栏中的接口标识。 */
   pinnedApiKeys: string[];
+  /** 用户切换已查看接口时的回调。 */
   onViewedTabSelect: (key: string) => void;
+  /** 用户关闭已查看接口时的回调。 */
   removeViewedTab: (key: string) => void;
+  /** 用户关闭其他已查看接口时的回调。 */
   closeOtherViewedTabs: (key: string) => void;
+  /** 用户切换接口固定状态时的回调。 */
   togglePinViewedTab: (key: string) => void;
+  /** 当前选中的接口详情。 */
   selectedApi: ApiDetail | null;
+  /** 当前接口按区域拆分的生成代码。 */
   tsCodeParts?: TsCodeParts;
+  /** 当前生成代码中发现的 TypeScript 语法诊断。 */
+  syntaxDiagnostics: TypeScriptSyntaxDiagnostic[];
+  /** 当前接口请求地址使用的基础 URL。 */
   apiBaseUrl: string;
+  /** 没有选中接口时显示的文档概览。 */
   dashboard?: ReactNode;
+  /** 浏览器扩展是否正在重新检测。 */
   extensionChecking?: boolean;
+  /** 重新检测浏览器扩展的回调。 */
   onRecheckExtension?: () => void;
+  /** 打开示例文档的回调。 */
   onTryDemo?: () => void;
+  /** 返回首页欢迎视图的回调。 */
   onBackHome?: () => void;
 };
 
@@ -83,6 +118,7 @@ export default function DocumentWorkspace(props: DocumentWorkspaceProps) {
     togglePinViewedTab,
     selectedApi,
     tsCodeParts,
+    syntaxDiagnostics,
     apiBaseUrl,
     dashboard,
     extensionChecking,
@@ -91,6 +127,7 @@ export default function DocumentWorkspace(props: DocumentWorkspaceProps) {
     onBackHome,
   } = props;
   const [responseSelection, setResponseSelection] = useState<ResponseSelection>({ api: null, status: "all" });
+  const [dismissedSyntaxFingerprint, setDismissedSyntaxFingerprint] = useState<string | null>(null);
   const selectedResponse = responseSelection.api === selectedApi
     && tsCodeParts?.Responses?.some((response) => response.status === responseSelection.status)
     ? responseSelection.status
@@ -101,6 +138,12 @@ export default function DocumentWorkspace(props: DocumentWorkspaceProps) {
   const modelsCode = selectedResponse === "all"
     ? tsCodeParts?.Models
     : tsCodeParts?.Responses?.find((response) => response.status === selectedResponse)?.models;
+  const syntaxFingerprint = syntaxDiagnostics
+    .map((item) => `${item.code}:${item.area}:${item.responseStatus ?? "none"}:${item.line}:${item.column}`)
+    .join("|");
+  const visibleSyntaxDiagnostics = syntaxDiagnostics.slice(0, 5);
+  const shouldShowSyntaxAlert = syntaxDiagnostics.length > 0
+    && dismissedSyntaxFingerprint !== syntaxFingerprint;
   const apiCount = apiGroups.reduce((total, group) => total + group.children.length, 0);
 
   return (
@@ -187,31 +230,48 @@ export default function DocumentWorkspace(props: DocumentWorkspaceProps) {
             </div>
           )}
           {!error && !contentLoading && selectedApi && (
-            <div className="api-workspace-grid">
-              <div className="left-main">
-                <ApiInfo
-                  api={selectedApi}
-                  codeMap={tsCodeParts}
-                  apiBaseUrl={apiBaseUrl}
-                  selectedResponse={selectedResponse}
-                  onResponseChange={handleResponseChange}
+            <>
+              {shouldShowSyntaxAlert ? (
+                <Alert
+                  className="typescript-syntax-alert"
+                  type="error"
+                  showIcon
+                  closable
+                  onClose={() => setDismissedSyntaxFingerprint(syntaxFingerprint)}
+                  message="生成的 TypeScript 未通过语法校验"
+                  description={`${visibleSyntaxDiagnostics
+                    .map((item) => `TS${item.code} · ${item.area}${item.responseStatus ? `:${item.responseStatus}` : ""} · 第 ${item.line} 行，第 ${item.column} 列`)
+                    .join("；")}${syntaxDiagnostics.length > visibleSyntaxDiagnostics.length
+                    ? `；另有 ${syntaxDiagnostics.length - visibleSyntaxDiagnostics.length} 条诊断`
+                    : ""}`}
                 />
-              </div>
-              <div className="models-panel">
-                {tsCodeParts?.Responses?.length ? (
-                  <ResponseTabs
-                    responses={tsCodeParts.Responses}
-                    value={selectedResponse}
-                    onChange={handleResponseChange}
-                    label="Models 响应状态选择"
+              ) : null}
+              <div className="api-workspace-grid">
+                <div className="left-main">
+                  <ApiInfo
+                    api={selectedApi}
+                    codeMap={tsCodeParts}
+                    apiBaseUrl={apiBaseUrl}
+                    selectedResponse={selectedResponse}
+                    onResponseChange={handleResponseChange}
                   />
-                ) : null}
-                <CodeCard
-                  title={selectedResponse === "all" ? "Models · 全部响应" : `Models · ${selectedResponse}`}
-                  code={modelsCode || "// 当前请求与响应无需引用模型"}
-                />
+                </div>
+                <div className="models-panel">
+                  {tsCodeParts?.Responses?.length ? (
+                    <ResponseTabs
+                      responses={tsCodeParts.Responses}
+                      value={selectedResponse}
+                      onChange={handleResponseChange}
+                      label="Models 响应状态选择"
+                    />
+                  ) : null}
+                  <CodeCard
+                    title={selectedResponse === "all" ? "Models · 全部响应" : `Models · ${selectedResponse}`}
+                    code={modelsCode || "// 当前请求与响应无需引用模型"}
+                  />
+                </div>
               </div>
-            </div>
+            </>
           )}
           {!error && !contentLoading && !selectedApi && dashboard}
           {!error && !contentLoading && !selectedApi && !dashboard && (

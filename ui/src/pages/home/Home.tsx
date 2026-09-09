@@ -355,7 +355,11 @@ const Home: React.FC = () => {
     )
   ), [savedExports, sourceDocUrl]);
   const saveName = getLabelByValue(sourceDocUrl);
-  const tsCodeParts = useHomeTsCodeParts({ documentData, selectedApi, generatorOptions });
+  const { tsCodeParts, syntaxDiagnostics } = useHomeTsCodeParts({
+    documentData,
+    selectedApi,
+    generatorOptions,
+  });
   const documentInfo = useMemo(() => getDocumentInfo(documentData), [documentData]);
   const documentMode: DocumentMode = isLocalMode ? "local" : isDemoMode ? "demo" : "remote";
   const documentTitle = activeLocalExport?.name
@@ -655,6 +659,7 @@ const Home: React.FC = () => {
             togglePinViewedTab={togglePinViewedTab}
             selectedApi={selectedApi}
             tsCodeParts={tsCodeParts}
+            syntaxDiagnostics={syntaxDiagnostics}
             apiBaseUrl={apiBaseUrl}
             dashboard={
               <DocumentDashboard

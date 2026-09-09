@@ -137,7 +137,7 @@ test("MCP stdio 暴露识别、搜索和生成工具并返回结构化结果", a
     assert.equal(generateResult.structuredContent.schemaVersion, 1);
     assert.equal(generateResult.structuredContent.command, "generate_typescript");
     assert.equal(generateResult.structuredContent.ok, true);
-    assert.match(generateResult.structuredContent.data.code, /响应数据/);
+    assert.match(generateResult.structuredContent.data.code, /响应 200/);
     assert.equal(generateResult.structuredContent.data.selector.path, "/orders/{id}");
 
     const recoveryResult = await client.callTool({
@@ -184,6 +184,53 @@ test("MCP 工具把可修复执行错误返回为 isError", async () => {
   assert.equal(result.structuredContent.ok, false);
   assert.equal(typeof result.structuredContent.error.code, "string");
   assert.equal(typeof result.structuredContent.error.message, "string");
+});
+
+test("MCP 在生成代码存在 TypeScript 语法错误时返回安全诊断", async () => {
+  const document = {
+    openapi: "3.0.0",
+    info: { title: "Invalid Type Service" },
+    paths: {
+      "/invalid": {
+        get: {
+          responses: {
+            200: {
+              description: "ok",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/Bad-Model" },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    components: { schemas: { "Bad-Model": { type: "string" } } },
+  };
+  const server = http.createServer((_request, response) => {
+    response.setHeader("content-type", "application/json");
+    response.end(JSON.stringify(document));
+  });
+  const address = await listen(server);
+
+  try {
+    const { executeGenerateTypescriptTool } = await import("../dist/mcp/server.js");
+    const result = await executeGenerateTypescriptTool({
+      source: { type: "openapi", url: `http://127.0.0.1:${address.port}/openapi` },
+      method: "get",
+      path: "/invalid",
+      confirmed: true,
+    });
+
+    assert.equal(result.isError, true);
+    assert.equal(result.structuredContent.error.code, "GENERATED_TYPESCRIPT_INVALID");
+    assert.equal(result.structuredContent.error.details.source, "mcp");
+    assert.equal(result.structuredContent.error.details.diagnostics[0].code, 1005);
+    assert.doesNotMatch(JSON.stringify(result.structuredContent.error.details), /Bad-Model|string/);
+  } finally {
+    await close(server);
+  }
 });
 
 test("MCP 生成工具在用户未确认接口时拒绝生成", async () => {
