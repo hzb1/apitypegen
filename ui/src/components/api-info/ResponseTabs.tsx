@@ -16,14 +16,6 @@ type ResponseTabsProps = {
 export default function ResponseTabs({ responses, value, onChange, label }: ResponseTabsProps) {
   return (
     <div className="response-tabs" role="group" aria-label={label}>
-      <button
-        type="button"
-        className="response-tabs__button"
-        aria-pressed={value === "all"}
-        onClick={() => onChange("all")}
-      >
-        全部响应
-      </button>
       {responses.map((response) => (
         <button
           type="button"
@@ -36,6 +28,14 @@ export default function ResponseTabs({ responses, value, onChange, label }: Resp
           {response.status}{response.description ? ` · ${response.description}` : ""}
         </button>
       ))}
+      <button
+        type="button"
+        className="response-tabs__button"
+        aria-pressed={value === "all"}
+        onClick={() => onChange("all")}
+      >
+        全部响应
+      </button>
     </div>
   );
 }

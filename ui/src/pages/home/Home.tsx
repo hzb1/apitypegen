@@ -592,8 +592,6 @@ const Home: React.FC = () => {
           {/* 顶部栏：品牌、文档地址输入、服务选择、项目配置入口和主题切换。 */}
           <DocumentTopbar
             documentMeta={{
-              title: documentTitle,
-              subtitle: documentSubtitle,
               mode: documentMode,
               saved: hasSavedCurrentDoc,
               serviceStatusText: allServiceStatusText,
@@ -659,6 +657,7 @@ const Home: React.FC = () => {
             togglePinViewedTab={togglePinViewedTab}
             selectedApi={selectedApi}
             tsCodeParts={tsCodeParts}
+            documentData={documentData}
             syntaxDiagnostics={syntaxDiagnostics}
             apiBaseUrl={apiBaseUrl}
             dashboard={

@@ -13,6 +13,8 @@ export type TsCodeParts = {
   "Query Params": string;
   /** 请求体代码。 */
   "Request Body": string;
+  /** 查询参数与请求体关联的类型代码。 */
+  "Request Types": string;
   /** 兼容旧数据的默认响应代码。 */
   "Response Data": string;
   /** 按状态拆分的响应及其依赖模型；旧记录可省略。 */

@@ -5,11 +5,19 @@ import "./CodeCard.css";
 
 const CodeHighlighting = lazy(() => import("../ui/CodeHighlighting/CodeHighlighting.tsx"));
 
+/** TypeScript 代码卡片的输入。 */
 type CodeCardProps = {
+  /** 代码区域标题。 */
   title: string;
+  /** 需要展示和复制的 TypeScript 代码。 */
   code?: string;
+  /** 卡片根元素的补充样式。 */
   style?: React.CSSProperties;
+  /** 代码区域最多显示的行数，超出后在编辑器内滚动。 */
+  maxVisibleLines?: number;
+  /** 卡片各区域的补充样式。 */
   styles?: {
+    /** 代码主体区域的补充样式。 */
     body?: React.CSSProperties;
   };
 };
@@ -18,9 +26,12 @@ const CodeCard: React.FC<CodeCardProps> = ({
   title,
   code,
   style,
+  maxVisibleLines = 18,
   styles,
 }: CodeCardProps) => {
   const fallbackCode = code || "// 空的";
+  const visibleLineCount = Math.min(Math.max(fallbackCode.split("\n").length, 4), maxVisibleLines);
+  const calculatedBodyHeight = 32 + visibleLineCount * 20;
 
   const handleCopy = async () => {
     if (!code) return;
@@ -39,7 +50,7 @@ const CodeCard: React.FC<CodeCardProps> = ({
         </div>
       </div>
 
-      <div className="code-card-body" style={styles?.body}>
+      <div className="code-card-body" style={{ height: calculatedBodyHeight, ...styles?.body }}>
         <div className="code-card-panel">
           <div className="code-card-code">
             <Suspense fallback={<pre><code>{fallbackCode}</code></pre>}>

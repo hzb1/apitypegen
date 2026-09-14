@@ -23,7 +23,8 @@ const RESOLVED_LABELS: Record<"light" | "dark", string> = {
   dark: "暗色",
 };
 
-const ThemeDropdown: React.FC = () => {
+/** 可嵌入项目配置抽屉或浮层的主题设置内容。 */
+export const ThemeSettingsPanel: React.FC = () => {
   const {
     themeSettings,
     resolvedMode,
@@ -88,20 +89,23 @@ const ThemeDropdown: React.FC = () => {
     </div>
   );
 
-  return (
-    <Popover
-      trigger="click"
-      placement="bottomRight"
-      content={content}
-      overlayClassName="theme-dropdown-popover"
-    >
-      <Tooltip title="主题设置">
-        <button type="button" className="theme-trigger-button" aria-label="打开主题设置">
-          <BgColorsOutlined />
-        </button>
-      </Tooltip>
-    </Popover>
-  );
+  return content;
 };
+
+/** 顶部栏主题设置入口。 */
+const ThemeDropdown: React.FC = () => (
+  <Popover
+    trigger="click"
+    placement="bottomRight"
+    content={<ThemeSettingsPanel />}
+    overlayClassName="theme-dropdown-popover"
+  >
+    <Tooltip title="主题设置">
+      <button type="button" className="theme-trigger-button" aria-label="打开主题设置">
+        <BgColorsOutlined />
+      </button>
+    </Tooltip>
+  </Popover>
+);
 
 export default ThemeDropdown;

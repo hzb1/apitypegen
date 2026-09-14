@@ -58,31 +58,6 @@
   flex: 0 0 auto;
 }
 
-.home-topbar-copy {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.home-topbar-title-row {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.home-topbar-title {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1.2;
-  color: var(--ts-text-strong);
-}
-
 .document-status-chips {
   display: inline-flex;
   align-items: center;
@@ -133,13 +108,6 @@
   border-color: rgb(220 38 38 / 0.24);
   background: rgb(220 38 38 / 0.08);
   color: #b91c1c;
-}
-
-.home-topbar-subtitle {
-  font-size: 12px;
-  line-height: 1.2;
-  color: var(--ts-text-muted);
-  white-space: nowrap;
 }
 
 .home-topbar-actions {
@@ -504,18 +472,14 @@
   overflow: hidden;
   padding: 12px;
   display: flex;
+  flex-direction: column;
 }
 
-/* 错误诊断悬浮在工作区上方，避免出现时改变代码双栏的尺寸和滚动位置。 */
+/* 语法诊断集中显示在代码卡片上方，避免遮挡生成结果并保持滚动位置稳定。 */
 .views .typescript-syntax-alert {
-  position: absolute;
-  top: 20px;
-  right: 20px;
-  z-index: 30;
-  width: min(480px, calc(100% - 40px));
-  max-height: min(240px, calc(100% - 40px));
-  overflow: auto;
-  box-shadow: var(--ts-shadow-card);
+  flex: 0 0 auto;
+  width: 100%;
+  margin-bottom: 8px;
 }
 
 .content-center-status {
@@ -552,23 +516,17 @@
 .api-workspace-grid {
   flex: 1;
   min-height: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1.55fr) minmax(300px, 0.95fr);
-  gap: 12px;
-  align-items: stretch;
+  display: flex;
+  flex-direction: column;
 }
 
-.left-main,
-.models-panel {
+.left-main {
+  flex: 1;
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-gutter: stable;
   padding-right: 4px;
-}
-
-.models-panel .code-card {
-  min-height: 100%;
 }
 
 .workspace-empty-state .ant-empty {
@@ -912,15 +870,13 @@
 
 .sidebar-api-scroll::-webkit-scrollbar,
 .document-dashboard::-webkit-scrollbar,
-.left-main::-webkit-scrollbar,
-.models-panel::-webkit-scrollbar {
+.left-main::-webkit-scrollbar {
   width: 10px;
 }
 
 .sidebar-api-scroll::-webkit-scrollbar-thumb,
 .document-dashboard::-webkit-scrollbar-thumb,
-.left-main::-webkit-scrollbar-thumb,
-.models-panel::-webkit-scrollbar-thumb {
+.left-main::-webkit-scrollbar-thumb {
   border: 2px solid transparent;
   border-radius: var(--ts-radius-pill);
   background-clip: padding-box;
@@ -929,15 +885,13 @@
 
 .sidebar-api-scroll::-webkit-scrollbar-track,
 .document-dashboard::-webkit-scrollbar-track,
-.left-main::-webkit-scrollbar-track,
-.models-panel::-webkit-scrollbar-track {
+.left-main::-webkit-scrollbar-track {
   background: transparent;
 }
 
 .sidebar-api-scroll:hover::-webkit-scrollbar-thumb,
 .document-dashboard:hover::-webkit-scrollbar-thumb,
-.left-main:hover::-webkit-scrollbar-thumb,
-.models-panel:hover::-webkit-scrollbar-thumb {
+.left-main:hover::-webkit-scrollbar-thumb {
   background-color: var(--ts-scrollbar-thumb-hover);
 }
 
@@ -1652,10 +1606,6 @@
     width: 108px;
   }
 
-  .home-topbar-copy {
-    display: none;
-  }
-
   .home-field-wrap {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -1672,10 +1622,6 @@
     min-height: calc(100vh - 188px);
   }
 
-  .api-workspace-grid {
-    grid-template-columns: 1fr;
-  }
-
   .document-dashboard-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1689,8 +1635,7 @@
     display: block;
   }
 
-  .left-main,
-  .models-panel {
+  .left-main {
     overflow: visible;
     scrollbar-gutter: auto;
     padding-right: 0;
@@ -1699,10 +1644,7 @@
 
 @media (max-width: 720px) {
   .views .typescript-syntax-alert {
-    top: 12px;
-    right: 12px;
-    width: calc(100% - 24px);
-    max-height: 180px;
+    margin-bottom: 6px;
   }
 
   .home-topbar {

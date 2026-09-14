@@ -101,6 +101,7 @@ test("响应模型隔离后仍保留公共请求依赖，单状态代码可以�
   for (const response of generated.responses) {
     assert.match(response.models, /interface Input/);
     assert.match(response.models, /interface Filter/);
+    assert.doesNotMatch(response.responseModels, /interface Input|interface Filter/);
     if (response.status === "200") {
       assert.match(response.models, /interface Order/);
       assert.doesNotMatch(response.models, /interface ApiError/);

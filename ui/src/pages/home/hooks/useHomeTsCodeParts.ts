@@ -109,6 +109,7 @@ export function useHomeTsCodeParts(
         Models: res.models,
         "Query Params": res.queryParams,
         "Request Body": res.requestBody,
+        "Request Types": res.requestModels,
         "Response Data": res.responseData,
         Responses: res.responses,
       });

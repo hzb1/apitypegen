@@ -11,6 +11,8 @@ export interface GeneratorOptions {
 export interface GeneratedTypes {
   queryParams: string;
   requestBody: string;
+  /** 查询参数与请求体实际引用的模型代码。 */
+  requestModels: string;
   responseData: string;
   /** 按 HTTP 状态码拆分的响应类型。 */
   responses: GeneratedResponse[];
@@ -27,6 +29,8 @@ export interface GeneratedResponse {
   code: string;
   /** 请求参数、请求体与本状态响应实际依赖的模型代码，包含传递引用。 */
   models: string;
+  /** 相对于请求新增的响应关联类型；旧缓存记录中可能不存在。 */
+  responseModels?: string;
 }
 
 type SwaggerSchema = {
@@ -404,6 +408,7 @@ export class SwaggerToTS {
     const responses = operation.responses || {};
     // 请求参数和请求体始终显示；每个响应从这份公共依赖开始，避免混入其他状态的模型。
     const sharedDefinitions = new Map(this.usedDefinitions);
+    const sharedModels = this.generateModels();
     const allDefinitions = new Map(sharedDefinitions);
     const generated = Object.entries(responses).map(([status, response]) => {
       const resolvedResponse = this.resolveComponent(response);
@@ -413,9 +418,13 @@ export class SwaggerToTS {
       const code = response
         ? this.generateResponse({ responses: { [status]: response } })
         : `${this.exp}type ResponseData = unknown${this.semi}`;
+      // 保持 models 自包含，供导出和旧调用方直接使用；界面展示则使用只属于响应的增量定义。
       const models = this.generateModels();
+      const responseModels = models.startsWith(sharedModels)
+        ? models.slice(sharedModels.length).trimStart()
+        : models;
       for (const [name, schema] of this.usedDefinitions) allDefinitions.set(name, schema);
-      return { status, description: resolvedResponse?.description || "", code, models };
+      return { status, description: resolvedResponse?.description || "", code, models, responseModels };
     });
 
     this.usedDefinitions.clear();
@@ -438,16 +447,17 @@ export class SwaggerToTS {
       : undefined;
 
     if (!operation) {
-      return { queryParams: "", requestBody: "", responseData: "", responses: [], models: "" };
+      return { queryParams: "", requestBody: "", requestModels: "", responseData: "", responses: [], models: "" };
     }
 
     const queryParams = this.generateQueryParams(operation);
     const requestBody = this.generateRequestBody(operation);
+    const requestModels = this.generateModels();
     const responses = this.generateResponses(operation);
     const responseData = this.generateResponse(operation);
     const models = this.generateModels();
 
-    return { queryParams, requestBody, responseData, responses, models };
+    return { queryParams, requestBody, requestModels, responseData, responses, models };
   }
 
   private generateModels(): string {

@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 import type { AutoCompleteProps } from "antd";
 import { AutoComplete, Button, Input, Select, Tooltip } from "antd";
 import { MenuOutlined, QuestionCircleOutlined, SettingOutlined } from "@ant-design/icons";
-import ThemeDropdown from "@/components/theme/ThemeDropdown.tsx";
 import logoUrl from "@/assets/logo/logo-full.svg";
 import type { LoadingFeedback } from "../home.types.ts";
 import DocumentStatusChip, { type DocumentMode } from "./DocumentStatusChip.tsx";
@@ -14,8 +13,6 @@ type ServiceOption = {
 
 type DocumentTopbarProps = {
   documentMeta: {
-    title: string;
-    subtitle?: string;
     mode: DocumentMode;
     saved: boolean;
     serviceStatusText?: string;
@@ -66,22 +63,12 @@ export default function DocumentTopbar(props: DocumentTopbarProps) {
           <MenuOutlined />
         </button>
         <img src={logoUrl} alt="APITypeGen" className="home-topbar-logo" />
-        <div className="home-topbar-copy">
-          <div className="home-topbar-title-row">
-            <div className="home-topbar-title" title={documentMeta.title}>
-              {documentMeta.title}
-            </div>
-            <DocumentStatusChip
-              mode={documentMeta.mode}
-              saved={documentMeta.saved}
-              serviceStatusText={documentMeta.serviceStatusText}
-              serviceStatusKind={documentMeta.serviceStatusKind}
-            />
-          </div>
-          <div className="home-topbar-subtitle" title={documentMeta.subtitle}>
-            {documentMeta.subtitle || "TypeScript 类型生成"}
-          </div>
-        </div>
+        <DocumentStatusChip
+          mode={documentMeta.mode}
+          saved={documentMeta.saved}
+          serviceStatusText={documentMeta.serviceStatusText}
+          serviceStatusKind={documentMeta.serviceStatusKind}
+        />
       </div>
       <div className="home-topbar-actions">
         <div className={`home-field-wrap ${showServiceSelect ? "" : "is-single"}`}>
@@ -149,7 +136,6 @@ export default function DocumentTopbar(props: DocumentTopbarProps) {
               onClick={() => setConfigDrawerOpen(true)}
             />
           </Tooltip>
-          <ThemeDropdown />
         </div>
       </div>
     </header>

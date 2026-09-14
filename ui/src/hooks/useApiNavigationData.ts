@@ -19,11 +19,28 @@ export function buildGroupedApis(documentData: OpenAPI.Document | null) {
       const operation = item?.[method];
       if (!operation) continue;
       const tag = operation.tags?.[0] ?? "Default";
+      const operationParameters = operation.parameters ?? [];
+      const operationParameterKeys = new Set(operationParameters.flatMap((parameter: OpenAPI.Parameter) => {
+        const item = parameter as Record<string, unknown>;
+        return typeof item.in === "string" && typeof item.name === "string"
+          ? [`${item.in}:${item.name}`]
+          : [];
+      }));
+      const parameters = [
+        ...(item?.parameters ?? []).filter((parameter: OpenAPI.Parameter) => {
+          const item = parameter as Record<string, unknown>;
+          const key = typeof item.in === "string" && typeof item.name === "string"
+            ? `${item.in}:${item.name}`
+            : undefined;
+          return !key || !operationParameterKeys.has(key);
+        }),
+        ...operationParameters,
+      ];
       (groups[tag] ||= []).push({
         key: getApiSlug({ path, method, operation }),
         path,
         method,
-        operation,
+        operation: { ...operation, parameters },
       });
     }
   }

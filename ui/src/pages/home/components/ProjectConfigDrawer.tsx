@@ -1,6 +1,7 @@
 import type { Dispatch, SetStateAction } from "react";
-import { Drawer, InputNumber, Select, Switch } from "antd";
+import { Divider, Drawer, InputNumber, Select, Switch } from "antd";
 import type { ConfigState } from "@/hooks/useOptions.ts";
+import { ThemeSettingsPanel } from "@/components/theme/ThemeDropdown.tsx";
 
 type ProjectConfigDrawerProps = {
   open: boolean;
@@ -81,6 +82,8 @@ export default function ProjectConfigDrawer(props: ProjectConfigDrawerProps) {
             style={{width: "100%"}}
           />
         </div>
+        <Divider />
+        <ThemeSettingsPanel />
       </div>
     </Drawer>
   );

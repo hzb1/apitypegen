@@ -4,8 +4,6 @@ import { ApiOutlined, CodeOutlined, DatabaseOutlined } from "@ant-design/icons";
 import type { ReactNode } from "react";
 import SideBar, { type SideBarProps } from "@/components/sidebar/SideBar.tsx";
 import ApiInfo from "@/components/api-info/ApiInfo.tsx";
-import CodeCard from "@/components/code-card/CodeCard.tsx";
-import ResponseTabs from "@/components/api-info/ResponseTabs.tsx";
 import type { SwaggerErrorDetail } from "@/hooks/useSwagger.ts";
 import type { ApiDetail } from "../../../../types.ts";
 import type { ApiGroup } from "../utils.ts";
@@ -14,6 +12,7 @@ import { EXTENSION_URL } from "../home.constants.ts";
 import ViewedApiTabs from "./ViewedApiTabs.tsx";
 import type { AllServiceSearchGroup, SearchResultSelectContext } from "@/components/sidebar/ApiSearchDialog.tsx";
 import type { TypeScriptSyntaxDiagnostic } from "../../../../../cli/src/core/typescript-validation.ts";
+import type { OpenAPI } from "openapi-types";
 
 /** 文档工作台的展示与操作输入。 */
 type DocumentWorkspaceProps = {
@@ -67,6 +66,8 @@ type DocumentWorkspaceProps = {
   selectedApi: ApiDetail | null;
   /** 当前接口按区域拆分的生成代码。 */
   tsCodeParts?: TsCodeParts;
+  /** 当前加载的 OpenAPI 文档。 */
+  documentData?: OpenAPI.Document | null;
   /** 当前生成代码中发现的 TypeScript 语法诊断。 */
   syntaxDiagnostics: TypeScriptSyntaxDiagnostic[];
   /** 当前接口请求地址使用的基础 URL。 */
@@ -118,6 +119,7 @@ export default function DocumentWorkspace(props: DocumentWorkspaceProps) {
     togglePinViewedTab,
     selectedApi,
     tsCodeParts,
+    documentData,
     syntaxDiagnostics,
     apiBaseUrl,
     dashboard,
@@ -128,20 +130,20 @@ export default function DocumentWorkspace(props: DocumentWorkspaceProps) {
   } = props;
   const [responseSelection, setResponseSelection] = useState<ResponseSelection>({ api: null, status: "all" });
   const [dismissedSyntaxFingerprint, setDismissedSyntaxFingerprint] = useState<string | null>(null);
+  const defaultResponse = tsCodeParts?.Responses?.find((response) => /^2\d{2}$/.test(response.status))?.status
+    ?? tsCodeParts?.Responses?.[0]?.status
+    ?? "all";
   const selectedResponse = responseSelection.api === selectedApi
-    && tsCodeParts?.Responses?.some((response) => response.status === responseSelection.status)
+    && (responseSelection.status === "all"
+      || tsCodeParts?.Responses?.some((response) => response.status === responseSelection.status))
     ? responseSelection.status
-    : "all";
+    : defaultResponse;
   const handleResponseChange = (status: string) => {
     setResponseSelection({ api: selectedApi, status });
   };
-  const modelsCode = selectedResponse === "all"
-    ? tsCodeParts?.Models
-    : tsCodeParts?.Responses?.find((response) => response.status === selectedResponse)?.models;
   const syntaxFingerprint = syntaxDiagnostics
     .map((item) => `${item.code}:${item.area}:${item.responseStatus ?? "none"}:${item.line}:${item.column}`)
     .join("|");
-  const visibleSyntaxDiagnostics = syntaxDiagnostics.slice(0, 5);
   const shouldShowSyntaxAlert = syntaxDiagnostics.length > 0
     && dismissedSyntaxFingerprint !== syntaxFingerprint;
   const apiCount = apiGroups.reduce((total, group) => total + group.children.length, 0);
@@ -234,16 +236,12 @@ export default function DocumentWorkspace(props: DocumentWorkspaceProps) {
               {shouldShowSyntaxAlert ? (
                 <Alert
                   className="typescript-syntax-alert"
-                  type="error"
-                  showIcon
+                  type="warning"
+                  banner
+                  showIcon={false}
                   closable
                   onClose={() => setDismissedSyntaxFingerprint(syntaxFingerprint)}
-                  message="生成的 TypeScript 未通过语法校验"
-                  description={`${visibleSyntaxDiagnostics
-                    .map((item) => `TS${item.code} · ${item.area}${item.responseStatus ? `:${item.responseStatus}` : ""} · 第 ${item.line} 行，第 ${item.column} 列`)
-                    .join("；")}${syntaxDiagnostics.length > visibleSyntaxDiagnostics.length
-                    ? `；另有 ${syntaxDiagnostics.length - visibleSyntaxDiagnostics.length} 条诊断`
-                    : ""}`}
+                  message={`TypeScript 代码有 ${syntaxDiagnostics.length} 处语法问题，请查看代码中的标记。`}
                 />
               ) : null}
               <div className="api-workspace-grid">
@@ -252,22 +250,9 @@ export default function DocumentWorkspace(props: DocumentWorkspaceProps) {
                     api={selectedApi}
                     codeMap={tsCodeParts}
                     apiBaseUrl={apiBaseUrl}
+                    documentData={documentData}
                     selectedResponse={selectedResponse}
                     onResponseChange={handleResponseChange}
-                  />
-                </div>
-                <div className="models-panel">
-                  {tsCodeParts?.Responses?.length ? (
-                    <ResponseTabs
-                      responses={tsCodeParts.Responses}
-                      value={selectedResponse}
-                      onChange={handleResponseChange}
-                      label="Models 响应状态选择"
-                    />
-                  ) : null}
-                  <CodeCard
-                    title={selectedResponse === "all" ? "Models · 全部响应" : `Models · ${selectedResponse}`}
-                    code={modelsCode || "// 当前请求与响应无需引用模型"}
                   />
                 </div>
               </div>

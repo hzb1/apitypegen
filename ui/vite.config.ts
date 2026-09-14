@@ -51,10 +51,6 @@ export default defineConfig({
           const packageName = getPackageName(id);
           if (!packageName) return "vendor";
 
-          if (packageName === "highlight.js") {
-            return "highlight-vendor";
-          }
-
           if (packageName === "react" || packageName === "react-dom" || packageName === "scheduler") {
             return "react-vendor";
           }
@@ -94,6 +90,8 @@ export default defineConfig({
     host: '0.0.0.0',
   },
   resolve: {
-    alias: alias
+    alias: alias,
+    // monorepo 下统一 React 实例，避免 react-router 与应用读取到不同的 Hooks dispatcher。
+    dedupe: ["react", "react-dom"],
   }
 })
