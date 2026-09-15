@@ -1,7 +1,10 @@
 import type { GeneratedTypes } from "@/utils/SwaggerParser.ts";
 
+/** 页面滚动定位请求。 */
 export type ScrollRequest = {
+  /** 目标区域的稳定标识。 */
   key: string;
+  /** 用于区分重复定位请求的递增编号。 */
   id: number;
 };
 
@@ -11,18 +14,28 @@ export type TsCodeParts = {
   Models: string;
   /** 查询及路径参数代码。 */
   "Query Params": string;
+  /** 查询及路径参数实际引用的模型代码。 */
+  "Query Types": string;
   /** 请求体代码。 */
   "Request Body": string;
   /** 查询参数与请求体关联的类型代码。 */
   "Request Types": string;
+  /** 请求体实际引用的模型代码。 */
+  "Request Body Types": string;
   /** 兼容旧数据的默认响应代码。 */
   "Response Data": string;
   /** 按状态拆分的响应及其依赖模型；旧记录可省略。 */
   Responses?: GeneratedTypes["responses"];
+  /** 全部响应实际引用的模型代码。 */
+  "All Response Types": string;
 };
 
+/** 页面加载状态的展示文案。 */
 export type LoadingFeedback = {
+  /** 状态标题。 */
   title: string;
+  /** 状态操作按钮文案。 */
   button: string;
+  /** 状态补充说明。 */
   text: string;
 };

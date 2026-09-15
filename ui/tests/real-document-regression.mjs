@@ -52,7 +52,7 @@ function assertTypeScriptCompiles(code) {
   assert.deepEqual(diagnostics.map((item) => ts.flattenDiagnosticMessageText(item.messageText, "\n")), []);
 }
 
-test("真实 OpenAPI 文档的响应 tabs 与 Models 联动回归", async () => {
+test("真实 OpenAPI 文档的请求与响应卡片均可复制完整类型", async () => {
   const server = await startUiIfNeeded();
   const browser = await chromium.launch({ channel: "chrome", headless: true });
   try {
@@ -67,60 +67,60 @@ test("真实 OpenAPI 文档的响应 tabs 与 Models 联动回归", async () => 
     await page.getByText("Login", { exact: true }).first().waitFor({ timeout: 30_000 });
     assert.equal(await page.getByText("生成的 TypeScript 未通过语法校验", { exact: true }).count(), 0);
 
-    const responseCode = page.locator('section[aria-label="响应代码"] .code-card-code');
-    const modelsCode = page.locator(".models-panel .code-card-code");
-    const leftTabs = page.getByRole("group", { name: "响应状态选择", exact: true });
-    const rightTabs = page.getByRole("group", { name: "Models 响应状态选择", exact: true });
-    const codeCards = page.locator(".left-main .code-card-code");
+    const responseCode = page.locator(".api-doc__response .code-card-code");
+    const responseTabs = page.getByRole("group", { name: "响应状态选择", exact: true });
+    const requestCodeCards = page.locator(".api-doc__main .code-card-code");
+    const requestBodyCard = page.locator(".api-doc__main .code-card").filter({ hasText: "Request body" });
+    const responseCard = page.locator(".api-doc__response .code-card");
 
     assert.equal(await page.locator('text=请求体  有').count(), 1);
-    assert.match(await codeCards.nth(1).innerText(), /RequestBody = Login/);
-    const responseTabs = (await rightTabs.getByRole("button").allTextContents())
+    assert.equal(await page.getByRole("heading", { name: "Request", exact: true }).count(), 0);
+    assert.equal(await page.getByRole("heading", { name: "Response", exact: true }).count(), 0);
+    assert.match(await requestCodeCards.nth(1).innerText(), /RequestBody = Login/);
+    const workspaceBox = await page.locator(".left-main").boundingBox();
+    const requestBodyBox = await requestBodyCard.boundingBox();
+    const responseBox = await responseCard.boundingBox();
+    assert.ok(workspaceBox && requestBodyBox && responseBox, "代码工作区和填充卡片必须可见");
+    const workspaceBottom = workspaceBox.y + workspaceBox.height;
+    assert.ok(requestBodyBox.y + requestBodyBox.height >= workspaceBottom - 24, "Request body 应填满工作区高度");
+    assert.ok(responseBox.y + responseBox.height >= workspaceBottom - 24, "Response 应填满工作区高度");
+    const responseTabLabels = (await responseTabs.getByRole("button").allTextContents())
       .map((value) => value.replace(/\s+/g, " ").trim());
-    assert.deepEqual(responseTabs, [
+    assert.deepEqual(responseTabLabels, [
+      "200",
+      "400",
+      "401",
+      "409",
       "全部响应",
-      "200 · Authenticated by password.",
-      "400 · An input error occurred.",
-      "401 · Not authenticated.",
-      "409 · Conflict. For example, when logging in when a user is already logged in.",
     ]);
 
-    await rightTabs.getByRole("button", { name: /^400/ }).click();
-    await page.waitForFunction(() => document.querySelector(".models-panel .code-card-code")?.textContent?.includes("ErrorResponse"));
+    await responseTabs.getByRole("button", { name: /^400/ }).click();
+    await page.waitForFunction(() => document.querySelector(".api-doc__response .code-card-code")?.textContent?.includes("ErrorResponse"));
     assert.match(await responseCode.innerText(), /ErrorResponse/);
-    assert.match(await modelsCode.innerText(), /ErrorResponse/);
-    assert.doesNotMatch(await modelsCode.innerText(), /AuthenticationResponse/);
-    assert.equal(await leftTabs.getByRole("button", { name: /^400/ }).getAttribute("aria-pressed"), "true");
-    await page.locator(".models-panel .code-card-action").click();
-    assert.equal((await page.evaluate(() => window.__copiedText)).trim(), (await modelsCode.innerText()).trim());
+    assert.doesNotMatch(await responseCode.innerText(), /AuthenticationResponse/);
+    await page.locator(".api-doc__response .code-card-action").click();
+    assert.equal((await page.evaluate(() => window.__copiedText)).trim(), (await responseCode.innerText()).trim());
 
-    await leftTabs.getByRole("button", { name: /^401/ }).click();
-    await page.waitForFunction(() => document.querySelector(".models-panel .code-card-code")?.textContent?.includes("AuthenticationResponse"));
+    await responseTabs.getByRole("button", { name: /^401/ }).click();
+    await page.waitForFunction(() => document.querySelector(".api-doc__response .code-card-code")?.textContent?.includes("AuthenticationResponse"));
     assert.match(await responseCode.innerText(), /AuthenticationResponse/);
-    assert.match(await modelsCode.innerText(), /AuthenticationResponse/);
-    assert.equal(await rightTabs.getByRole("button", { name: /^401/ }).getAttribute("aria-pressed"), "true");
 
-    await rightTabs.getByRole("button", { name: "全部响应", exact: true }).click();
-    const allModels = await modelsCode.innerText();
-    assert.match(allModels, /ErrorResponse/);
-    assert.match(allModels, /AuthenticationResponse/);
-    assert.match(allModels, /ConflictResponse/);
+    await responseTabs.getByRole("button", { name: "全部响应", exact: true }).click();
     const allResponseCode = await responseCode.innerText();
+    assert.match(allResponseCode, /export type ResponseData = Response200 \| Response400 \| Response401 \| Response409/);
     assert.match(allResponseCode, /Response200/);
     assert.match(allResponseCode, /Response400/);
     assert.match(allResponseCode, /Response401/);
     assert.match(allResponseCode, /Response409/);
-    assertTypeScriptCompiles([
-      allModels,
-      await codeCards.nth(0).innerText(),
-      await codeCards.nth(1).innerText(),
-      allResponseCode,
-    ].join("\n\n"));
+    assert.match(allResponseCode, /ErrorResponse/);
+    assert.match(allResponseCode, /AuthenticationResponse/);
+    assert.match(allResponseCode, /ConflictResponse/);
+    assertTypeScriptCompiles(allResponseCode);
 
     const signupLink = page.locator("aside").getByText("Signup", { exact: true });
     await signupLink.click();
-    await page.waitForFunction(() => document.querySelector(".api-doc-title-row")?.textContent?.includes("Signup"));
-    assert.equal(await rightTabs.getByRole("button", { name: "全部响应", exact: true }).getAttribute("aria-pressed"), "true");
+    await page.waitForFunction(() => document.querySelector(".api-doc__title-row")?.textContent?.includes("Signup"));
+    assert.equal(await responseTabs.getByRole("button", { name: "全部响应", exact: true }).getAttribute("aria-pressed"), "true");
 
     await page.goto(`${uiBaseUrl}/?doc=${encodeURIComponent("/demo/invalid-typescript.json")}&demo=1`);
     await page.locator("aside").getByText("Default", { exact: true }).click();

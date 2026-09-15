@@ -1,31 +1,97 @@
 .response-tabs {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 8px;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 4px;
+  border-radius: var(--ts-radius-xsm);
+  background: var(--ts-surface-soft);
+
+  /* 状态码保持单行并允许横向滚动，避免长响应集合挤压右侧的当前状态说明。 */
+  .response-tabs__list {
+    display: flex;
+    flex: 0 1 auto;
+    gap: 2px;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .response-tabs__list::-webkit-scrollbar {
+    display: none;
+  }
 
   .response-tabs__button {
-    max-width: 100%;
-    padding: 5px 9px;
-    border: 1px solid var(--ts-line-strong);
+    position: relative;
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    min-width: 42px;
+    height: 28px;
+    padding: 0 9px 0 18px;
+    border: 0;
     border-radius: var(--ts-radius-xs);
-    font-size: 12px;
-    text-align: left;
-    overflow-wrap: anywhere;
-    background: var(--ts-surface-overlay);
+    background: transparent;
     color: var(--ts-text-secondary);
     cursor: pointer;
+    font-size: 12px;
+    white-space: nowrap;
 
-    &:hover,
+    &::before {
+      position: absolute;
+      left: 8px;
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--ts-text-muted);
+      content: "";
+    }
+
+    &[data-status^="2"]::before {
+      background: var(--ts-method-get-active);
+    }
+
+    &[data-status^="4"]::before,
+    &[data-status^="5"]::before {
+      background: var(--ts-method-delete-active);
+    }
+
+    &:hover {
+      background: var(--ts-interactive-soft-strong);
+      color: var(--ts-text-primary);
+    }
+
     &[aria-pressed="true"] {
-      border-color: var(--ts-brand);
-      background: var(--ts-brand-soft);
+      background: var(--ts-surface);
       color: var(--ts-brand);
+      box-shadow: var(--ts-shadow-card);
     }
 
     &:focus-visible {
       outline: 2px solid var(--ts-brand);
       outline-offset: 2px;
+    }
+  }
+
+  .response-tabs__description {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--ts-text-muted);
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 860px) {
+  .response-tabs {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 4px;
+
+    .response-tabs__description {
+      padding: 0 6px 3px;
     }
   }
 }

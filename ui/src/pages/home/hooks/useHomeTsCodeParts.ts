@@ -108,10 +108,13 @@ export function useHomeTsCodeParts(
       setTsCodeParts({
         Models: res.models,
         "Query Params": res.queryParams,
+        "Query Types": res.queryModels,
         "Request Body": res.requestBody,
         "Request Types": res.requestModels,
+        "Request Body Types": res.requestBodyModels,
         "Response Data": res.responseData,
         Responses: res.responses,
+        "All Response Types": res.allResponseModels,
       });
       setSyntaxDiagnostics(diagnostics);
     };

@@ -1,4 +1,4 @@
-export const APP_VERSION = "0.5.2";
+export const APP_VERSION = "0.10.0";
 
 export const SHOW_JSON_IO = false;
 

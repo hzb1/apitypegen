@@ -9,6 +9,11 @@ import CodeCard from "../code-card/CodeCard.tsx";
 import Method from "../ui/Method/Method.tsx";
 import type { TsCodeParts } from "@/pages/home/home.types.ts";
 import ResponseTabs from "./ResponseTabs.tsx";
+import {
+  buildPathParametersCode,
+  buildRequestBodyCode,
+  buildResponseCode,
+} from "./typeCodeBundles.ts";
 
 /** 接口详情连续展示区的输入。 */
 type ApiInfoProps = {
@@ -212,17 +217,12 @@ const ApiInfo = ({ api, apiBaseUrl, documentData, codeMap, selectedResponse, onR
   }, [api.path, apiBaseUrl]);
   const authorizationSchemes = useMemo(() => getAuthorizationSchemes(api, documentData), [api, documentData]);
   const headerItems = useMemo<HeaderItem[]>(() => getHeaderItems(api, authorizationSchemes), [api, authorizationSchemes]);
-  const requestTypes = codeMap?.["Request Types"]?.trim();
-  const responseCode = selectedResponse === "all"
-    ? codeMap?.Responses?.map((response) =>
-      `// 响应 ${response.status}${response.description ? `：${response.description}` : ""}\n${response.code.replaceAll("ResponseData", `Response${response.status}`)}`,
-    ).join("\n\n") || codeMap?.["Response Data"]
-    : codeMap?.Responses?.find((item) => item.status === selectedResponse)?.code;
-  const responseTypes = selectedResponse === "all"
-    ? codeMap?.Responses?.map((response) => response.responseModels).filter(Boolean).join("\n\n")
-    : codeMap?.Responses?.find((item) => item.status === selectedResponse)?.responseModels;
-  const relatedTypes = Array.from(new Set([requestTypes, responseTypes?.trim()].filter(Boolean)))
-    .join("\n\n") || "// 当前接口没有关联类型";
+  const pathParametersCode = useMemo(() => buildPathParametersCode(codeMap), [codeMap]);
+  const requestBodyCode = useMemo(() => buildRequestBodyCode(codeMap), [codeMap]);
+  const responseCode = useMemo(
+    () => buildResponseCode(codeMap, selectedResponse),
+    [codeMap, selectedResponse],
+  );
 
   const handleCopyFullPath = async () => {
     const copied = await copyToClipboard(fullApiPath);
@@ -280,27 +280,24 @@ const ApiInfo = ({ api, apiBaseUrl, documentData, codeMap, selectedResponse, onR
             ) : <p className="api-doc__headers-empty">该接口未声明请求 Header</p>}
           </section>
 
-          <section className="api-doc__section" aria-labelledby="request-title">
-            <h2 id="request-title" className="api-doc__section-title">Request</h2>
-            <div className="api-doc__code-group">
-              <CodeCard title="Path parameters" code={codeMap?.["Query Params"]} maxVisibleLines={7} />
-              {hasRequestBody ? <CodeCard title="Request body" code={codeMap?.["Request Body"]} /> : null}
-            </div>
-          </section>
-
-          <section className="api-doc__response" aria-labelledby="response-title">
-            <div className="api-doc__response-heading">
-              <h2 id="response-title" className="api-doc__section-title">Response</h2>
-              {codeMap?.Responses?.length ? (
-                <ResponseTabs responses={codeMap.Responses} value={selectedResponse} onChange={onResponseChange} label="响应状态选择" />
-              ) : null}
-            </div>
-            <CodeCard title={selectedResponse === "all" ? "All responses" : `Response ${selectedResponse}`} code={responseCode} />
-          </section>
+          <CodeCard
+            title="Path parameters"
+            code={pathParametersCode}
+            maxVisibleLines={7}
+            heightMode={hasRequestBody ? "content" : "fill"}
+          />
+          {hasRequestBody ? <CodeCard title="Request body" code={requestBodyCode} heightMode="fill" /> : null}
         </main>
 
-        <aside className="api-doc__related" aria-label="关联类型">
-          <CodeCard title="关联类型" code={relatedTypes} maxVisibleLines={22} />
+        <aside className="api-doc__response" aria-label="Response">
+          {codeMap?.Responses?.length ? (
+            <ResponseTabs responses={codeMap.Responses} value={selectedResponse} onChange={onResponseChange} label="响应状态选择" />
+          ) : null}
+          <CodeCard
+            title={selectedResponse === "all" ? "All responses" : `Response ${selectedResponse}`}
+            code={responseCode}
+            heightMode="fill"
+          />
         </aside>
       </div>
     </article>

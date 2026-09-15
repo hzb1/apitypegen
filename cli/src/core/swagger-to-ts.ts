@@ -9,13 +9,23 @@ export interface GeneratorOptions {
 }
 
 export interface GeneratedTypes {
+  /** 查询及路径参数类型代码。 */
   queryParams: string;
+  /** 查询及路径参数实际引用的模型代码。 */
+  queryModels: string;
+  /** 请求体入口类型代码。 */
   requestBody: string;
   /** 查询参数与请求体实际引用的模型代码。 */
   requestModels: string;
+  /** 请求体实际引用的模型代码。 */
+  requestBodyModels: string;
+  /** 兼容旧调用方的默认响应入口类型代码。 */
   responseData: string;
   /** 按 HTTP 状态码拆分的响应类型。 */
   responses: GeneratedResponse[];
+  /** 全部响应实际引用的模型代码，不包含请求侧模型。 */
+  allResponseModels: string;
+  /** 当前接口请求与全部响应依赖的模型全集。 */
   models: string;
 }
 
@@ -31,7 +41,17 @@ export interface GeneratedResponse {
   models: string;
   /** 相对于请求新增的响应关联类型；旧缓存记录中可能不存在。 */
   responseModels?: string;
+  /** 当前状态响应独立使用时需要的完整模型代码。 */
+  standaloneModels: string;
 }
+
+/** 响应生成过程的内部聚合结果。 */
+type GeneratedResponsesResult = {
+  /** 按 HTTP 状态码拆分的响应结果。 */
+  responses: GeneratedResponse[];
+  /** 所有响应独立依赖的模型定义集合。 */
+  standaloneDefinitions: Map<string, SwaggerSchema>;
+};
 
 type SwaggerSchema = {
   $ref?: string;
@@ -404,16 +424,21 @@ export class SwaggerToTS {
       : `${this.exp}type ResponseData = any${this.semi}`;
   }
 
-  private generateResponses(operation: SwaggerOperation): GeneratedResponse[] {
+  private replaceUsedDefinitions(definitions: ReadonlyMap<string, SwaggerSchema>): void {
+    this.usedDefinitions.clear();
+    for (const [name, schema] of definitions) this.usedDefinitions.set(name, schema);
+  }
+
+  private generateResponses(operation: SwaggerOperation): GeneratedResponsesResult {
     const responses = operation.responses || {};
     // 请求参数和请求体始终显示；每个响应从这份公共依赖开始，避免混入其他状态的模型。
     const sharedDefinitions = new Map(this.usedDefinitions);
     const sharedModels = this.generateModels();
     const allDefinitions = new Map(sharedDefinitions);
+    const standaloneDefinitions = new Map<string, SwaggerSchema>();
     const generated = Object.entries(responses).map(([status, response]) => {
       const resolvedResponse = this.resolveComponent(response);
-      this.usedDefinitions.clear();
-      for (const [name, schema] of sharedDefinitions) this.usedDefinitions.set(name, schema);
+      this.replaceUsedDefinitions(sharedDefinitions);
 
       const code = response
         ? this.generateResponse({ responses: { [status]: response } })
@@ -424,12 +449,25 @@ export class SwaggerToTS {
         ? models.slice(sharedModels.length).trimStart()
         : models;
       for (const [name, schema] of this.usedDefinitions) allDefinitions.set(name, schema);
-      return { status, description: resolvedResponse?.description || "", code, models, responseModels };
+
+      // 单独重新收集本响应的依赖，避免完整 Response 代码夹带查询参数或请求体模型。
+      this.usedDefinitions.clear();
+      if (response) this.generateResponse({ responses: { [status]: response } });
+      const standaloneModels = this.generateModels();
+      for (const [name, schema] of this.usedDefinitions) standaloneDefinitions.set(name, schema);
+
+      return {
+        status,
+        description: resolvedResponse?.description || "",
+        code,
+        models,
+        responseModels,
+        standaloneModels,
+      };
     });
 
-    this.usedDefinitions.clear();
-    for (const [name, schema] of allDefinitions) this.usedDefinitions.set(name, schema);
-    return generated;
+    this.replaceUsedDefinitions(allDefinitions);
+    return { responses: generated, standaloneDefinitions };
   }
 
   getStructuredTypes(path: string, method: string): GeneratedTypes {
@@ -447,17 +485,53 @@ export class SwaggerToTS {
       : undefined;
 
     if (!operation) {
-      return { queryParams: "", requestBody: "", requestModels: "", responseData: "", responses: [], models: "" };
+      return {
+        queryParams: "",
+        queryModels: "",
+        requestBody: "",
+        requestModels: "",
+        requestBodyModels: "",
+        responseData: "",
+        responses: [],
+        allResponseModels: "",
+        models: "",
+      };
     }
 
     const queryParams = this.generateQueryParams(operation);
+    const queryModels = this.generateModels();
+    const queryDefinitions = new Map(this.usedDefinitions);
+
+    this.usedDefinitions.clear();
     const requestBody = this.generateRequestBody(operation);
+    const requestBodyModels = this.generateModels();
+    const requestBodyDefinitions = new Map(this.usedDefinitions);
+
+    this.replaceUsedDefinitions(queryDefinitions);
+    for (const [name, schema] of requestBodyDefinitions) this.usedDefinitions.set(name, schema);
     const requestModels = this.generateModels();
-    const responses = this.generateResponses(operation);
+    const generatedResponses = this.generateResponses(operation);
+    const responses = generatedResponses.responses;
+
+    const allDefinitions = new Map(this.usedDefinitions);
+    this.replaceUsedDefinitions(generatedResponses.standaloneDefinitions);
+    const allResponseModels = this.generateModels();
+    this.replaceUsedDefinitions(allDefinitions);
+
     const responseData = this.generateResponse(operation);
     const models = this.generateModels();
 
-    return { queryParams, requestBody, requestModels, responseData, responses, models };
+    return {
+      queryParams,
+      queryModels,
+      requestBody,
+      requestModels,
+      requestBodyModels,
+      responseData,
+      responses,
+      allResponseModels,
+      models,
+    };
   }
 
   private generateModels(): string {

@@ -11,6 +11,22 @@ const commonFixture = JSON.parse(readFileSync(path.join(root, "tests/fixtures-co
 const { SwaggerToTS } = await import("../dist/core/swagger-to-ts.js");
 const { mergeTypeScriptValidationResults, validateTypeScriptSyntax } = await import("../dist/core/typescript-validation.js");
 
+function assertTypeScriptCompiles(code, label = "生成代码") {
+  const fileName = path.join(root, `generated-${label.replace(/[^0-9A-Z_a-z-]/g, "-")}.ts`);
+  const options = { noEmit: true, strict: true, skipLibCheck: true, types: [], target: ts.ScriptTarget.ESNext };
+  const host = ts.createCompilerHost(options);
+  const getSourceFile = host.getSourceFile.bind(host);
+  host.getSourceFile = (name, ...args) => name === fileName
+    ? ts.createSourceFile(name, code, ts.ScriptTarget.ESNext, true)
+    : getSourceFile(name, ...args);
+  const diagnostics = ts.getPreEmitDiagnostics(ts.createProgram([fileName], options, host));
+  assert.deepEqual(
+    diagnostics.map((item) => ts.flattenDiagnosticMessageText(item.messageText, "\n")),
+    [],
+    label,
+  );
+}
+
 test("运行时校验器识别 TypeScript 语法错误且不返回代码内容", () => {
   const valid = validateTypeScriptSyntax({
     code: "export type Timestamp = number;",
@@ -89,14 +105,35 @@ test("响应模型隔离后仍保留公共请求依赖，单状态代码可以�
     properties: { filter: { $ref: "#/components/schemas/Filter" } },
   };
   doc.components.schemas.Filter = { type: "object", properties: { text: { type: "string" } } };
+  doc.components.schemas.QueryFilter = {
+    type: "object",
+    properties: { term: { $ref: "#/components/schemas/SearchTerm" } },
+  };
+  doc.components.schemas.SearchTerm = { type: "object", properties: { value: { type: "string" } } };
   doc.components.schemas.ApiError = { type: "object", properties: { reason: { type: "string" } } };
   const operation = doc.paths["/orders/{id}"].get;
+  operation.parameters.push({
+    name: "filter",
+    in: "query",
+    schema: { $ref: "#/components/schemas/QueryFilter" },
+  });
   operation.requestBody = { content: { "application/json": { schema: { $ref: "#/components/schemas/Input" } } } };
   operation.responses["404"].content["application/json"].schema = { $ref: "#/components/schemas/ApiError" };
   operation.responses["204"] = { description: "无内容" };
   operation.responses.default = operation.responses["404"];
   const parser = new SwaggerToTS(doc);
   const generated = parser.getStructuredTypes("/orders/{id}", "get");
+
+  assert.match(generated.queryModels, /interface QueryFilter/);
+  assert.match(generated.queryModels, /interface SearchTerm/);
+  assert.doesNotMatch(generated.queryModels, /interface Input|interface Filter/);
+  assert.match(generated.requestBodyModels, /interface Input/);
+  assert.match(generated.requestBodyModels, /interface Filter/);
+  assert.doesNotMatch(generated.requestBodyModels, /interface QueryFilter|interface SearchTerm/);
+  assert.match(generated.requestModels, /interface QueryFilter/);
+  assert.match(generated.requestModels, /interface Input/);
+  assertTypeScriptCompiles([generated.queryParams, generated.queryModels].join("\n\n"), "query");
+  assertTypeScriptCompiles([generated.requestBody, generated.requestBodyModels].join("\n\n"), "request-body");
 
   for (const response of generated.responses) {
     assert.match(response.models, /interface Input/);
@@ -111,19 +148,16 @@ test("响应模型隔离后仍保留公共请求依赖，单状态代码可以�
     if (response.status === "404" || response.status === "default") {
       assert.match(response.models, /interface ApiError/);
     }
-
-    const fileName = path.join(root, `generated-response-${response.status}.ts`);
-    const code = [response.models, generated.queryParams, generated.requestBody, response.code].join("\n\n");
-    const options = { noEmit: true, strict: true, skipLibCheck: true, types: [], target: ts.ScriptTarget.ESNext };
-    const host = ts.createCompilerHost(options);
-    const getSourceFile = host.getSourceFile.bind(host);
-    host.getSourceFile = (name, ...args) => name === fileName
-      ? ts.createSourceFile(name, code, ts.ScriptTarget.ESNext, true)
-      : getSourceFile(name, ...args);
-    const diagnostics = ts.getPreEmitDiagnostics(ts.createProgram([fileName], options, host));
-    assert.deepEqual(diagnostics.map((item) => ts.flattenDiagnosticMessageText(item.messageText, "\n")), [], response.status);
+    assert.doesNotMatch(response.standaloneModels, /interface Input|interface Filter|interface QueryFilter|interface SearchTerm/);
+    assertTypeScriptCompiles(
+      [response.code, response.standaloneModels].join("\n\n"),
+      `response-${response.status}`,
+    );
   }
 
+  assert.match(generated.allResponseModels, /interface Order/);
+  assert.match(generated.allResponseModels, /interface ApiError/);
+  assert.doesNotMatch(generated.allResponseModels, /interface Input|interface Filter|interface QueryFilter|interface SearchTerm/);
   assert.match(generated.models, /interface Order/);
   assert.match(generated.models, /interface ApiError/);
   assert.equal((generated.models.match(/interface Input /g) || []).length, 1);
@@ -151,16 +185,10 @@ test("常见 OpenAPI 结构生成可编译的参数、上传请求体和响应�
   assert.match(success.models, /values\?: \(string \| number\)\[\]/);
   assert.match(success.models, /optional\?: boolean \| null/);
 
-  const fileName = path.join(root, "generated-common-openapi.ts");
-  const code = [success.models, generated.queryParams, generated.requestBody, success.code].join("\n\n");
-  const options = { noEmit: true, strict: true, skipLibCheck: true, types: [], target: ts.ScriptTarget.ESNext };
-  const host = ts.createCompilerHost(options);
-  const getSourceFile = host.getSourceFile.bind(host);
-  host.getSourceFile = (name, ...args) => name === fileName
-    ? ts.createSourceFile(name, code, ts.ScriptTarget.ESNext, true)
-    : getSourceFile(name, ...args);
-  const diagnostics = ts.getPreEmitDiagnostics(ts.createProgram([fileName], options, host));
-  assert.deepEqual(diagnostics.map((item) => ts.flattenDiagnosticMessageText(item.messageText, "\n")), []);
+  assertTypeScriptCompiles(
+    [success.models, generated.queryParams, generated.requestBody, success.code].join("\n\n"),
+    "common-openapi",
+  );
 });
 
 test("解析 components 中的请求体、响应引用并将枚举声明为合法 type", () => {

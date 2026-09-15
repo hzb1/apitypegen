@@ -300,14 +300,20 @@ const searchDataSchema = z.object({
 
 const generatedPartsSchema = z.object({
   queryParams: z.string(),
+  queryModels: z.string(),
   requestBody: z.string(),
+  requestModels: z.string(),
+  requestBodyModels: z.string(),
   responseData: z.string(),
   responses: z.array(z.object({
     status: z.string(),
     description: z.string(),
     code: z.string(),
     models: z.string(),
+    responseModels: z.string().optional(),
+    standaloneModels: z.string(),
   })),
+  allResponseModels: z.string(),
   models: z.string(),
 });
 

@@ -7,6 +7,11 @@
   background: var(--ts-surface);
 }
 
+.code-card.code-card--fill {
+  flex: 1;
+  min-height: 0;
+}
+
 .code-card-head {
   min-height: var(--ts-size-control-md-min);
   display: flex;
@@ -32,7 +37,13 @@
 .code-card-body {
   flex: 0 0 auto;
   min-height: 0;
+  height: var(--code-card-body-height);
   display: flex;
+}
+
+.code-card.code-card--fill .code-card-body {
+  flex: 1 1 auto;
+  height: auto;
 }
 
 .code-card-panel {
