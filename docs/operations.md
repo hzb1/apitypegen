@@ -36,6 +36,9 @@ npm run build:glitchtip --workspace=@apitypegen/ui
 npm run build:glitchtip:cli
 ```
 
+`build:glitchtip:cli` 会先按根目录锁文件安装 CLI 与根工作区依赖，因此可以在执行
+`deploy:ui` 或其它单工作区安装之后直接运行，并确保上传所需的 `sentry-cli` 可用。
+
 常用覆盖项：
 
 - UI：`UI_SENTRY_ORG`、`UI_SENTRY_PROJECT`、`UI_SOURCEMAP_URL_PREFIX`。

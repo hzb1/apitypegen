@@ -13,7 +13,7 @@
     "build:cli": "npm run build --workspace=@hzb1/apitypegen",
     "build:ui": "npm run build --workspace=@apitypegen/ui",
     "build:extension": "npm run build --workspace=@apitypegen/extension",
-    "build:glitchtip:cli": "npm run build:cli && npm run sourcemaps:upload:cli",
+    "build:glitchtip:cli": "npm ci --include-workspace-root --workspace=@hzb1/apitypegen && npm run build:cli && npm run sourcemaps:upload:cli",
     "deploy:extension": "bash scripts/deploy-extension.sh",
     "deploy:ui": "bash scripts/deploy-ui.sh",
     "glitchtip:test:cli": "npm run build:cli && node ./scripts/send-cli-glitchtip-test.mjs",
