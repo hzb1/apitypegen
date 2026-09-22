@@ -705,12 +705,220 @@ test("search_apis 遇到 HTML 来源类型错误时触发 Elicitation 并自动�
       },
     });
 
-    assert.equal(elicitationRequests.length, 1);
+    assert.equal(elicitationRequests.length, 2);
     assert.equal(elicitationRequests[0].method, "elicitation/create");
     assert.deepEqual(elicitationRequests[0].params.requestedSchema.required, ["url"]);
+    assert.deepEqual(elicitationRequests[1].params.requestedSchema.required, ["selected"]);
     assert.equal(result.structuredContent.ok, true);
     assert.equal(result.structuredContent.data.returned, 1);
     assert.equal(result.structuredContent.data.items[0].selector.path, "/login");
+  } finally {
+    await client.close();
+    await server.close();
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("search_apis 在支持表单的客户端弹出多选确认并返回 confirmedSelectors", async () => {
+  const { createApiTypeGenMcpServer } = await import("../dist/mcp/server.js");
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () =>
+    new Response(
+      JSON.stringify({
+        openapi: "3.0.0",
+        info: { title: "Order Service" },
+        paths: {
+          "/orders": {
+            get: { summary: "查询订单", responses: { 200: { description: "ok" } } },
+          },
+          "/orders/{id}": {
+            post: { summary: "创建订单", responses: { 200: { description: "ok" } } },
+          },
+        },
+      }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
+
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  const client = new Client(
+    { name: "apitypegen-confirm-test", version: "1.0.0" },
+    { capabilities: { elicitation: { form: {} } } },
+  );
+  const server = createApiTypeGenMcpServer();
+  const elicitationRequests = [];
+  client.setRequestHandler(ElicitRequestSchema, async (request) => {
+    elicitationRequests.push(request);
+    return { action: "accept", content: { selected: ["0", "1"] } };
+  });
+
+  try {
+    await Promise.all([
+      server.connect(serverTransport),
+      client.connect(clientTransport),
+    ]);
+    const result = await client.callTool({
+      name: "search_apis",
+      arguments: {
+        source: { type: "openapi", url: "https://example.test/openapi.json" },
+        keyword: "订单",
+        refresh: true,
+      },
+    });
+
+    assert.equal(result.structuredContent.ok, true);
+    assert.equal(elicitationRequests.length, 1);
+    const selectedField = elicitationRequests[0].params.requestedSchema.properties.selected;
+    assert.equal(selectedField.type, "array");
+    assert.equal(selectedField.minItems, 1);
+    assert.equal(selectedField.items.anyOf.length, 2);
+    assert.deepEqual(
+      result.structuredContent.data.confirmedSelectors,
+      result.structuredContent.data.items.map((item) => item.selector),
+    );
+  } finally {
+    await client.close();
+    await server.close();
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("search_apis 用户拒绝确认时仍返回完整候选", async () => {
+  const { createApiTypeGenMcpServer } = await import("../dist/mcp/server.js");
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () =>
+    new Response(
+      JSON.stringify({
+        openapi: "3.0.0",
+        info: { title: "Order Service" },
+        paths: {
+          "/orders": {
+            get: { summary: "查询订单", responses: { 200: { description: "ok" } } },
+          },
+        },
+      }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
+
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  const client = new Client(
+    { name: "apitypegen-decline-test", version: "1.0.0" },
+    { capabilities: { elicitation: { form: {} } } },
+  );
+  const server = createApiTypeGenMcpServer();
+  client.setRequestHandler(ElicitRequestSchema, async () => ({ action: "decline" }));
+
+  try {
+    await Promise.all([
+      server.connect(serverTransport),
+      client.connect(clientTransport),
+    ]);
+    const result = await client.callTool({
+      name: "search_apis",
+      arguments: {
+        source: { type: "openapi", url: "https://example.test/openapi.json" },
+        keyword: "订单",
+        refresh: true,
+      },
+    });
+
+    assert.equal(result.structuredContent.ok, true);
+    assert.equal(result.structuredContent.data.items.length, 1);
+    assert.equal(result.structuredContent.data.confirmedSelectors, undefined);
+  } finally {
+    await client.close();
+    await server.close();
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("search_apis 客户端不支持表单时不弹确认", async () => {
+  const { createApiTypeGenMcpServer } = await import("../dist/mcp/server.js");
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () =>
+    new Response(
+      JSON.stringify({
+        openapi: "3.0.0",
+        info: { title: "Order Service" },
+        paths: {
+          "/orders": {
+            get: { summary: "查询订单", responses: { 200: { description: "ok" } } },
+          },
+        },
+      }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
+
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  const client = new Client({ name: "apitypegen-no-elicitation-test", version: "1.0.0" });
+  const server = createApiTypeGenMcpServer();
+
+  try {
+    await Promise.all([
+      server.connect(serverTransport),
+      client.connect(clientTransport),
+    ]);
+    const result = await client.callTool({
+      name: "search_apis",
+      arguments: {
+        source: { type: "openapi", url: "https://example.test/openapi.json" },
+        keyword: "订单",
+        refresh: true,
+      },
+    });
+
+    assert.equal(result.structuredContent.ok, true);
+    assert.equal(result.structuredContent.data.confirmedSelectors, undefined);
+  } finally {
+    await client.close();
+    await server.close();
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("search_apis 收到非法下标时回退为未确认结果", async () => {
+  const { createApiTypeGenMcpServer } = await import("../dist/mcp/server.js");
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () =>
+    new Response(
+      JSON.stringify({
+        openapi: "3.0.0",
+        info: { title: "Order Service" },
+        paths: {
+          "/orders": {
+            get: { summary: "查询订单", responses: { 200: { description: "ok" } } },
+          },
+        },
+      }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
+
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  const client = new Client(
+    { name: "apitypegen-bad-index-test", version: "1.0.0" },
+    { capabilities: { elicitation: { form: {} } } },
+  );
+  const server = createApiTypeGenMcpServer();
+  client.setRequestHandler(ElicitRequestSchema, async () => ({
+    action: "accept",
+    content: { selected: ["99"] },
+  }));
+
+  try {
+    await Promise.all([
+      server.connect(serverTransport),
+      client.connect(clientTransport),
+    ]);
+    const result = await client.callTool({
+      name: "search_apis",
+      arguments: {
+        source: { type: "openapi", url: "https://example.test/openapi.json" },
+        keyword: "订单",
+        refresh: true,
+      },
+    });
+
+    assert.equal(result.structuredContent.ok, true);
+    assert.equal(result.structuredContent.data.confirmedSelectors, undefined);
   } finally {
     await client.close();
     await server.close();

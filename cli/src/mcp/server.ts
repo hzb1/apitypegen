@@ -213,7 +213,7 @@ export const MCP_INSTRUCTIONS = `APITypeGen 用于从用户提供的接口文档
 1. 用户没有明确的接口文档来源时，先调用 resolve_source；该工具只要求用户提供地址，服务端会自动识别来源类型。
 2. 用户只提供 URL 但未说明类型时，也先调用 resolve_source，而不是让用户选择或猜测 OpenAPI 与 swagger-config。
 3. resolve_source 返回 source 后，再调用 search_apis；已有明确 source.type 和 source.url 时可直接调用 search_apis。
-4. search_apis 返回候选结果后，必须把 service、method、path、summary 展示给用户并请求确认。
+4. search_apis 返回候选结果后，若结果包含 confirmedSelectors，说明用户已通过原生表单完成确认，直接用 confirmedSelectors 调 generate_typescript 并传 confirmed=true；否则必须把 service、method、path、summary 展示给用户并请求确认。
 5. 用户明确确认前，不得调用 generate_typescript；不得默认选择第一个结果或根据相似路径猜测。
 6. 用户确认后，原样使用已确认的 selector 调用 generate_typescript，并传入 confirmed=true；一次生成多个已确认接口时，用 selectors 数组一次传入多个 selector，同样只需 confirmed=true。
 7. 不要猜测、拼接或探测 OpenAPI、swagger-config 地址。
@@ -310,6 +310,7 @@ const searchDataSchema = z.object({
   returned: z.number().int().nonnegative(),
   limit: z.number().int().positive(),
   confirmationRequired: z.literal(true),
+  confirmedSelectors: z.array(selectorSchema).optional(),
   items: z.array(
     apiItemSchema.extend({
       service: z.string(),
@@ -728,7 +729,7 @@ export async function executeResolveSourceTool(
 /** 执行 search_apis，不依赖 MCP 传输层，便于契约测试和其他适配器复用。 */
 export async function executeSearchApisTool(input: SearchApisToolInput) {
   try {
-    return await executeSearchApisWithSource(input);
+    return toToolResult(await executeSearchApisWithSource(input));
   } catch (error) {
     return toToolResult(createMcpFailure("search_apis", error), true);
   }
@@ -745,14 +746,91 @@ async function executeSearchApisWithSource(input: SearchApisToolInput) {
     keyword: input.keyword,
     limit: input.limit ?? DEFAULT_SEARCH_LIMIT,
   });
-  return toToolResult(
-    createMcpSuccess("search_apis", result.data, result.warnings),
-  );
+  return createMcpSuccess("search_apis", result.data, result.warnings);
+}
+
+type SearchItemLike = {
+  method: string;
+  path: string;
+  service: string;
+  summary: string;
+  selector: { service: string; method: string; path: string };
+};
+
+/** 构建 search 结果的多选确认表单；选项值使用数组下标，避免跨服务 key 冲突。 */
+function createApiSelectionElicitationSchema(items: SearchItemLike[]) {
+  return {
+    type: "object" as const,
+    properties: {
+      selected: {
+        type: "array" as const,
+        title: "要生成类型的接口",
+        description: "勾选一个或多个接口，确认后可直接批量生成 TypeScript 类型",
+        minItems: 1,
+        maxItems: Math.min(items.length, MAX_BATCH_SELECTORS),
+        items: {
+          anyOf: items.map((item, index) => ({
+            const: String(index),
+            title: `${item.method.toUpperCase()} ${item.path}（${item.service}）${item.summary ? `：${item.summary}` : ""}`,
+          })),
+        },
+      },
+    },
+    required: ["selected"],
+  };
+}
+
+/** 在支持的客户端弹出原生多选确认表单，返回用户勾选的 selector；任何失败都回退为 undefined。 */
+async function elicitApiSelection(
+  server: McpServer,
+  items: SearchItemLike[],
+): Promise<Array<{ service: string; method: string; path: string }> | undefined> {
+  if (server.server.getClientCapabilities()?.elicitation?.form === undefined) return undefined;
+  if (items.length === 0) return undefined;
+  try {
+    const result = await server.server.elicitInput({
+      mode: "form",
+      message: "请选择要生成 TypeScript 类型的接口（可多选）；取消则仅返回候选结果。",
+      requestedSchema: createApiSelectionElicitationSchema(items),
+    });
+    if (result.action !== "accept" || !result.content) return undefined;
+    const selected = (result.content as { selected?: unknown }).selected;
+    if (!Array.isArray(selected) || selected.length === 0) return undefined;
+    const selectors: Array<{ service: string; method: string; path: string }> = [];
+    for (const value of selected) {
+      const index = Number(value);
+      if (!Number.isInteger(index) || index < 0 || index >= items.length) return undefined;
+      selectors.push(items[index].selector);
+    }
+    return selectors;
+  } catch {
+    return undefined;
+  }
+}
+
+/** 在支持的客户端上对成功的搜索结果追加原生表单确认结果。 */
+async function withConfirmedSelectors<T extends { ok: boolean; data?: { items?: SearchItemLike[] } }>(
+  server: McpServer,
+  structuredContent: T,
+): Promise<T> {
+  if (structuredContent.ok !== true || !structuredContent.data?.items?.length) {
+    return structuredContent;
+  }
+  const confirmed = await elicitApiSelection(server, structuredContent.data.items);
+  if (!confirmed) return structuredContent;
+  return {
+    ...structuredContent,
+    data: { ...structuredContent.data, confirmedSelectors: confirmed },
+  };
 }
 
 async function executeSearchApisWithRecovery(input: SearchApisToolInput, server: McpServer) {
   try {
-    return await executeSearchApisWithSource(input);
+    const structuredContent = await withConfirmedSelectors(
+      server,
+      await executeSearchApisWithSource(input),
+    );
+    return toToolResult(structuredContent);
   } catch (error) {
     if (isSourceRecoveryError(error)) {
       try {
@@ -768,11 +846,15 @@ async function executeSearchApisWithRecovery(input: SearchApisToolInput, server:
                 "输入地址仍是 Swagger 页面，请提供页面实际加载的 JSON 文档地址。",
               );
             }
-            return await executeSearchApisWithSource({
-              ...input,
-              source: inspection.source,
-              chromePath: undefined,
-            });
+            const structuredContent = await withConfirmedSelectors(
+              server,
+              await executeSearchApisWithSource({
+                ...input,
+                source: inspection.source,
+                chromePath: undefined,
+              }),
+            );
+            return toToolResult(structuredContent);
           } catch (retryError) {
             return toToolResult(createMcpFailure("search_apis", retryError), true);
           }
@@ -1001,7 +1083,7 @@ export function createApiTypeGenMcpServer(): McpServer {
     {
       title: "搜索 OpenAPI 接口",
       description:
-        "这是 APITypeGen 的主要接口查询与定位工具。通过 MCP 从用户明确提供的 OpenAPI JSON、多服务配置 JSON 或接口文档页面（Swagger UI / Knife4j）中搜索接口，返回精确 selector，适合随后调用 generate_typescript。不要打开 APITypeGen 网页或调用浏览器插件；不会猜测任何文档地址。",
+        "这是 APITypeGen 的主要接口查询与定位工具。通过 MCP 从用户明确提供的 OpenAPI JSON、多服务配置 JSON 或接口文档页面（Swagger UI / Knife4j）中搜索接口，返回精确 selector，适合随后调用 generate_typescript。支持原生表单的客户端会在返回前弹出多选确认表单，确认结果以 confirmedSelectors 一并返回。不要打开 APITypeGen 网页或调用浏览器插件；不会猜测任何文档地址。",
       inputSchema: {
         source: sourceSchema,
         keyword: z.string().trim().min(1).describe("API 搜索关键词"),
