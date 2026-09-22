@@ -62,6 +62,7 @@ type OpenApiCacheEntry = {
 
 const DEFAULT_CACHE_TTL_MS = 5 * 60 * 1000;
 const DEFAULT_TIMEOUT_MS = 15000;
+const inFlightLoads = new Map<string, Promise<OpenApiCacheResult>>();
 
 /** 返回默认的 OpenAPI 文档缓存目录。 */
 export function defaultOpenApiCacheDir(): string {
@@ -111,20 +112,20 @@ async function writeCacheEntry(
   }
 }
 
-/** 使用本地缓存和 HTTP 条件请求加载 OpenAPI 文档。 */
-export async function loadOpenApiDocumentWithCache(
+/** 执行单次缓存读取和网络加载。 */
+async function loadOpenApiDocumentUnshared(
   documentUrl: string,
-  options: OpenApiCacheOptions = {},
+  cacheDir: string,
+  cachePath: string,
+  ttlMs: number,
+  timeoutMs: number,
+  refresh: boolean,
 ): Promise<OpenApiCacheResult> {
-  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const ttlMs = Math.max(0, options.ttlMs ?? DEFAULT_CACHE_TTL_MS);
-  const cacheDir = options.cacheDir || defaultOpenApiCacheDir();
-  const cachePath = cacheFilePath(cacheDir, documentUrl);
   const cachedEntry = await readCacheEntry(cachePath);
 
   if (
     cachedEntry &&
-    !options.refresh &&
+    !refresh &&
     Date.now() - cachedEntry.cachedAt <= ttlMs
   ) {
     return { document: cachedEntry.document, cacheStatus: "hit" };
@@ -175,5 +176,34 @@ export async function loadOpenApiDocumentWithCache(
     throw new Error(String(error));
   } finally {
     clearTimeout(timer);
+  }
+}
+
+/** 使用本地缓存和 HTTP 条件请求加载 OpenAPI 文档，并合并相同的进行中请求。 */
+export async function loadOpenApiDocumentWithCache(
+  documentUrl: string,
+  options: OpenApiCacheOptions = {},
+): Promise<OpenApiCacheResult> {
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const ttlMs = Math.max(0, options.ttlMs ?? DEFAULT_CACHE_TTL_MS);
+  const cacheDir = options.cacheDir || defaultOpenApiCacheDir();
+  const cachePath = cacheFilePath(cacheDir, documentUrl);
+  const key = JSON.stringify([cachePath, ttlMs, timeoutMs, options.refresh === true]);
+  const existing = inFlightLoads.get(key);
+  if (existing) return await existing;
+
+  const load = loadOpenApiDocumentUnshared(
+    documentUrl,
+    cacheDir,
+    cachePath,
+    ttlMs,
+    timeoutMs,
+    options.refresh === true,
+  );
+  inFlightLoads.set(key, load);
+  try {
+    return await load;
+  } finally {
+    if (inFlightLoads.get(key) === load) inFlightLoads.delete(key);
   }
 }

@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { mkdtemp, rm } from "node:fs/promises";
 import http from "node:http";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -167,6 +169,61 @@ test("MCP stdio 暴露识别、搜索和生成工具并返回结构化结果", a
     await client?.close();
     await transport?.close();
     await close(server);
+  }
+});
+
+test("MCP 多服务搜索共用同一文档请求并保留服务选择器", async (t) => {
+  const cacheRoot = await mkdtemp(path.join(tmpdir(), "apitypegen-mcp-shared-openapi-"));
+  const previousCacheRoot = process.env.XDG_CACHE_HOME;
+  process.env.XDG_CACHE_HOME = cacheRoot;
+  const configUrl = "https://example.test/swagger-config";
+  const documentUrl = "https://example.test/shared-openapi";
+  const requests = [];
+  t.mock.method(globalThis, "fetch", async (url) => {
+    requests.push(String(url));
+    const body = String(url) === configUrl
+      ? {
+          urls: [
+            { name: "订单服务 A", url: documentUrl },
+            { name: "订单服务 B", url: documentUrl },
+          ],
+        }
+      : {
+          openapi: "3.0.0",
+          info: { title: "订单文档" },
+          paths: {
+            "/orders": {
+              get: { summary: "查询订单", responses: { 200: { description: "ok" } } },
+            },
+          },
+        };
+    return new Response(JSON.stringify(body), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  });
+
+  try {
+    const { executeSearchApisTool } = await import("../dist/mcp/server.js");
+    const result = await executeSearchApisTool({
+      source: { type: "swagger-config", url: configUrl },
+      keyword: "查询订单",
+    });
+
+    assert.equal(result.structuredContent.ok, true);
+    assert.deepEqual(requests, [configUrl, documentUrl]);
+    assert.equal(result.structuredContent.data.loadedServices, 2);
+    assert.deepEqual(
+      result.structuredContent.data.items.map((item) => item.selector),
+      [
+        { service: "订单服务 A", method: "get", path: "/orders" },
+        { service: "订单服务 B", method: "get", path: "/orders" },
+      ],
+    );
+  } finally {
+    if (previousCacheRoot === undefined) delete process.env.XDG_CACHE_HOME;
+    else process.env.XDG_CACHE_HOME = previousCacheRoot;
+    await rm(cacheRoot, { recursive: true, force: true });
   }
 });
 

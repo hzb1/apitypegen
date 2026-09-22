@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, readdir, stat } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm, stat } from "node:fs/promises";
 import http from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -91,5 +91,107 @@ test("OpenAPI 缓存支持命中、条件校验和强制刷新", async () => {
     }
   } finally {
     await close(server);
+  }
+});
+
+test("相同文档的并发加载与强制刷新共用一次请求", async (t) => {
+  const cacheDir = await mkdtemp(path.join(tmpdir(), "apitypegen-openapi-concurrent-"));
+  const documentUrl = "https://example.test/concurrent-openapi";
+  const requests = [];
+  t.mock.method(globalThis, "fetch", async (_url, options) => {
+    requests.push(options?.headers?.["If-None-Match"]);
+    if (options?.headers?.["If-None-Match"] === '"revision-1"') {
+      return new Response(null, { status: 304 });
+    }
+    return new Response(
+      JSON.stringify({ openapi: "3.0.0", info: { title: "Concurrent" }, paths: {} }),
+      { status: 200, headers: { etag: '"revision-1"' } },
+    );
+  });
+
+  try {
+    const options = { cacheDir, timeoutMs: 2000 };
+    const initial = await Promise.all([
+      loadOpenApiDocumentWithCache(documentUrl, options),
+      loadOpenApiDocumentWithCache(documentUrl, options),
+    ]);
+    assert.deepEqual(initial.map((result) => result.cacheStatus), ["miss", "miss"]);
+    assert.deepEqual(requests, [undefined]);
+
+    const refreshed = await Promise.all([
+      loadOpenApiDocumentWithCache(documentUrl, { ...options, refresh: true }),
+      loadOpenApiDocumentWithCache(documentUrl, { ...options, refresh: true }),
+    ]);
+    assert.deepEqual(refreshed.map((result) => result.cacheStatus), ["validated", "validated"]);
+    assert.deepEqual(requests, [undefined, '"revision-1"']);
+
+    await loadOpenApiDocumentWithCache(documentUrl, { ...options, refresh: true });
+    assert.deepEqual(requests, [undefined, '"revision-1"', '"revision-1"']);
+  } finally {
+    await rm(cacheDir, { recursive: true, force: true });
+  }
+});
+
+test("不同文档仍可并发加载", async (t) => {
+  const cacheDir = await mkdtemp(path.join(tmpdir(), "apitypegen-openapi-distinct-"));
+  let activeRequests = 0;
+  let peakRequests = 0;
+  let releaseResponses;
+  const responsesReady = new Promise((resolve) => {
+    releaseResponses = resolve;
+  });
+  const timer = setTimeout(() => releaseResponses(), 1000);
+  t.mock.method(globalThis, "fetch", async (url) => {
+    activeRequests += 1;
+    peakRequests = Math.max(peakRequests, activeRequests);
+    if (activeRequests === 2) releaseResponses();
+    await responsesReady;
+    activeRequests -= 1;
+    return new Response(
+      JSON.stringify({ openapi: "3.0.0", info: { title: String(url) }, paths: {} }),
+      { status: 200 },
+    );
+  });
+
+  try {
+    const results = await Promise.all([
+      loadOpenApiDocumentWithCache("https://example.test/first", { cacheDir }),
+      loadOpenApiDocumentWithCache("https://example.test/second", { cacheDir }),
+    ]);
+    assert.equal(peakRequests, 2);
+    assert.deepEqual(results.map((result) => result.cacheStatus), ["miss", "miss"]);
+  } finally {
+    clearTimeout(timer);
+    await rm(cacheDir, { recursive: true, force: true });
+  }
+});
+
+test("并发加载失败后允许重新请求", async (t) => {
+  const cacheDir = await mkdtemp(path.join(tmpdir(), "apitypegen-openapi-retry-"));
+  const documentUrl = "https://example.test/retry-openapi";
+  let requests = 0;
+  t.mock.method(globalThis, "fetch", async () => {
+    requests += 1;
+    if (requests === 1) return new Response(null, { status: 503 });
+    return new Response(
+      JSON.stringify({ openapi: "3.0.0", info: { title: "Retry" }, paths: {} }),
+      { status: 200 },
+    );
+  });
+
+  try {
+    const options = { cacheDir };
+    const failures = await Promise.allSettled([
+      loadOpenApiDocumentWithCache(documentUrl, options),
+      loadOpenApiDocumentWithCache(documentUrl, options),
+    ]);
+    assert.deepEqual(failures.map((result) => result.status), ["rejected", "rejected"]);
+    assert.equal(requests, 1);
+
+    const retried = await loadOpenApiDocumentWithCache(documentUrl, options);
+    assert.equal(retried.cacheStatus, "miss");
+    assert.equal(requests, 2);
+  } finally {
+    await rm(cacheDir, { recursive: true, force: true });
   }
 });
