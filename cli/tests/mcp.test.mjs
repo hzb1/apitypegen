@@ -227,6 +227,188 @@ test("MCP 多服务搜索共用同一文档请求并保留服务选择器", asyn
   }
 });
 
+test("MCP 批量生成共用一次文档请求并返回逐项结果", async (t) => {
+  const cacheRoot = await mkdtemp(path.join(tmpdir(), "apitypegen-mcp-batch-gen-"));
+  const previousCacheRoot = process.env.XDG_CACHE_HOME;
+  process.env.XDG_CACHE_HOME = cacheRoot;
+  const documentUrl = "https://example.test/batch-openapi";
+  const requests = [];
+  t.mock.method(globalThis, "fetch", async (url) => {
+    requests.push(String(url));
+    return new Response(
+      JSON.stringify({
+        openapi: "3.0.0",
+        info: { title: "批量文档" },
+        paths: {
+          "/orders": {
+            get: { summary: "查询订单", responses: { 200: { description: "ok" } } },
+          },
+          "/orders/{id}": {
+            post: { summary: "创建订单", responses: { 200: { description: "ok" } } },
+          },
+        },
+      }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
+  });
+
+  try {
+    const { executeGenerateTypescriptTool } = await import("../dist/mcp/server.js");
+    const result = await executeGenerateTypescriptTool({
+      source: { type: "openapi", url: documentUrl },
+      selectors: [
+        { method: "get", path: "/orders" },
+        { method: "post", path: "/orders/{id}" },
+      ],
+      confirmed: true,
+    });
+
+    assert.equal(result.structuredContent.ok, true);
+    assert.deepEqual(requests, [documentUrl]);
+    const items = result.structuredContent.data.items;
+    assert.equal(items.length, 2);
+    assert.deepEqual(
+      items.map((item) => item.selector),
+      [
+        { service: "批量文档", method: "get", path: "/orders" },
+        { service: "批量文档", method: "post", path: "/orders/{id}" },
+      ],
+    );
+    assert.match(items[0].code, /查询订单|响应 200/);
+    assert.equal(result.structuredContent.data.errors, undefined);
+  } finally {
+    if (previousCacheRoot === undefined) delete process.env.XDG_CACHE_HOME;
+    else process.env.XDG_CACHE_HOME = previousCacheRoot;
+    await rm(cacheRoot, { recursive: true, force: true });
+  }
+});
+
+test("MCP 批量生成单个 selector 失败不拖垮其他结果", async (t) => {
+  const cacheRoot = await mkdtemp(path.join(tmpdir(), "apitypegen-mcp-batch-partial-"));
+  const previousCacheRoot = process.env.XDG_CACHE_HOME;
+  process.env.XDG_CACHE_HOME = cacheRoot;
+  const documentUrl = "https://example.test/batch-partial-openapi";
+  t.mock.method(globalThis, "fetch", async () =>
+    new Response(
+      JSON.stringify({
+        openapi: "3.0.0",
+        info: { title: "部分失败文档" },
+        paths: {
+          "/orders": {
+            get: { summary: "查询订单", responses: { 200: { description: "ok" } } },
+          },
+        },
+      }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    ),
+  );
+
+  try {
+    const { executeGenerateTypescriptTool } = await import("../dist/mcp/server.js");
+    const result = await executeGenerateTypescriptTool({
+      source: { type: "openapi", url: documentUrl },
+      selectors: [
+        { method: "get", path: "/orders" },
+        { method: "get", path: "/missing" },
+      ],
+      confirmed: true,
+    });
+
+    assert.equal(result.structuredContent.ok, true);
+    const data = result.structuredContent.data;
+    assert.equal(data.items.length, 1);
+    assert.equal(data.items[0].selector.path, "/orders");
+    assert.equal(data.errors.length, 1);
+    assert.equal(data.errors[0].selector.path, "/missing");
+    assert.equal(data.errors[0].code, "API_NOT_FOUND");
+  } finally {
+    if (previousCacheRoot === undefined) delete process.env.XDG_CACHE_HOME;
+    else process.env.XDG_CACHE_HOME = previousCacheRoot;
+    await rm(cacheRoot, { recursive: true, force: true });
+  }
+});
+
+test("MCP 批量生成全部失败时返回第一个错误", async (t) => {
+  const cacheRoot = await mkdtemp(path.join(tmpdir(), "apitypegen-mcp-batch-all-fail-"));
+  const previousCacheRoot = process.env.XDG_CACHE_HOME;
+  process.env.XDG_CACHE_HOME = cacheRoot;
+  const documentUrl = "https://example.test/batch-all-fail-openapi";
+  t.mock.method(globalThis, "fetch", async () =>
+    new Response(
+      JSON.stringify({
+        openapi: "3.0.0",
+        info: { title: "全部失败文档" },
+        paths: {},
+      }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    ),
+  );
+
+  try {
+    const { executeGenerateTypescriptTool } = await import("../dist/mcp/server.js");
+    const result = await executeGenerateTypescriptTool({
+      source: { type: "openapi", url: documentUrl },
+      selectors: [
+        { method: "get", path: "/missing-a" },
+        { method: "post", path: "/missing-b" },
+      ],
+      confirmed: true,
+    });
+
+    assert.equal(result.isError, true);
+    assert.equal(result.structuredContent.ok, false);
+    assert.equal(result.structuredContent.error.code, "API_NOT_FOUND");
+  } finally {
+    if (previousCacheRoot === undefined) delete process.env.XDG_CACHE_HOME;
+    else process.env.XDG_CACHE_HOME = previousCacheRoot;
+    await rm(cacheRoot, { recursive: true, force: true });
+  }
+});
+
+test("MCP 批量生成拒绝混用参数与非法 selectors", async (t) => {
+  const documentUrl = "https://example.test/batch-invalid-openapi";
+  t.mock.method(globalThis, "fetch", async () =>
+    new Response(
+      JSON.stringify({ openapi: "3.0.0", info: { title: "校验文档" }, paths: {} }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    ),
+  );
+
+  const { executeGenerateTypescriptTool } = await import("../dist/mcp/server.js");
+  const mixed = await executeGenerateTypescriptTool({
+    source: { type: "openapi", url: documentUrl },
+    method: "get",
+    path: "/orders",
+    selectors: [{ method: "get", path: "/orders" }],
+    confirmed: true,
+  });
+  assert.equal(mixed.structuredContent.ok, false);
+  assert.equal(mixed.structuredContent.error.code, "INVALID_ARGUMENT");
+
+  const empty = await executeGenerateTypescriptTool({
+    source: { type: "openapi", url: documentUrl },
+    selectors: [],
+    confirmed: true,
+  });
+  assert.equal(empty.structuredContent.ok, false);
+  assert.equal(empty.structuredContent.error.code, "INVALID_ARGUMENT");
+
+  const badPath = await executeGenerateTypescriptTool({
+    source: { type: "openapi", url: documentUrl },
+    selectors: [{ method: "get", path: "orders" }],
+    confirmed: true,
+  });
+  assert.equal(badPath.structuredContent.ok, false);
+  assert.equal(badPath.structuredContent.error.code, "INVALID_ARGUMENT");
+
+  const unconfirmed = await executeGenerateTypescriptTool({
+    source: { type: "openapi", url: documentUrl },
+    selectors: [{ method: "get", path: "/orders" }],
+  });
+  assert.equal(unconfirmed.structuredContent.ok, false);
+  assert.equal(unconfirmed.structuredContent.error.code, "CONFIRMATION_REQUIRED");
+});
+
 test("MCP 工具把可修复执行错误返回为 isError", async () => {
   const { executeGenerateTypescriptTool } = await import("../dist/mcp/server.js");
   const result = await executeGenerateTypescriptTool({

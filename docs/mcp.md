@@ -139,7 +139,9 @@ Elicitation 让用户输入完整 URL。服务端会根据响应内容自动识�
 - `resolve_source`：在来源不明确时通过用户输入收集完整 URL，并自动识别来源类型；
 - `inspect_source`：识别用户明确提供的 URL 属于 `page`、`openapi` 还是 `swagger-config`；
 - `search_apis`：搜索接口并返回精确的接口选择器；
-- `generate_typescript`：生成该接口的模型、查询参数、请求体和响应类型。
+- `generate_typescript`：生成该接口的模型、查询参数、请求体和响应类型；也支持用
+  `selectors` 数组一次批量生成最多 25 个已确认接口，返回 `items` 逐项结果，单个
+  selector 失败会记录在 `errors` 中而不影响其他接口。
 
 AI 的标准调用流程是：
 
@@ -163,7 +165,8 @@ apitypegen doctor --url https://example.com/openapi.json
 
 `search_apis` 返回 `confirmationRequired: true`。AI 必须先向用户展示候选接口并取得明确确认，
 然后在调用 `generate_typescript` 时传入 `confirmed: true`。未确认时生成工具会返回
-`CONFIRMATION_REQUIRED`，不会读取文档或生成代码。
+`CONFIRMATION_REQUIRED`，不会读取文档或生成代码。一次确认多个接口后，可用 `selectors`
+数组一次性批量生成。
 
 ## 常见问题
 

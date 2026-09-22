@@ -30,8 +30,7 @@ import {
  */
 export type McpSwaggerSourceType = "page" | "openapi" | "swagger-config";
 
-/**
- * MCP 代码生成工具支持的 HTTP 方法。
+/** MCP 代码生成工具支持的 HTTP 方法。
  *
  * - `get`：读取资源。
  * - `post`：创建资源或提交操作。
@@ -40,6 +39,18 @@ export type McpSwaggerSourceType = "page" | "openapi" | "swagger-config";
  * - `patch`：局部更新资源。
  */
 export type McpApiMethod = "get" | "post" | "put" | "delete" | "patch";
+
+/** 批量生成时使用的单个 API 选择器。 */
+export type McpApiSelector = {
+  /** API 所属服务；单文档或唯一 API 时可省略。 */
+  service?: string;
+
+  /** API 使用的 HTTP 方法。 */
+  method: McpApiMethod;
+
+  /** API 在 OpenAPI 文档中的路径。 */
+  path: string;
+};
 
 /** MCP 工具使用的 Swagger 来源输入。 */
 export type McpSwaggerSource = {
@@ -97,11 +108,14 @@ export type GenerateTypescriptToolInput = {
   /** API 所属服务；单文档或唯一 API 时可以省略。 */
   service?: string;
 
-  /** API 使用的 HTTP 方法。 */
-  method: McpApiMethod;
+  /** API 使用的 HTTP 方法；与 selectors 互斥。 */
+  method?: McpApiMethod;
 
-  /** API 在 OpenAPI 文档中的路径。 */
-  path: string;
+  /** API 在 OpenAPI 文档中的路径；与 selectors 互斥。 */
+  path?: string;
+
+  /** 一次生成多个已确认接口的 selector 列表；与 method/path 互斥。 */
+  selectors?: McpApiSelector[];
 
   /** 是否已经向用户展示并获得该接口的明确确认；缺省按未确认处理。 */
   confirmed?: boolean;
@@ -192,6 +206,7 @@ export type McpRecovery =
 const DEFAULT_TIMEOUT_MS = 15_000;
 const OPENAPI_CACHE_TTL_MS = 5 * 60 * 1000;
 const DEFAULT_SEARCH_LIMIT = 20;
+const MAX_BATCH_SELECTORS = 25;
 
 /** MCP 客户端可读取的服务级使用说明。 */
 export const MCP_INSTRUCTIONS = `APITypeGen 用于从用户提供的接口文档地址查找 API 并生成 TypeScript 类型。所有接口查询、定位和类型生成都必须优先使用本 MCP 工具；不要打开 APITypeGen 网页或调用浏览器插件。
@@ -200,7 +215,7 @@ export const MCP_INSTRUCTIONS = `APITypeGen 用于从用户提供的接口文档
 3. resolve_source 返回 source 后，再调用 search_apis；已有明确 source.type 和 source.url 时可直接调用 search_apis。
 4. search_apis 返回候选结果后，必须把 service、method、path、summary 展示给用户并请求确认。
 5. 用户明确确认前，不得调用 generate_typescript；不得默认选择第一个结果或根据相似路径猜测。
-6. 用户确认后，原样使用已确认的 selector 调用 generate_typescript，并传入 confirmed=true。
+6. 用户确认后，原样使用已确认的 selector 调用 generate_typescript，并传入 confirmed=true；一次生成多个已确认接口时，用 selectors 数组一次传入多个 selector，同样只需 confirmed=true。
 7. 不要猜测、拼接或探测 OpenAPI、swagger-config 地址。
 8. 多服务来源默认加载全部服务；同名接口必须使用 selector.service 消除歧义。
 9. 工具失败时优先遵循 error.recovery 中可直接调用的工具和参数；ask_user 时询问用户，stop 时停止重试。
@@ -247,6 +262,12 @@ const resolveSourceDataSchema = z.object({
 
 const selectorSchema = z.object({
   service: z.string(),
+  method: z.enum(["get", "post", "put", "delete", "patch"]),
+  path: z.string(),
+});
+
+const batchSelectorSchema = z.object({
+  service: z.string().optional(),
   method: z.enum(["get", "post", "put", "delete", "patch"]),
   path: z.string(),
 });
@@ -317,7 +338,7 @@ const generatedPartsSchema = z.object({
   models: z.string(),
 });
 
-const generateDataSchema = z.object({
+const generateSingleDataSchema = z.object({
   host: z.string(),
   service: z.string().nullable(),
   documentUrl: z.string(),
@@ -366,6 +387,22 @@ const mcpRecoverySchema = z.discriminatedUnion("action", [
 const errorOutputSchema = errorSchema.extend({
   recovery: mcpRecoverySchema,
 });
+
+const generateBatchErrorSchema = z.object({
+  selector: batchSelectorSchema,
+  code: z.string(),
+  message: z.string(),
+  details: z.unknown().optional(),
+  recovery: mcpRecoverySchema.optional(),
+});
+
+const generateDataSchema = z.union([
+  generateSingleDataSchema,
+  z.object({
+    items: z.array(generateSingleDataSchema),
+    errors: z.array(generateBatchErrorSchema).optional(),
+  }),
+]);
 
 const inspectOutputSchema = {
   schemaVersion: z.literal(PROTOCOL_SCHEMA_VERSION).describe("稳定协议版本"),
@@ -749,11 +786,121 @@ async function executeSearchApisWithRecovery(input: SearchApisToolInput, server:
   }
 }
 
+/** 校验批量 selector 输入，返回规范化后的列表；未使用批量模式时返回 undefined。 */
+function normalizeBatchSelectors(input: GenerateTypescriptToolInput): McpApiSelector[] | undefined {
+  if (input.selectors === undefined) return undefined;
+  if (input.method !== undefined || input.path !== undefined || input.service !== undefined) {
+    throw new CliProtocolError(
+      "INVALID_ARGUMENT",
+      "selectors 与 method/path/service 不能同时使用，请选择单接口或批量其中一种模式。",
+      { option: "selectors", conflict: ["method", "path", "service"] },
+    );
+  }
+  if (!Array.isArray(input.selectors)) {
+    throw new CliProtocolError("INVALID_ARGUMENT", "selectors 必须是数组。", {
+      option: "selectors",
+    });
+  }
+  if (input.selectors.length === 0 || input.selectors.length > MAX_BATCH_SELECTORS) {
+    throw new CliProtocolError(
+      "INVALID_ARGUMENT",
+      `selectors 数量必须在 1 到 ${MAX_BATCH_SELECTORS} 之间。`,
+      { option: "selectors", min: 1, max: MAX_BATCH_SELECTORS, actual: input.selectors.length },
+    );
+  }
+  return input.selectors.map((selector, index) => {
+    const method = String(selector?.method || "").trim().toLowerCase();
+    if (!["get", "post", "put", "delete", "patch"].includes(method)) {
+      throw new CliProtocolError(
+        "INVALID_ARGUMENT",
+        `selectors[${index}] 的 method 无效。可选值: get, post, put, delete, patch`,
+        { option: `selectors[${index}].method`, allowedValues: ["get", "post", "put", "delete", "patch"] },
+      );
+    }
+    const pathValue = String(selector?.path || "").trim();
+    if (!pathValue.startsWith("/")) {
+      throw new CliProtocolError(
+        "INVALID_ARGUMENT",
+        `selectors[${index}] 的 path 必须以 "/" 开头。`,
+        { option: `selectors[${index}].path` },
+      );
+    }
+    const service = selector.service === undefined ? undefined : String(selector.service).trim();
+    if (service === "") {
+      throw new CliProtocolError(
+        "INVALID_ARGUMENT",
+        `selectors[${index}] 的 service 不能为空字符串。`,
+        { option: `selectors[${index}].service` },
+      );
+    }
+    return { method: method as McpApiMethod, path: pathValue, ...(service ? { service } : {}) };
+  });
+}
+
+/** 执行批量 generate_typescript；同一份来源只加载一次，单个 selector 失败不影响其他结果。 */
+async function executeGenerateTypescriptBatch(
+  input: GenerateTypescriptToolInput,
+  selectors: McpApiSelector[],
+) {
+  const context = await createSwaggerCommandContext({
+    source: input.source,
+    settings: createSettings(input),
+  });
+  const items: unknown[] = [];
+  const errors: unknown[] = [];
+  let firstError: unknown;
+  for (const selector of selectors) {
+    try {
+      items.push(generateSwaggerTypes(context, selector, "mcp"));
+    } catch (error) {
+      if (firstError === undefined) firstError = error;
+      const normalizedError = normalizeProtocolError(error);
+      if (normalizedError.code === "GENERATED_TYPESCRIPT_INVALID") {
+        await reportGeneratedTypeScriptError(
+          normalizedError.details as GeneratedTypeScriptTelemetryContext,
+        );
+      }
+      errors.push({
+        selector,
+        code: normalizedError.code,
+        message: normalizedError.message,
+        ...(normalizedError.details === undefined ? {} : { details: normalizedError.details }),
+        ...(normalizedError.recovery?.intent
+          ? { recovery: recoveryFromIntent(normalizedError.recovery.intent) }
+          : {}),
+      });
+    }
+  }
+  if (items.length === 0) {
+    throw firstError ?? new CliProtocolError("INVALID_ARGUMENT", "selectors 中没有可生成的接口。");
+  }
+  const structuredContent = createMcpSuccess(
+    "generate_typescript",
+    {
+      items,
+      ...(errors.length > 0 ? { errors } : {}),
+    },
+  );
+  return {
+    content: [{ type: "text" as const, text: createToolText(structuredContent) }],
+    structuredContent,
+  };
+}
+
 /** 执行 generate_typescript，不依赖 MCP 传输层，便于契约测试和其他适配器复用。 */
 export async function executeGenerateTypescriptTool(input: GenerateTypescriptToolInput) {
   try {
     ensureUserConfirmation(input.confirmed);
     validateToolSource(input.source, input.chromePath);
+    const selectors = normalizeBatchSelectors(input);
+    if (selectors) return await executeGenerateTypescriptBatch(input, selectors);
+    if (!input.method || !input.path) {
+      throw new CliProtocolError(
+        "INVALID_ARGUMENT",
+        "缺少必填参数: method 与 path（或改用 selectors 批量生成）。",
+        { required: ["method", "path", "selectors"] },
+      );
+    }
     const context = await createSwaggerCommandContext({
       source: input.source,
       settings: createSettings(input),
@@ -880,12 +1027,33 @@ export function createApiTypeGenMcpServer(): McpServer {
     {
       title: "生成 TypeScript API 类型",
       description:
-        "根据精确的 HTTP 方法、路径和可选服务名生成 TypeScript 模型、查询参数、请求体与响应类型。只返回代码，不写文件、不访问剪贴板。",
+        "根据精确的 HTTP 方法、路径和可选服务名生成 TypeScript 模型、查询参数、请求体与响应类型。只返回代码，不写文件、不访问剪贴板。一次生成多个已确认接口时使用 selectors 数组。",
       inputSchema: {
         source: sourceSchema,
         service: z.string().trim().min(1).optional().describe("API 所属服务名称"),
-        method: z.enum(["get", "post", "put", "delete", "patch"]).describe("HTTP 方法"),
-        path: z.string().trim().min(1).startsWith("/").describe("OpenAPI 路径"),
+        method: z
+          .enum(["get", "post", "put", "delete", "patch"])
+          .optional()
+          .describe("HTTP 方法；与 selectors 互斥"),
+        path: z
+          .string()
+          .trim()
+          .min(1)
+          .startsWith("/")
+          .optional()
+          .describe("OpenAPI 路径；与 selectors 互斥"),
+        selectors: z
+          .array(
+            z.object({
+              service: z.string().trim().min(1).optional().describe("API 所属服务名称"),
+              method: z.enum(["get", "post", "put", "delete", "patch"]).describe("HTTP 方法"),
+              path: z.string().trim().min(1).startsWith("/").describe("OpenAPI 路径"),
+            }),
+          )
+          .min(1)
+          .max(MAX_BATCH_SELECTORS)
+          .optional()
+          .describe(`一次生成多个已确认接口，1 到 ${MAX_BATCH_SELECTORS} 个；与 method/path 互斥`),
         confirmed: z
           .boolean()
           .optional()
