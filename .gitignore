@@ -15,3 +15,6 @@
 /.claude/
 /.env.glitchtip.local
 /.sentryclirc
+
+# macOS
+.DS_Store
